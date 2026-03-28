@@ -1588,7 +1588,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                                 В каталоге
                                             </div>
                                             <button class="cat-btn-icon" title="Редактировать лот" onclick="CatalogSystem.openEditMode('${r.id}', event)">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                                <span style="font-size:9px; font-weight:700; letter-spacing:0.6px; line-height:1;">DE</span>
                                             </button>
                                             <button class="cat-btn-icon" title="Редактировать внешнюю форму" onclick="CatalogSystem.openExtrinsicEditMode('${r.id}', event)">
                                                 <span style="font-size:9px; font-weight:700; letter-spacing:0.6px; line-height:1;">EX</span>
