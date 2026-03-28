@@ -123,6 +123,7 @@ module.exports.handler = async function (event, context) {
                 
                 if (rows.length > 0) {
                     const r = rows[0];
+                    const duplicateSampleNo = (r.sample_no || '') + ' (Копия)';
                     // 2. Вставляем как новую запись с новым ID
                     const queryInsert = `
                         DECLARE $id AS Utf8; DECLARE $created_at AS Timestamp;
@@ -146,7 +147,7 @@ module.exports.handler = async function (event, context) {
                         '$taster_name': TypedValues.utf8(r.taster_name || ''),
                         '$cupping_date': TypedValues.utf8(r.cupping_date || ''),
                         '$purpose': TypedValues.utf8(r.purpose || ''),
-                        '$sample_no': TypedValues.utf8((r.sample_no || '') + ' (Копия)'),
+                        '$sample_no': TypedValues.utf8(duplicateSampleNo),
                         '$roast_level': TypedValues.utf8(r.roast_level || ''),
                         '$fragrance': TypedValues.utf8(r.fragrance || ''),
                         '$aroma': TypedValues.utf8(r.aroma || ''),
@@ -171,6 +172,50 @@ module.exports.handler = async function (event, context) {
                         '$image_url': TypedValues.utf8(bodyData.imageUrl || ''),
                     '$custom_desc': TypedValues.utf8(bodyData.customDesc || '')
                     });
+
+                    const extQuery = `
+                        DECLARE $sample_no AS Utf8;
+                        SELECT sample_no, raw_green_price, form_data
+                        FROM extrinsic_results
+                        WHERE sample_no = $sample_no;
+                    `;
+                    const extRes = await session.executeQuery(extQuery, {
+                        '$sample_no': TypedValues.utf8(r.sample_no || '')
+                    });
+                    const extRows = TypedData.createNativeObjects(extRes.resultSets[0]);
+
+                    if (extRows.length > 0) {
+                        const extRow = extRows[0];
+                        let formData = extRow.form_data || extRow.formdata || {};
+
+                        if (typeof formData === 'string') {
+                            try {
+                                formData = JSON.parse(formData);
+                            } catch (e) {
+                                formData = {};
+                            }
+                        }
+
+                        if (!formData || typeof formData !== 'object') formData = {};
+                        formData['Sample No'] = duplicateSampleNo;
+
+                        const extInsertQuery = `
+                            DECLARE $sample_no AS Utf8;
+                            DECLARE $created_at AS Timestamp;
+                            DECLARE $raw_green_price AS Double;
+                            DECLARE $form_data AS JsonDocument;
+
+                            UPSERT INTO extrinsic_results (sample_no, created_at, raw_green_price, form_data)
+                            VALUES ($sample_no, $created_at, $raw_green_price, $form_data);
+                        `;
+
+                        await session.executeQuery(extInsertQuery, {
+                            '$sample_no': TypedValues.utf8(duplicateSampleNo),
+                            '$created_at': TypedValues.timestamp(new Date(createdAt)),
+                            '$raw_green_price': TypedValues.double(Number(extRow.raw_green_price || extRow.rawgreenprice) || 0),
+                            '$form_data': TypedValues.jsonDocument(JSON.stringify(formData))
+                        });
+                    }
                 }
             });
             return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
