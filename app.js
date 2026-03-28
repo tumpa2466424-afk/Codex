@@ -1590,6 +1590,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                             <button class="cat-btn-icon" title="Редактировать лот" onclick="CatalogSystem.openEditMode('${r.id}', event)">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                             </button>
+                                            <button class="cat-btn-icon" title="Редактировать внешнюю форму" onclick="CatalogSystem.openExtrinsicEditMode('${r.id}', event)">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M5 18c5.5 0 9-3.5 10-9-5.5 0-9 3.5-10 9Z"></path>
+                                                    <path d="M8 15.5c1.8-.8 3.3-2.2 4.5-4.2"></path>
+                                                    <path d="M14 5l5 5"></path>
+                                                    <path d="M12.5 6.5l5 5"></path>
+                                                </svg>
+                                            </button>
                                             <button class="cat-btn-icon" title="Дублировать лот" onclick="CatalogSystem.duplicateRow('${r.id}', event)">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                                             </button>
@@ -1670,6 +1678,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const safeSampleId = r.sample ? r.sample.toString().replace(/[^a-zA-Z0-9]/g, '_') : Math.floor(Math.random() * 10000);
                 const frontStickerId = `front-${safeSampleId}`;
                 const backStickerId = `back-${safeSampleId}`;
+                const normalizedVariety = String(variety || '').trim();
+                const firstVarietyWord = normalizedVariety && normalizedVariety !== '-'
+                    ? normalizedVariety.split(/\s+/).filter(Boolean)[0]
+                    : '';
+                const backStickerComposition = firstVarietyWord ? `Кофе ${firstVarietyWord}` : 'Кофе';
 
                 // Выводим обе наклейки рядом (flex-контейнер)
                 const stickerPreview = `
@@ -1707,7 +1720,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 </div>
 
                                 <div class="sb-info">
-                                    Состав: ${variety}<br>
+                                    Состав: ${backStickerComposition}<br>
                                     Срок годности: 1 год<br>
                                     Срок реализации: 1 месяц<br>
                                     Производитель: ИП Зуева Е.В.<br>
@@ -1840,6 +1853,205 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         <button class="lc-btn btn-save-cat" id="cat-btn-save-${r.id}" onclick="CatalogSystem.saveEdit('${r.id}')">Сохранить</button>
                     </div></div>
                 `;
+            },
+
+            getExtrinsicFieldConfig: function() {
+                return {
+                    textFields: [
+                        { section: 'farming', dom: 'country', requestKey: 'Country', productKey: 'country', label: 'Страна' },
+                        { section: 'farming', dom: 'region', requestKey: 'Region', productKey: 'region', label: 'Регион' },
+                        { section: 'farming', dom: 'farm', requestKey: 'Name of farm or Co-op', productKey: 'farm', label: 'Ферма / Кооператив' },
+                        { section: 'farming', dom: 'producer', requestKey: 'Name of Producer(s)', productKey: 'producer', label: 'Производитель' },
+                        { section: 'farming', dom: 'variety', requestKey: 'Species Variety or Varieties', productKey: 'variety', label: 'Вид / Разновидность' },
+                        { section: 'farming', dom: 'harvest', requestKey: 'Harvest Date/Year', productKey: 'harvest', label: 'Год урожая' },
+                        { section: 'farming', dom: 'otherFarming', requestKey: 'Other_Farming', productKey: 'otherFarming', label: 'Другое (Фермерство)', multiline: true },
+
+                        { section: 'processing', dom: 'processor', requestKey: 'Name of Processor(s)', productKey: 'processor', label: 'Обработчик' },
+                        { section: 'processing', dom: 'wetMill', requestKey: 'Wet Mill / Station', productKey: 'wetMill', label: 'Станция мытой обработки' },
+                        { section: 'processing', dom: 'dryMill', requestKey: 'Dry Mill', productKey: 'dryMill', label: 'Станция сухой обработки' },
+                        { section: 'processing', dom: 'otherProcessor', requestKey: 'Other_Processor', productKey: 'otherProcessor', label: 'Другое (Обработка)', multiline: true },
+                        { section: 'processing', dom: 'processType', requestKey: 'Process Type', productKey: 'processType', label: 'Тип обработки' },
+                        { section: 'processing', dom: 'otherProcessType', requestKey: 'Other_Process_Type', productKey: 'otherProcessType', label: 'Другое (Тип обработки)', multiline: true },
+                        { section: 'processing', dom: 'processDesc', requestKey: 'Process Description', productKey: 'processDesc', label: 'Описание обработки', multiline: true },
+
+                        { section: 'trading', dom: 'grade', requestKey: 'Grade', productKey: 'grade', label: 'Оценка / Грейд' },
+                        { section: 'trading', dom: 'ico', requestKey: 'ICO Number', productKey: 'ico', label: 'Номер ICO' },
+                        { section: 'trading', dom: 'importer', requestKey: 'Name of Importer', productKey: 'importer', label: 'Импортер' },
+                        { section: 'trading', dom: 'exporter', requestKey: 'Name of Exporter', productKey: 'exporter', label: 'Экспортер' },
+                        { section: 'trading', dom: 'farmGatePrice', requestKey: 'Farm Gate Price', productKey: 'farmGatePrice', label: 'Farm Gate Price' },
+                        { section: 'trading', dom: 'lotSize', requestKey: 'Lot Size', productKey: 'lotSize', label: 'Размер лота' },
+                        { section: 'trading', dom: 'otherTrading', requestKey: 'Other_Trading', productKey: 'otherTrading', label: 'Другое (Торговля)', multiline: true },
+
+                        { section: 'certs', dom: 'otherCertifications', requestKey: 'Other_Certifications', productKey: 'otherCertifications', label: 'Другие сертификаты', multiline: true },
+                        { section: 'certs', dom: 'awards', requestKey: 'Awards', productKey: 'awards', label: 'Награды', multiline: true }
+                    ],
+                    checkboxFields: [
+                        { section: 'processing', dom: 'washed', requestKey: 'Washed', productKey: 'washed', label: 'Мытая' },
+                        { section: 'processing', dom: 'natural', requestKey: 'Natural', productKey: 'natural', label: 'Натуральная' },
+                        { section: 'processing', dom: 'decaf', requestKey: 'Decaffeinated', productKey: 'decaf', label: 'Декаф' },
+
+                        { section: 'certs', dom: 'cert4C', requestKey: '4C', productKey: 'cert4C', label: '4C' },
+                        { section: 'certs', dom: 'certFairTrade', requestKey: 'Fair trade', productKey: 'certFairTrade', label: 'Fair trade' },
+                        { section: 'certs', dom: 'certOrganic', requestKey: 'Organic', productKey: 'certOrganic', label: 'Organic' },
+                        { section: 'certs', dom: 'certRainforest', requestKey: 'Rainforest Alliance', productKey: 'certRainforest', label: 'Rainforest Alliance' },
+                        { section: 'certs', dom: 'certFoodSafety', requestKey: 'Food Safety', productKey: 'certFoodSafety', label: 'Food Safety' }
+                    ]
+                };
+            },
+
+            getExtrinsicEditHtml: function(r) {
+                const esc = (value) => String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+                const { textFields, checkboxFields } = this.getExtrinsicFieldConfig();
+                const sectionOrder = ['farming', 'processing', 'trading', 'certs'];
+                const sectionTitles = {
+                    farming: 'Фермерство',
+                    processing: 'Обработка',
+                    trading: 'Торговля',
+                    certs: 'Сертификация и награды'
+                };
+
+                const renderTextField = (field) => `
+                    <div class="cupping-item ${field.multiline ? 'full-width' : ''}">
+                        <span class="cupping-label">${field.label}</span>
+                        ${field.multiline
+                            ? `<textarea id="cat-ext-${field.dom}-${r.id}" class="edit-textarea">${esc(r[field.productKey] || '')}</textarea>`
+                            : `<input type="text" id="cat-ext-${field.dom}-${r.id}" class="edit-input" value="${esc(r[field.productKey] || '')}">`
+                        }
+                    </div>
+                `;
+
+                const renderCheckboxes = (section) => {
+                    const fields = checkboxFields.filter((field) => field.section === section);
+                    if (!fields.length) return '';
+
+                    return `
+                        <div class="cupping-item full-width">
+                            <span class="cupping-label">Флаги</span>
+                            <div class="grind-options-row" style="margin-top:8px;">
+                                ${fields.map((field) => `
+                                    <label class="grind-btn" style="flex:0 0 auto; min-width:auto; display:flex; align-items:center; gap:8px; padding:8px 12px; text-transform:none;">
+                                        <input type="checkbox" id="cat-ext-${field.dom}-${r.id}" ${String(r[field.productKey] || '').trim() ? 'checked' : ''}>
+                                        <span>${field.label}</span>
+                                    </label>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                };
+
+                return `
+                    <div class="cupping-grid">
+                        <div class="cupping-item full-width">
+                            <span class="cupping-label">Название / Номер лота</span>
+                            <input type="text" class="edit-input" value="${esc(r.sample || '')}" disabled>
+                        </div>
+
+                        ${sectionOrder.map((section) => `
+                            <div class="cupping-item full-width" style="margin-top: 10px;">
+                                <span class="cupping-label" style="color: var(--locus-accent); font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 5px; display: block;">${sectionTitles[section]}</span>
+                            </div>
+                            ${textFields.filter((field) => field.section === section).map(renderTextField).join('')}
+                            ${renderCheckboxes(section)}
+                        `).join('')}
+                    </div>
+
+                    <div class="edit-actions">
+                        <button class="lc-btn btn-del-cat" onclick="CatalogSystem.cancelEdit('${r.id}')">Отмена</button>
+                        <button class="lc-btn btn-save-cat" id="cat-btn-save-ext-${r.id}" onclick="CatalogSystem.saveExtrinsicEdit('${r.id}')">Сохранить Extrinsic</button>
+                    </div>
+                `;
+            },
+
+            openExtrinsicEditMode: function(id, event) {
+                event.stopPropagation();
+                const item = document.getElementById(`cat-item-row-${id}`);
+                const contentDiv = document.getElementById(`cat-content-${id}`);
+                const adminProduct = this.ALL_PRODUCTS.find(p => p.id === id);
+                const cacheProduct = adminProduct ? ALL_PRODUCTS_CACHE.find(p => p.id === id || p.sample === adminProduct.sample) : null;
+                const product = adminProduct ? { ...adminProduct, ...(cacheProduct || {}) } : null;
+
+                if (!product) {
+                    alert('Лот не найден.');
+                    return;
+                }
+
+                if (!item.classList.contains('open')) item.classList.add('open');
+                contentDiv.innerHTML = this.getExtrinsicEditHtml(product);
+            },
+
+            saveExtrinsicEdit: async function(id) {
+                const btn = document.getElementById(`cat-btn-save-ext-${id}`);
+                if (!btn) return;
+
+                btn.disabled = true;
+                btn.textContent = 'Сохранение...';
+
+                const adminProduct = this.ALL_PRODUCTS.find(p => p.id === id);
+                const cacheProduct = adminProduct ? ALL_PRODUCTS_CACHE.find(p => p.id === id || p.sample === adminProduct.sample) : null;
+                const product = adminProduct ? { ...adminProduct, ...(cacheProduct || {}) } : null;
+
+                if (!product) {
+                    btn.disabled = false;
+                    btn.textContent = 'Сохранить Extrinsic';
+                    alert('Лот не найден.');
+                    return;
+                }
+
+                const { textFields, checkboxFields } = this.getExtrinsicFieldConfig();
+                const payload = { 'Sample No': product.sample || '' };
+
+                textFields.forEach((field) => {
+                    const el = document.getElementById(`cat-ext-${field.dom}-${id}`);
+                    payload[field.requestKey] = el ? el.value.trim() : '';
+                });
+
+                checkboxFields.forEach((field) => {
+                    const el = document.getElementById(`cat-ext-${field.dom}-${id}`);
+                    payload[field.requestKey] = el && el.checked ? '+' : '';
+                });
+
+                try {
+                    const response = await fetch(YANDEX_FUNCTION_URL + '?type=cvaext', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    if (!result.success) throw new Error(result.error || 'Сервер вернул ошибку');
+
+                    const localUpdate = {};
+                    textFields.forEach((field) => {
+                        localUpdate[field.productKey] = payload[field.requestKey] || '';
+                    });
+                    checkboxFields.forEach((field) => {
+                        localUpdate[field.productKey] = payload[field.requestKey] || '';
+                    });
+
+                    const rawPriceStr = String(payload['Farm Gate Price'] || payload['Other_Trading'] || '0')
+                        .replace(',', '.')
+                        .replace(/[^0-9.-]+/g, '');
+                    localUpdate.rawGreenPrice = parseFloat(rawPriceStr) || 0;
+
+                    const targetSample = product.sample || '';
+                    const targetCacheProduct = ALL_PRODUCTS_CACHE.find(p => p.id === id || p.sample === targetSample);
+                    if (targetCacheProduct) Object.assign(targetCacheProduct, localUpdate);
+
+                    if (adminProduct) Object.assign(adminProduct, localUpdate);
+
+                    if (currentActiveProduct && currentActiveProduct.sample === targetSample) {
+                        Object.assign(currentActiveProduct, localUpdate);
+                    }
+
+                    this.cancelEdit(id);
+                } catch (error) {
+                    alert('Ошибка сети при сохранении Extrinsic: ' + error.message);
+                    btn.disabled = false;
+                    btn.textContent = 'Сохранить Extrinsic';
+                }
             },
 
             toggleDetails: function(id) {
@@ -5038,6 +5250,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         };
 
                         const raw = { 
+                            id: r.id,
                             cuppingDate: r.cupping_date, 
                             sample: sName, 
                             roast: r.roast_level, 
