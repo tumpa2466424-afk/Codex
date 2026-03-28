@@ -1,0 +1,548 @@
+<div id="coffee-shop-wheel" class="cs-widget-container">
+    <!-- Библиотеки: Crypto (для Robokassa), Leaflet (Карты), CDEK Widget -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <!-- <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/> -->
+    <!-- <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script> -->
+    <!-- CDEK Widget 3.0 -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/@cdek-it/widget@3" type="text/javascript"></script> -->
+    
+    <!-- pdfMake для генерации прайс-листа с поддержкой кириллицы -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+   <!-- подключение библиотеки для отрисовки наклейки -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        
+    </style>
+
+    <!-- ВЕРХНИЕ КОНТРОЛЫ -->
+    <div class="top-controls">
+        <button class="icon-btn" id="btn-open-wholesale" style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--locus-dark);">
+            ОПТ
+        </button>
+
+        <button class="icon-btn" id="btn-open-admin" style="display: none; width: 24px; height: 24px; font-size: 20px; font-weight: 600; color: var(--locus-dark); font-family: sans-serif; line-height: 1; padding: 0;">
+            А
+        </button>
+
+        <button class="icon-btn" id="btn-open-cart">
+            <svg class="icon-svg" viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
+            <div class="cart-badge" id="cart-count">0</div>
+        </button>
+        <button class="icon-btn" id="btn-open-lc">
+            <svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            <span class="auth-text" id="auth-status-text">Войти</span>
+        </button>
+    </div>
+
+    <!-- PROMO POPUP -->
+    <div id="promo-popup" class="promo-popup-overlay">
+        <div class="promo-card">
+            <div class="promo-popup-title" id="promo-popup-title">Заголовок</div>
+            <div class="promo-popup-text" id="promo-popup-msg">Текст акции</div>
+            <button class="promo-popup-btn" id="btn-promo-action">ОК</button>
+            <button class="promo-popup-close" id="btn-promo-close">Закрыть</button>
+        </div>
+    </div>
+
+    <div class="wheel-area" id="wheel-zone">
+        <div id="loading-overlay" class="loader">Синхронизация...</div>
+        <div id="wheel-spinner" class="wheel-spinner"></div>
+    </div>
+
+    <div class="info-area" id="info-panel">
+        <div id="default-msg" class="info-card active">
+            <h1 class="product-title">Добро пожаловать в<br>Locus Coffee!</h1>
+            <p id="p-desc-default" style="font-size: 14px; line-height: 1.7; opacity: 0.8; font-weight: 300;">
+                Выберите сорт на колесе, чтобы изучить информацию о кофе и сделать заказ. 
+                <br>Авторизуйтесь в ЛК, чтобы получать персональные скидки и копить историю покупок.
+            </p>
+        </div>
+
+        <div id="product-info" class="info-card">
+            <div class="cupping-header">
+                <h1 id="p-title" class="product-title">Sample Name</h1>
+                <p id="p-cat-desc" style="font-size: 13px; line-height: 1.6; margin-bottom: 15px; opacity: 0.9;"></p>
+                <div id="p-simple-desc" class="simple-desc"></div>
+            </div>
+
+            <div id="p-buy-area" class="buy-area" style="flex-direction: column;">
+                <div id="p-mini-stats"></div>
+                
+                <div id="grind-selector-block" class="grind-container">
+                    <div class="grind-label">Помол</div>
+                    <div class="grind-options-row">
+                        <button class="grind-btn active" data-grind="Зерно">Зерно</button>
+                        <button class="grind-btn" data-grind="Турка">Турка</button>
+                        <button class="grind-btn" data-grind="Воронка">Воронка</button>
+                        <button class="grind-btn" data-grind="Френч-пресс">Френч-пресс</button>
+                    </div>
+                </div>
+
+                <div class="cart-action-row">
+                    <div style="display:flex; width:100%;" id="weight-selector-block">
+                        <div class="weight-toggle">
+                            <div class="weight-option selected" data-w="250">
+                                <span class="weight-label">250 г</span>
+                            </div>
+                            <div class="weight-option" data-w="1000">
+                                <span class="weight-label">1 кг</span>
+                                <span class="weight-price-diff">-15% выгода</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; justify-content: center; width: 100%;">
+                        <a id="btn-cart" href="#add-to-cart" class="btn-locus btn-cart">
+                            <span>В корзину</span>
+                            <span class="btn-price-label" id="p-price-cart">0 ₽</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="lot-desc-wrapper" style="margin-top: 25px;">
+                <div class="grind-label" style="margin-bottom: 10px;">Описание лота:</div>
+                <div class="grind-options-row" style="margin-bottom: 15px;">
+                    <button id="btn-toggle-details" class="grind-btn" style="flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px 4px; white-space: normal; line-height: 1.2; font-size: 11px;">
+                        <span>Подробное описание</span>
+                        <svg class="details-icon" style="display:none;"></svg> 
+                    </button>
+                    <button id="btn-toggle-extrinsic" class="grind-btn" style="flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px 4px; white-space: normal; line-height: 1.2; font-size: 11px;">
+                        <span>Внешнее описание</span>
+                        <svg class="details-icon" style="display:none;"></svg>
+                    </button>
+                    <button id="btn-toggle-ai" class="grind-btn" style="flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px 4px; white-space: normal; line-height: 1.2; font-size: 11px;">
+                        <span>История лота</span>
+                        <svg class="details-icon" style="display:none;"></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div id="detailed-stats-block" class="detailed-stats">
+                <div class="cupping-grid" id="cupping-data"></div>
+            </div>
+
+            <div id="extrinsic-stats-block" class="detailed-stats">
+                <div class="cupping-grid" id="extrinsic-data"></div>
+            </div>
+
+            <div id="ai-story-block" class="detailed-stats" style="position: relative;">
+                <button id="btn-regen-ai" title="Сгенерировать/Обновить" style="display:none; position:absolute; top:0; right:0; background:var(--locus-dark); color:#fff; border:none; width:24px; height:24px; border-radius:4px; font-weight:bold; cursor:pointer; z-index:10; font-size: 12px;">R</button>
+                <div id="ai-story-content" style="padding: 15px; font-size: 13px; line-height: 1.6; color: var(--locus-dark); background: rgba(255,255,255,0.5); border-radius: 8px; border: 1px solid var(--locus-border);">
+                    Загрузка...
+                </div>
+            </div>
+        </div>
+        <div class="locus-footer">
+                <div class="footer-policy">
+                    <a href="https://locus.coffee/mag?lot=%D0%9F%D0%BE%D0%BB%D0%B8%D1%82%D0%B8%D0%BA%D0%B0+++%D0%BA%D0%BE%D0%BD%D1%84%D0%B8%D0%B4%D0%B5%D0%BD%D1%86%D0%B8%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D1%81%D1%82%D0%B8" target="_blank">Политика обработки персональных данных</a>
+                </div>
+                <div class="footer-main">
+                    <div class="footer-copyright">
+                        &copy; <span id="current-year"></span> Locus Coffee Roasters
+                    </div>
+                    <div class="footer-contacts">
+                        +7 906 660-40-60 | info@locus.coffee
+                    </div>
+                    <div class="footer-socials">
+                        <a href="https://vk.com/locus.coffee" target="_blank" title="ВКонтакте">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M13.162 18.994c.609 0 .858-.406.851-.915-.031-1.917.714-2.949 2.059-1.604 1.488 1.488 1.796 2.519 3.603 2.519h3.2c.808 0 1.126-.26 1.126-.668 0-.863-1.421-2.386-2.625-3.504-1.686-1.565-1.765-1.602-.313-3.486 2.762-3.552 3.487-5.116 2.354-5.116l-3.711.019c-.383 0-.739.143-.919.591-1.353 3.42-3.32 6.046-4.148 5.753-.948-.336-.784-3.036-.784-4.291 0-1.675.297-2.344-1.229-2.714-1.077-.261-2.433-.243-3.336-.089-1.168.199-1.52.47-1.126.505 1.002.089 1.547.457 1.637 1.895.143 2.221-.303 4.254-1.294 3.992-1.667-.439-3.235-3.385-4.485-6.196-.24-.541-.497-.738-.973-.738H.58c-.534 0-.756.241-.756.577 0 .614 2.85 6.643 6.638 11.936 2.833 3.96 6.315 5.986 9.7 5.986z"/></svg>
+                        </a>
+                        <a href="https://www.instagram.com/locus.coffee" target="_blank" title="Instagram">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                        </a>
+                        <a href="https://t.me/locus_coffee" target="_blank" title="Telegram">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.223-.548.223l.188-2.85 5.18-4.686c.223-.195-.054-.285-.346-.096l-6.405 4.027-2.76-.86c-.6-.188-.614-.6.126-.89l10.81-4.17c.5-.183.945.108.805.88z"/></svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО -->
+    <div id="lc-modal" class="locus-modal">
+        <div class="locus-modal-content">
+            <button class="modal-close" id="btn-close-lc">&times;</button>
+            
+            <div id="view-login" class="auth-form-container show-view">
+                <div class="lc-title">Вход</div>
+                <input type="email" id="login-email" class="lc-input" placeholder="Email">
+                <input type="password" id="login-pass" class="lc-input" placeholder="Пароль">
+                <button class="lc-btn" id="btn-action-login">Войти</button>
+                <div class="lc-link" id="link-to-reg">Нет аккаунта? Зарегистрироваться</div>
+            </div>
+
+            <div id="view-register" class="auth-form-container">
+                <div class="lc-title">Регистрация</div>
+                <input type="email" id="reg-email" class="lc-input" placeholder="Email">
+                <input type="password" id="reg-pass" class="lc-input" placeholder="Придумайте пароль">
+                <button class="lc-btn" id="btn-action-reg">Создать аккаунт</button>
+                <div class="lc-link" id="link-to-login">Уже есть аккаунт? Войти</div>
+            </div>
+
+            <div id="view-dashboard" class="dashboard-container">
+                <div class="lc-title">Личный кабинет</div>
+                <div class="scroll-area">
+                    <div class="loyalty-section">
+                        <div class="loyalty-header"><span class="loyalty-label">Ваша скидка</span><span class="loyalty-value" id="user-discount-val">0%</span></div>
+                        <div class="progress-track"><div class="progress-fill" id="user-progress-fill"></div></div>
+                        <div class="loyalty-info" id="user-next-level">Потрачено: <span id="user-spent-val">0</span> ₽.</div>
+                    </div>
+                    
+                    <!-- USER MESSAGES SECTION -->
+                    <div id="user-messages-section">
+                        <div class="collapsible-header" onclick="UserSystem.toggleSection('user-messages')" style="border-bottom: none;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div class="section-header" style="margin:0;">Сообщения</div>
+                                <button id="btn-refresh-msgs" style="border:none; background:none; cursor:pointer;" onclick="event.stopPropagation(); MessageSystem.loadMessagesForUser();">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--locus-dark)">
+                                        <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <span class="arrow-indicator" id="arrow-user-messages">▼</span>
+                        </div>
+                        <div id="cont-user-messages" class="collapsible-content">
+                             <div id="user-messages-list" style="margin-bottom:20px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- СЕРВИС ПОДПИСОК ВРЕМЕННО ОТКЛЮЧЕН 
+<div class="collapsible-header" onclick="UserSystem.toggleSection('sub')">
+    <div class="section-header" style="margin:0;">Ваша подписка</div>
+    <span class="arrow-indicator" id="arrow-sub">▼</span>
+</div>
+<div id="cont-sub" class="collapsible-content">
+    <div id="user-subscription-list" style="margin-bottom: 20px;"></div>
+</div>
+-->
+
+                    <div class="collapsible-header" onclick="UserSystem.toggleSection('hist')">
+                        <div class="section-header" style="margin:0;">История покупок</div>
+                        <span class="arrow-indicator" id="arrow-hist">▼</span>
+                    </div>
+                    <div id="cont-hist" class="collapsible-content">
+                        <div id="user-history-list" style="margin-bottom: 20px;"></div>
+                    </div>
+                    <div class="collapsible-header" onclick="UserSystem.toggleSection('ws-hist')">
+                        <div class="section-header" style="margin:0;">Оптовые заказы</div>
+                        <span class="arrow-indicator" id="arrow-ws-hist">▼</span>
+                    </div>
+                    <div id="cont-ws-hist" class="collapsible-content hidden">
+                        <div id="user-ws-history-list" style="margin-bottom: 20px;"></div>
+                    </div>
+                    <div class="section-header" style="margin-top:20px;">Рекомендуем вам</div>
+                    <div id="user-recommendations-list"></div>
+                    <div class="feedback-area">
+                        <div class="section-header">Связь с владельцем</div>
+                        <textarea id="feedback-text" placeholder="Ваше сообщение..."></textarea>
+                        <button class="lc-btn" id="btn-send-feedback">Отправить</button>
+                    </div>
+                    <div class="lc-link" id="btn-logout" style="margin-top:20px; color:#B66A58;">Выйти</div>
+                </div>
+            </div>
+
+            <!-- ADMIN PANEL -->
+            <div id="view-admin" class="admin-container">
+                <div class="lc-title">Администратор</div>
+                <div class="admin-nav">
+                    <button class="admin-tab" onclick="UserSystem.switchAdminTab('catalog')">Каталог</button>
+                    <button class="admin-tab active" onclick="UserSystem.switchAdminTab('users')">Пользователи</button>
+                    <button class="admin-tab" onclick="UserSystem.switchAdminTab('promos')">Промокоды</button>
+                    <button class="admin-tab" onclick="UserSystem.switchAdminTab('actions')">Акции</button>
+                    <button class="admin-tab" onclick="UserSystem.switchAdminTab('messages')">Сообщения</button>
+                    <button class="admin-tab" onclick="UserSystem.switchAdminTab('subs')">Подписки</button>
+                    <button class="admin-tab" onclick="UserSystem.switchAdminTab('costs')">Расходы</button>
+                    <button class="admin-tab" onclick="UserSystem.switchAdminTab('orders')">Заказы</button>
+                    <button class="admin-tab" onclick="UserSystem.switchAdminTab('ws-orders')">Оптовые заказы</button>
+                </div>
+                <div class="scroll-area">
+                    <div id="admin-sec-catalog" class="admin-content-section">
+                        <div class="cat-tabs-header">
+                            <button class="cat-tab-btn active" onclick="CatalogSystem.switchTab('active')">В каталоге</button>
+                            <button class="cat-tab-btn" onclick="CatalogSystem.switchTab('inactive')">Каппинги</button>
+                        </div>
+                        <div id="cat-tab-active" class="cat-tab-content active">
+                            <div id="catalog-list-active"></div>
+                        </div>
+                        <div id="cat-tab-inactive" class="cat-tab-content">
+                            <div id="catalog-list-inactive"></div>
+                        </div>
+                    </div>
+                    <div id="admin-sec-users" class="admin-content-section active">
+                        <div style="opacity:0.5; font-size:12px; text-align:center; padding:20px;">Загрузка списка пользователей...</div>
+                    </div>
+                    
+                    <div id="admin-sec-promos" class="admin-content-section">
+                        <div class="admin-promo-form">
+                            <input type="text" id="new-promo-code" placeholder="Код (например SUMMER24)" class="lc-input" style="margin-bottom:10px;">
+                            <div style="display:flex; gap:10px;">
+                                <input type="number" id="new-promo-val" placeholder="Скидка" class="lc-input">
+                                <select id="new-promo-type" class="lc-input" style="width:100px;">
+                                    <option value="percent">%</option>
+                                    <option value="fixed">RUB</option>
+                                </select>
+                            </div>
+                            <button class="lc-btn" onclick="UserSystem.addPromo()">Добавить промокод</button>
+                        </div>
+                        <div class="section-header">Активные промокоды</div>
+                        <div id="admin-promo-list"></div>
+                    </div>
+
+                    <!-- ВКЛАДКА АКЦИИ -->
+                    <div id="admin-sec-actions" class="admin-content-section">
+                        <div class="admin-promo-form">
+                            <div class="section-header" style="margin-top:0;">Настройка всплывающего окна</div>
+                            <input type="text" id="action-title" placeholder="Заголовок (например: Праздник!)" class="lc-input">
+                            <textarea id="action-msg" class="lc-input" placeholder="Текст сообщения" style="height:60px; resize:none;"></textarea>
+                            
+                            <label class="lc-label">Тип акции</label>
+                            <select id="action-type" class="lc-input">
+                                <option value="info">Инфо (кнопка ОК)</option>
+                                <option value="discount">Скидка (Кнопки "Получить" и "Нет")</option>
+                            </select>
+
+                            <div id="action-code-wrapper" style="display:none;">
+                                <label class="lc-label">Промокод для скидки</label>
+                                <input type="text" id="action-promo-code" placeholder="Введите код существующего промокода" class="lc-input">
+                                <div style="display:flex; gap:10px; margin-top:10px;">
+                                    <input type="number" id="action-discount-val" placeholder="Размер скидки" class="lc-input">
+                                    <select id="action-discount-type" class="lc-input" style="width:120px;">
+                                        <option value="percent">%</option>
+                                        <option value="fixed">RUB</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <label class="lc-label">Лимит показов на человека</label>
+                            <input type="number" id="action-limit" value="1" class="lc-input">
+
+                            <div style="display:flex; gap:10px;">
+                                <div style="flex:1;">
+                                    <label class="lc-label">Дата окончания (вкл)</label>
+                                    <input type="date" id="action-date-end" class="lc-input">
+                                </div>
+                                <div style="flex:1; display:flex; align-items:flex-end;">
+                                    <label style="display:flex; align-items:center; gap:5px; font-size:12px; margin-bottom:20px;">
+                                        <input type="checkbox" id="action-is-active" checked> Активна
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <button class="lc-btn" onclick="PromotionSystem.saveAction()">Сохранить акцию</button>
+                        </div>
+                        <div class="section-header">Список акций</div>
+                        <div id="admin-actions-list"></div>
+                    </div>
+
+                    <!-- ВКЛАДКА СООБЩЕНИЯ (ADMIN) -->
+                    <div id="admin-sec-messages" class="admin-content-section">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                            <div class="section-header" style="margin:0;">Переписка с пользователями</div>
+                            <button class="icon-btn" onclick="MessageSystem.loadMessagesForAdmin()" title="Обновить">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--locus-dark)">
+                                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="admin-messages-list"></div>
+                    </div>
+
+                    <div id="admin-sec-subs" class="admin-content-section">
+                        <div class="section-header">Сводная таблица подписок</div>
+                        <table class="admin-table">
+                            <thead><tr><th>User</th><th>Сорт</th><th>Вес</th><th>Цена</th></tr></thead>
+                            <tbody id="admin-subs-table-body"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- КАЛЬКУЛЯТОР РАСХОДОВ -->
+                    <div id="admin-sec-costs" class="admin-content-section">
+                        <div style="padding: 20px; background: #fff; border-radius: 8px; border:1px solid var(--locus-border);">
+                            <div class="section-header">Загрузка финансового отчета</div>
+                            <p style="font-size:12px; margin-bottom:15px; opacity:0.8;">
+                                Загрузите CSV файл с расходами. Система автоматически рассчитает себестоимость (OPEX и переменные расходы) на основе данных файла.
+                                <br><br>
+                                <em>Примечание: Если объем производства не указан в файле, расчет будет произведен для стандартной партии 100 кг.</em>
+                            </p>
+                            
+                            <input type="file" id="cost-csv-upload" accept=".csv" class="lc-input" style="border:none; padding:0;">
+                            <button class="lc-btn" onclick="UserSystem.handleCSVUpload()">Загрузить и рассчитать</button>
+                            
+                            <div id="cost-calc-results" style="margin-top:20px; display:none; padding-top:20px; border-top:1px solid #eee;">
+                                <div class="section-header" style="margin-top:0;">Результаты расчета</div>
+                                <div style="font-size:12px; line-height:1.6;">
+                                    <div>Всего постоянные (OPEX): <b id="res-opex">0</b> ₽</div>
+                                    <div>Всего переменные (без зерна): <b id="res-var">0</b> ₽</div>
+                                    <div style="margin-top:5px; opacity:0.7;">Расчет на объем: <span id="res-vol">100</span> кг</div>
+                                    <div style="margin-top:5px; color:var(--locus-dark); font-weight:bold;">
+                                        OPEX на 1 кг: <span id="res-opex-kg">0</span> ₽<br>
+                                        Производство на 1 кг: <span id="res-var-kg">0</span> ₽
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="admin-sec-ws-orders" class="admin-content-section">
+                        <div style="padding: 20px; background: #fff; border-radius: 8px; border:1px solid var(--locus-border);">
+                            <div class="section-header">Оптовые заказы</div>
+                            <div id="admin-ws-orders-list">Загрузка...</div>
+                        </div>
+                    </div>
+                    <div id="admin-sec-orders" class="admin-content-section">
+                        <div style="padding: 20px; background: #fff; border-radius: 8px; border:1px solid var(--locus-border);">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                                <div class="section-header" style="margin:0;">Розничные заказы</div>
+                                <button class="icon-btn" onclick="UserSystem.loadRetailOrders()" title="Обновить">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--locus-dark)">
+                                        <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div id="admin-orders-list">Загрузка...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WHOLESALE PAGE (NEW) -->
+            <div id="view-wholesale" class="wholesale-container">
+                <div class="lc-title">Оптовый прайс</div>
+                <div class="scroll-area">
+                    <div class="wholesale-info-block">
+                        <strong>Актуальность:</strong> <span id="ws-date"></span><br>
+                        <strong>Курс USD:</strong> <span id="ws-usd"></span> ₽<br>
+                        <br>
+                        Минимальный заказ: <strong>5 кг</strong>.<br>
+                        Доставляем по Орлу. В регионы отправляем ТК СДЭК.<br>
+                        Варианты оплаты: 100% предоплата (стоимость 1 кг ниже), 50% на 50%, отсрочка 30 дней (стоимость 1 кг выше).
+                        <br><br>
+                        </div>
+                        
+
+                    <div id="wholesale-table-container"></div>
+
+                    <div id="wholesale-order-form" class="wholesale-info-block" style="margin-top: 20px; display: none;">
+                        <div style="display:flex; gap:10px; margin-bottom: 20px; text-align:left;">
+                            <div style="flex:1;">
+                                <label class="lc-label">Почта для связи</label>
+                                <input type="email" id="ws-order-email" class="lc-input" placeholder="example@mail.ru" style="margin-bottom:0;">
+                            </div>
+                            <div style="flex:1;">
+                                <label class="lc-label">Телефон для связи</label>
+                                <input type="tel" id="ws-order-phone" class="lc-input" placeholder="+7 900 000 00 00" style="margin-bottom:0;">
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 20px; text-align:left;">
+                            <label class="lc-label">Реквизиты для выставления счета (выделите у себя и вставьте в это поле)</label>
+                            <textarea id="ws-order-reqs" class="lc-input" placeholder="ИНН, КПП, Название компании, Юридический адрес..." style="height:60px; resize:vertical; padding-top:10px;"></textarea>
+                        </div>
+                        
+                        <div style="text-align:left; margin-bottom: 20px; border-bottom: 1px solid var(--locus-border); padding-bottom: 10px;">
+                            <div class="collapsible-header" onclick="UserSystem.toggleSection('ws-urgent')" style="padding: 5px 0; border: none; margin: 0;">
+                                <div style="font-size: 13px; font-weight: 600; color: var(--locus-dark);">Срочный зкаказ? Жмите скорее!</div>
+                                <span class="arrow-indicator rotated" id="arrow-ws-urgent">▼</span>
+                            </div>
+                            <div id="cont-ws-urgent" class="collapsible-content hidden" style="padding-top: 15px; padding-bottom: 10px;">
+                                <label style="font-size:14px; display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+                                    <input type="checkbox" id="ws-urgent-order" onchange="UserSystem.updateWholesaleTotal()">
+                                    <span>Срочный заказ (+20% к стоимости)</span>
+                                </label>
+                                <div style="margin-top: 10px; opacity: 0.8; line-height: 1.5; font-size: 10px;">
+                                    Срочный заказ — это приоритетный заказ, который выполняется первым в день заказа, и выполняется даже если он поступил после 18 часов.<br>
+                                    Отправляется заказчику в день заказа и с утра следующего дня, если он поступил после 18 часов.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+                            <div style="margin-bottom:12px; font-size:16px;">
+                                <span style="margin-right:20px;">Общий вес: <span id="ws-total-weight">0</span> кг</span>
+                                <span>Сумма: <span id="ws-total-cost">0</span> ₽</span>
+                            </div>
+                            <div id="ws-warning" style="color:#B66A58; font-size:12px; margin-bottom:12px; display:block;">Оптовый заказ доступен от 5 кг</div>
+            <button id="ws-btn-order" class="lc-btn" disabled onclick="UserSystem.submitWholesaleOrder()" style="background: var(--locus-dark); color: var(--locus-bg); width:100%; max-width:300px; padding:10px 25px;">Оформить оптовый заказ</button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- КОРЗИНА -->
+            <div id="view-cart" class="cart-container">
+                <div class="lc-title">Корзина</div>
+                
+                <div class="scroll-area">
+                    <div id="cart-items-list" class="cart-items-wrapper"></div>
+                    
+                    <div class="cart-summary" id="cart-summary-block">
+                        <div class="section-header" style="margin-top:0;">Оформление заказа</div>
+                        <input type="text" id="order-name" class="lc-input" placeholder="Ваши ФИО">
+                        <input type="tel" id="order-phone" class="lc-input" placeholder="Телефон">
+                        <input type="email" id="order-email" class="lc-input" placeholder="Ваш e-mail">
+                        
+                        <div class="section-header" style="margin-top:15px;">Доставка (СДЭК)</div>
+                        
+                        <div id="cdek-status" style="font-size:12px; margin-bottom:15px; color:var(--locus-dark); line-height: 1.4;">
+                            <span style="opacity:0.6">Стоимость доставки рассчитается после выбора ПВЗ</span>
+                        </div>
+
+                        <div id="custom-cdek-widget" style="background: rgba(255,255,255,0.6); padding: 15px; border: 1px solid var(--locus-border); border-radius: 8px; margin-bottom: 15px;">
+                            <label class="lc-label">1. Город доставки</label>
+                            <div style="position: relative; margin-bottom: 15px;">
+                                <input type="text" id="cdek-city-input" class="lc-input" placeholder="Начните вводить город..." autocomplete="off" style="margin-bottom: 0;">
+                                <div id="cdek-city-results" style="position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--locus-border); border-top: none; z-index: 100; max-height: 200px; overflow-y: auto; display: none; box-shadow: 0 10px 20px rgba(0,0,0,0.1); border-radius: 0 0 8px 8px;"></div>
+                            </div>
+
+                            <div id="cdek-pvz-wrapper" style="display: none;">
+                                <label class="lc-label">2. Пункт выдачи</label>
+                                <select id="cdek-pvz-select" class="lc-input" style="padding: 10px 0; margin-bottom: 0; background: transparent;">
+                                    <option value="">Выберите пункт выдачи...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="self-pickup-block" style="margin-bottom: 15px; padding: 15px; background: rgba(255,255,255,0.6); border: 1px solid var(--locus-border); border-radius: 8px;">
+                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--locus-dark); margin: 0;">
+                                <input type="checkbox" id="self-pickup-checkbox" onchange="UserSystem.toggleSelfPickup()" style="width: 18px; height: 18px; accent-color: #187a30;">
+                                Заберу заказ из пункта выдачи<br>(ТЦ "Атолл", Октябрьская 27)
+                            </label>
+                            
+                            <div id="self-pickup-code-block" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--locus-border);">
+                                <span style="font-size: 12px; color: gray;">Ваш код для открытия ячейки с заказом:</span>
+                                <div id="self-pickup-code" style="font-size: 24px; font-weight: bold; letter-spacing: 4px; color: #187a30; margin-top: 5px;"></div>
+                            </div>
+                        </div>
+
+                        <div class="promo-block">
+                            <input type="text" id="cart-promo-input" class="promo-input" placeholder="Введите промокод">
+                            <button class="btn-apply-promo" id="btn-apply-promo">Применить</button>
+                        </div>
+
+                        <div class="summary-row"><span>Товары</span><span id="cart-subtotal">0 ₽</span></div>
+                        <div class="summary-row"><span>Доставка</span><span id="cart-shipping-val">0 ₽</span></div>
+                        <div class="summary-row"><span>Скидка лояльности (<span id="cart-discount-percent">0</span>%)</span><span id="cart-discount-val">0 ₽</span></div>
+                        <div class="summary-row" id="row-promo-discount" style="display:none; color:#187a30;"><span>Промокод</span><span id="cart-promo-val">-0 ₽</span></div>
+                        
+                        <div class="summary-row total"><span>Итого</span><span id="cart-total">0 ₽</span></div>
+                        
+                        <div class="checkbox-row" style="margin-top: 20px; margin-bottom: 20px;">
+                            <input type="checkbox" id="policy-check">
+                            <label for="policy-check">Я согласен с обработкой персональных данных согласно <br><a href="https://locus.coffee/mag?lot=%D0%9F%D0%BE%D0%BB%D0%B8%D1%82%D0%B8%D0%BA%D0%B0+++%D0%BA%D0%BE%D0%BD%D1%84%D0%B8%D0%B4%D0%B5%D0%BD%D1%86%D0%B8%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D1%81%D1%82%D0%B8#" style="text-decoration:underline;">Политики конфиденциальности</a></label>
+                        </div>
+
+                        <button class="lc-btn" id="btn-checkout" style="margin-top: 0;">Оформить и оплатить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+       
+    </script>
+</div>
