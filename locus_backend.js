@@ -53,6 +53,28 @@ async function withSessionRetry(work) {
     }
 }
 
+async function withSingleSession(work) {
+    const dbDriver = await getDriver();
+    return dbDriver.tableClient.withSession(work);
+}
+
+const RETRYABLE_READ_ACTIONS = new Set([
+    'login',
+    'getUserData',
+    'getAdminUsers',
+    'getPromos',
+    'checkPromo',
+    'getActions',
+    'getActiveActions',
+    'getAdminMessages',
+    'getUserMessages',
+    'getAdminSubs',
+    'getPricingSettings',
+    'getAdminOrders',
+    'getAdminWholesaleOrders',
+    'getExtrinsicData'
+]);
+
 function verifyToken(token) {
     if (!token) throw new Error('Нет доступа: отсутствует токен');
     return jwt.verify(token.replace('Bearer ', ''), JWT_SECRET);
@@ -123,7 +145,9 @@ module.exports.handler = async function (event, context) {
 
         let responseData = {};
 
-        await withSessionRetry(async (session) => {
+        const runWithSession = RETRYABLE_READ_ACTIONS.has(action) ? withSessionRetry : withSingleSession;
+
+        await runWithSession(async (session) => {
             
             if (action === 'register') {
                 const { email, password } = body;
