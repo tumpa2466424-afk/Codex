@@ -1600,25 +1600,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     </div>
                                     <div class="catalog-item-content" id="cat-content-${r.id}">${this.getViewHtml(r)}</div>
                                 `;
-                                const controls = item.querySelector('.item-controls');
-                                if (controls) {
-                                    const extBtn = document.createElement('button');
-                                    extBtn.className = 'cat-btn-icon';
-                                    extBtn.title = '\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0432\u043d\u0435\u0448\u043d\u044e\u044e \u0444\u043e\u0440\u043c\u0443';
-                                    extBtn.innerHTML = `
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M5 19c5.5 0 9-3.5 10-9-5.5 0-9 3.5-10 9Z"></path>
-                                            <path d="M8 16c1.8-.7 3.4-2.2 4.6-4.3"></path>
-                                            <path d="M14.5 4.5l5 5"></path>
-                                            <path d="M13 6l5 5"></path>
-                                        </svg>
-                                    `;
-                                    extBtn.addEventListener('click', (event) => CatalogSystem.openExtrinsicEditMode(r.id, event));
-                                    const duplicateBtn = controls.querySelector('button[onclick*="CatalogSystem.duplicateRow"]');
-                                    if (duplicateBtn) controls.insertBefore(extBtn, duplicateBtn);
-                                    else controls.appendChild(extBtn);
-                                }
-
                                 container.appendChild(item);
                             });
                         }
@@ -1689,9 +1670,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const safeSampleId = r.sample ? r.sample.toString().replace(/[^a-zA-Z0-9]/g, '_') : Math.floor(Math.random() * 10000);
                 const frontStickerId = `front-${safeSampleId}`;
                 const backStickerId = `back-${safeSampleId}`;
-                const normalizedVariety = String(variety || '').trim();
-                const firstVarietyWord = normalizedVariety && normalizedVariety !== '-' ? normalizedVariety.split(/\s+/).filter(Boolean)[0] : '';
-                const backStickerComposition = firstVarietyWord ? `\u041a\u043e\u0444\u0435 ${firstVarietyWord}` : '\u041a\u043e\u0444\u0435';
 
                 // Выводим обе наклейки рядом (flex-контейнер)
                 const stickerPreview = `
@@ -1749,9 +1727,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 `;
                 // --------------------------
 
-                const stickerPreviewHtml = stickerPreview.replace(`${variety}<br>`, `${backStickerComposition}<br>`);
-
-                return stickerPreviewHtml + `
+                return stickerPreview + `
                     <div class="cupping-grid">
                         <div class="cupping-item full-width"><span class="cupping-label">Дата каппинга</span><span class="cupping-value">${r.cuppingDate || '-'}</span></div>
                         <div class="cupping-item full-width"><span class="cupping-label">Степень обжарки</span>${getScale(r.roast)}</div>
@@ -1866,107 +1842,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 `;
             },
 
-            getExtrinsicFieldConfig: function() {
-                return {
-                    textFields: [
-                        { section: 'farming', dom: 'country', requestKey: 'Country', productKey: 'country', label: '\u0421\u0442\u0440\u0430\u043d\u0430' },
-                        { section: 'farming', dom: 'region', requestKey: 'Region', productKey: 'region', label: '\u0420\u0435\u0433\u0438\u043e\u043d' },
-                        { section: 'farming', dom: 'farm', requestKey: 'Name of farm or Co-op', productKey: 'farm', label: '\u0424\u0435\u0440\u043c\u0430 / \u041a\u043e\u043e\u043f\u0435\u0440\u0430\u0442\u0438\u0432' },
-                        { section: 'farming', dom: 'producer', requestKey: 'Name of Producer(s)', productKey: 'producer', label: '\u041f\u0440\u043e\u0438\u0437\u0432\u043e\u0434\u0438\u0442\u0435\u043b\u044c' },
-                        { section: 'farming', dom: 'variety', requestKey: 'Species Variety or Varieties', productKey: 'variety', label: '\u0412\u0438\u0434 / \u0420\u0430\u0437\u043d\u043e\u0432\u0438\u0434\u043d\u043e\u0441\u0442\u044c' },
-                        { section: 'farming', dom: 'harvest', requestKey: 'Harvest Date/Year', productKey: 'harvest', label: '\u0413\u043e\u0434 \u0443\u0440\u043e\u0436\u0430\u044f' },
-                        { section: 'farming', dom: 'otherFarming', requestKey: 'Other_Farming', productKey: 'otherFarming', label: '\u0414\u0440\u0443\u0433\u043e\u0435 (\u0424\u0435\u0440\u043c\u0435\u0440\u0441\u0442\u0432\u043e)', multiline: true },
-                        { section: 'processing', dom: 'processor', requestKey: 'Name of Processor(s)', productKey: 'processor', label: '\u041e\u0431\u0440\u0430\u0431\u043e\u0442\u0447\u0438\u043a' },
-                        { section: 'processing', dom: 'wetMill', requestKey: 'Wet Mill / Station', productKey: 'wetMill', label: '\u0421\u0442\u0430\u043d\u0446\u0438\u044f \u043c\u044b\u0442\u043e\u0439 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0438' },
-                        { section: 'processing', dom: 'dryMill', requestKey: 'Dry Mill', productKey: 'dryMill', label: '\u0421\u0442\u0430\u043d\u0446\u0438\u044f \u0441\u0443\u0445\u043e\u0439 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0438' },
-                        { section: 'processing', dom: 'otherProcessor', requestKey: 'Other_Processor', productKey: 'otherProcessor', label: '\u0414\u0440\u0443\u0433\u043e\u0435 (\u041e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0430)', multiline: true },
-                        { section: 'processing', dom: 'processType', requestKey: 'Process Type', productKey: 'processType', label: '\u0422\u0438\u043f \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0438' },
-                        { section: 'processing', dom: 'otherProcessType', requestKey: 'Other_Process_Type', productKey: 'otherProcessType', label: '\u0414\u0440\u0443\u0433\u043e\u0435 (\u0422\u0438\u043f \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0438)', multiline: true },
-                        { section: 'processing', dom: 'processDesc', requestKey: 'Process Description', productKey: 'processDesc', label: '\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0438', multiline: true },
-                        { section: 'trading', dom: 'grade', requestKey: 'Grade', productKey: 'grade', label: '\u041e\u0446\u0435\u043d\u043a\u0430 / \u0413\u0440\u0435\u0439\u0434' },
-                        { section: 'trading', dom: 'ico', requestKey: 'ICO Number', productKey: 'ico', label: '\u041d\u043e\u043c\u0435\u0440 ICO' },
-                        { section: 'trading', dom: 'importer', requestKey: 'Name of Importer', productKey: 'importer', label: '\u0418\u043c\u043f\u043e\u0440\u0442\u0435\u0440' },
-                        { section: 'trading', dom: 'exporter', requestKey: 'Name of Exporter', productKey: 'exporter', label: '\u042d\u043a\u0441\u043f\u043e\u0440\u0442\u0435\u0440' },
-                        { section: 'trading', dom: 'farmGatePrice', requestKey: 'Farm Gate Price', productKey: 'farmGatePrice', label: 'Farm Gate Price' },
-                        { section: 'trading', dom: 'lotSize', requestKey: 'Lot Size', productKey: 'lotSize', label: '\u0420\u0430\u0437\u043c\u0435\u0440 \u043b\u043e\u0442\u0430' },
-                        { section: 'trading', dom: 'otherTrading', requestKey: 'Other_Trading', productKey: 'otherTrading', label: '\u0414\u0440\u0443\u0433\u043e\u0435 (\u0422\u043e\u0440\u0433\u043e\u0432\u043b\u044f)', multiline: true },
-                        { section: 'certs', dom: 'otherCertifications', requestKey: 'Other_Certifications', productKey: 'otherCertifications', label: '\u0414\u0440\u0443\u0433\u0438\u0435 \u0441\u0435\u0440\u0442\u0438\u0444\u0438\u043a\u0430\u0442\u044b', multiline: true },
-                        { section: 'certs', dom: 'awards', requestKey: 'Awards', productKey: 'awards', label: '\u041d\u0430\u0433\u0440\u0430\u0434\u044b', multiline: true }
-                    ],
-                    checkboxFields: [
-                        { section: 'processing', dom: 'washed', requestKey: 'Washed', productKey: 'washed', label: '\u041c\u044b\u0442\u0430\u044f' },
-                        { section: 'processing', dom: 'natural', requestKey: 'Natural', productKey: 'natural', label: '\u041d\u0430\u0442\u0443\u0440\u0430\u043b\u044c\u043d\u0430\u044f' },
-                        { section: 'processing', dom: 'decaf', requestKey: 'Decaffeinated', productKey: 'decaf', label: '\u0414\u0435\u043a\u0430\u0444' },
-                        { section: 'certs', dom: 'cert4C', requestKey: '4C', productKey: 'cert4C', label: '4C' },
-                        { section: 'certs', dom: 'certFairTrade', requestKey: 'Fair trade', productKey: 'certFairTrade', label: 'Fair trade' },
-                        { section: 'certs', dom: 'certOrganic', requestKey: 'Organic', productKey: 'certOrganic', label: 'Organic' },
-                        { section: 'certs', dom: 'certRainforest', requestKey: 'Rainforest Alliance', productKey: 'certRainforest', label: 'Rainforest Alliance' },
-                        { section: 'certs', dom: 'certFoodSafety', requestKey: 'Food Safety', productKey: 'certFoodSafety', label: 'Food Safety' }
-                    ]
-                };
-            },
-
-            getExtrinsicEditHtml: function(r) {
-                const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                const { textFields, checkboxFields } = this.getExtrinsicFieldConfig();
-                const sectionOrder = ['farming', 'processing', 'trading', 'certs'];
-                const sectionTitles = {
-                    farming: '\u0424\u0435\u0440\u043c\u0435\u0440\u0441\u0442\u0432\u043e',
-                    processing: '\u041e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0430',
-                    trading: '\u0422\u043e\u0440\u0433\u043e\u0432\u043b\u044f',
-                    certs: '\u0421\u0435\u0440\u0442\u0438\u0444\u0438\u043a\u0430\u0446\u0438\u044f \u0438 \u043d\u0430\u0433\u0440\u0430\u0434\u044b'
-                };
-
-                const renderTextField = (field) => `
-                    <div class="cupping-item ${field.multiline ? 'full-width' : ''}">
-                        <span class="cupping-label">${field.label}</span>
-                        ${field.multiline
-                            ? `<textarea id="cat-ext-${field.dom}-${r.id}" class="edit-textarea">${esc(r[field.productKey] || '')}</textarea>`
-                            : `<input type="text" id="cat-ext-${field.dom}-${r.id}" class="edit-input" value="${esc(r[field.productKey] || '')}">`
-                        }
-                    </div>
-                `;
-
-                const renderCheckboxes = (section) => {
-                    const fields = checkboxFields.filter(field => field.section === section);
-                    if (!fields.length) return '';
-
-                    return `
-                        <div class="cupping-item full-width">
-                            <span class="cupping-label">\u0424\u043b\u0430\u0433\u0438</span>
-                            <div class="grind-options-row" style="margin-top:8px;">
-                                ${fields.map(field => `
-                                    <label class="grind-btn" style="flex:0 0 auto; min-width:auto; display:flex; align-items:center; gap:8px; padding:8px 12px; text-transform:none;">
-                                        <input type="checkbox" id="cat-ext-${field.dom}-${r.id}" ${String(r[field.productKey] || '').trim() ? 'checked' : ''}>
-                                        <span>${field.label}</span>
-                                    </label>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                };
-
-                return `
-                    <div class="cupping-grid">
-                        <div class="cupping-item full-width">
-                            <span class="cupping-label">\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 / \u041d\u043e\u043c\u0435\u0440 \u043b\u043e\u0442\u0430</span>
-                            <input type="text" class="edit-input" value="${esc(r.sample || '')}" disabled>
-                        </div>
-                        ${sectionOrder.map(section => `
-                            <div class="cupping-item full-width" style="margin-top: 10px;">
-                                <span class="cupping-label" style="color: var(--locus-accent); font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 5px; display: block;">${sectionTitles[section]}</span>
-                            </div>
-                            ${textFields.filter(field => field.section === section).map(renderTextField).join('')}
-                            ${renderCheckboxes(section)}
-                        `).join('')}
-                    </div>
-                    <div class="edit-actions">
-                        <button class="lc-btn btn-del-cat" onclick="CatalogSystem.cancelEdit('${r.id}')">\u041e\u0442\u043c\u0435\u043d\u0430</button>
-                        <button class="lc-btn btn-save-cat" id="cat-btn-save-ext-${r.id}" onclick="CatalogSystem.saveExtrinsicEdit('${r.id}')">\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c Extrinsic</button>
-                    </div>
-                `;
-            },
-
             toggleDetails: function(id) {
                 const item = document.getElementById(`cat-item-row-${id}`);
                 if(item) {
@@ -1984,89 +1859,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 contentDiv.innerHTML = this.getEditHtml(product);
             },
 
-            openExtrinsicEditMode: function(id, event) {
-                event.stopPropagation();
-                const item = document.getElementById(`cat-item-row-${id}`);
-                const contentDiv = document.getElementById(`cat-content-${id}`);
-                const adminProduct = this.ALL_PRODUCTS.find(p => p.id === id);
-                const cacheProduct = adminProduct ? ALL_PRODUCTS_CACHE.find(p => String(p.sample || '').trim() === String(adminProduct.sample || '').trim()) : null;
-                const product = { ...(adminProduct || {}), ...(cacheProduct || {}) };
-
-                if (!product.sample) return alert('\u041b\u043e\u0442 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d.');
-                if (!item.classList.contains('open')) item.classList.add('open');
-                contentDiv.innerHTML = this.getExtrinsicEditHtml(product);
-            },
-
             cancelEdit: function(id) {
                 const contentDiv = document.getElementById(`cat-content-${id}`);
                 const product = this.ALL_PRODUCTS.find(p => p.id === id);
                 contentDiv.innerHTML = this.getViewHtml(product);
-            },
-
-            saveExtrinsicEdit: async function(id) {
-                const btn = document.getElementById(`cat-btn-save-ext-${id}`);
-                if (btn) {
-                    btn.disabled = true;
-                    btn.textContent = "\u0421\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u0438\u0435...";
-                }
-
-                const adminProduct = this.ALL_PRODUCTS.find(p => p.id === id);
-                if (!adminProduct) {
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.textContent = "\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c Extrinsic";
-                    }
-                    return alert('\u041b\u043e\u0442 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d.');
-                }
-
-                const { textFields, checkboxFields } = this.getExtrinsicFieldConfig();
-                const payload = { 'Sample No': adminProduct.sample || '' };
-
-                textFields.forEach(field => {
-                    const el = document.getElementById(`cat-ext-${field.dom}-${id}`);
-                    payload[field.requestKey] = el ? el.value.trim() : '';
-                });
-                checkboxFields.forEach(field => {
-                    const el = document.getElementById(`cat-ext-${field.dom}-${id}`);
-                    payload[field.requestKey] = el && el.checked ? '+' : '';
-                });
-
-                try {
-                    const response = await fetch(YANDEX_FUNCTION_URL + "?type=cvaext", {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    const result = await response.json();
-                    if (!result.success) throw new Error(result.error || "\u0421\u0435\u0440\u0432\u0435\u0440 \u0432\u0435\u0440\u043d\u0443\u043b \u043e\u0448\u0438\u0431\u043a\u0443");
-
-                    const localUpdate = {};
-                    textFields.forEach(field => {
-                        localUpdate[field.productKey] = payload[field.requestKey] || '';
-                    });
-                    checkboxFields.forEach(field => {
-                        localUpdate[field.productKey] = payload[field.requestKey] || '';
-                    });
-
-                    const rawPriceStr = String(payload['Farm Gate Price'] || payload['Other_Trading'] || '0').replace(',', '.').replace(/[^0-9.-]+/g, '');
-                    localUpdate.rawGreenPrice = parseFloat(rawPriceStr) || 0;
-
-                    Object.assign(adminProduct, localUpdate);
-                    const cacheProduct = ALL_PRODUCTS_CACHE.find(p => String(p.sample || '').trim() === String(adminProduct.sample || '').trim());
-                    if (cacheProduct) Object.assign(cacheProduct, localUpdate);
-                    if (currentActiveProduct && String(currentActiveProduct.sample || '').trim() === String(adminProduct.sample || '').trim()) {
-                        Object.assign(currentActiveProduct, localUpdate);
-                    }
-
-                    this.cancelEdit(id);
-                    if (window.fetchExternalData) window.fetchExternalData();
-                } catch (error) {
-                    alert("\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0442\u0438 \u043f\u0440\u0438 \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u0438\u0438 Extrinsic: " + error.message);
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.textContent = "\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c Extrinsic";
-                    }
-                }
             },
 
             saveEdit: async function(id) {
@@ -5242,7 +5038,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         };
 
                         const raw = { 
-                            id: r.id,
                             cuppingDate: r.cupping_date, 
                             sample: sName, 
                             roast: r.roast_level, 
