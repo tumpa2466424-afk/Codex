@@ -6,11 +6,52 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer'); // <-- Добавили nodemailer
 const JWT_SECRET = 'locus-coffee-super-secret-key-2026'; 
 
-const driver = new Driver({ 
-    endpoint: process.env.YDB_ENDPOINT, 
-    database: process.env.YDB_DATABASE, 
-    authService: getCredentialsFromEnv() 
-});
+let driver;
+
+async function getDriver(forceNew = false) {
+    if (forceNew && driver) {
+        try {
+            await driver.destroy();
+        } catch (e) {}
+        driver = null;
+    }
+
+    if (!driver) {
+        driver = new Driver({
+            endpoint: process.env.YDB_ENDPOINT,
+            database: process.env.YDB_DATABASE,
+            authService: getCredentialsFromEnv()
+        });
+    }
+
+    if (!await driver.ready(10000)) {
+        if (!forceNew) return getDriver(true);
+        throw new Error('YDB timeout');
+    }
+
+    return driver;
+}
+
+function isTransientYdbError(error) {
+    const msg = String(error?.message || error || '');
+    return msg.includes('UNAVAILABLE') ||
+        msg.includes('Connection dropped') ||
+        msg.includes('transport is closing') ||
+        msg.includes('Session was closed');
+}
+
+async function withSessionRetry(work) {
+    const dbDriver = await getDriver();
+
+    try {
+        return await dbDriver.tableClient.withSession(work);
+    } catch (error) {
+        if (!isTransientYdbError(error)) throw error;
+
+        const freshDriver = await getDriver(true);
+        return freshDriver.tableClient.withSession(work);
+    }
+}
 
 function verifyToken(token) {
     if (!token) throw new Error('Нет доступа: отсутствует токен');
@@ -71,7 +112,7 @@ module.exports.handler = async function (event, context) {
     if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
     try {
-        if (!await driver.ready(10000)) throw new Error('YDB timeout');
+        await getDriver();
 
         let bodyString = event.body;
         if (bodyString && event.isBase64Encoded) bodyString = Buffer.from(bodyString, 'base64').toString('utf8');
@@ -82,7 +123,7 @@ module.exports.handler = async function (event, context) {
 
         let responseData = {};
 
-        await driver.tableClient.withSession(async (session) => {
+        await withSessionRetry(async (session) => {
             
             if (action === 'register') {
                 const { email, password } = body;
