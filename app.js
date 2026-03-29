@@ -1674,13 +1674,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const frontStickerId = `front-${safeSampleId}`;
                 const backStickerId = `back-${safeSampleId}`;
                 const normalizedVariety = String(variety || '').trim();
+                const normalizedCountry = String(country || '').trim();
+                const countryParts = normalizedCountry
+                    ? normalizedCountry.split(',').map(part => part.trim()).filter(Boolean)
+                    : [];
+                const isCountryBlend = countryParts.length > 1;
                 const firstVarietyToken = normalizedVariety && normalizedVariety !== '-'
                     ? normalizedVariety.split(/\s+/).filter(Boolean)[0]
                     : '';
                 const firstVarietyWord = firstVarietyToken
                     ? firstVarietyToken.replace(/^[,.;:!?()"'\u00AB\u00BB]+|[,.;:!?()"'\u00AB\u00BB]+$/g, '')
                     : '';
-                const backStickerComposition = firstVarietyWord ? `Кофе ${firstVarietyWord}` : 'Кофе';
+                const backStickerComposition = isCountryBlend
+                    ? (normalizedVariety && normalizedVariety !== '-' ? normalizedVariety : 'Кофе')
+                    : (firstVarietyWord ? `Кофе ${firstVarietyWord}` : 'Кофе');
 
                 // Выводим обе наклейки рядом (flex-контейнер)
                 const stickerPreview = `
