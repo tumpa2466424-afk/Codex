@@ -4490,10 +4490,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             updateRetailOrderStatus: async function(orderId, newStatus) {
                 const token = localStorage.getItem('locus_token');
                 try {
-                    await fetch(LOCUS_API_URL + '?action=updateOrderStatus', {
+                    const res = await fetch(LOCUS_API_URL + '?action=updateOrderStatus', {
                         method: 'POST', headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action: 'updateOrderStatus', orderId: orderId, status: newStatus })
                     });
+                    const data = await res.json();
+                    if (!data.success) throw new Error(data.error || '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0431\u043d\u043e\u0432\u0438\u0442\u044c \u0441\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u043a\u0430\u0437\u0430');
                     this.loadRetailOrders();
                 } catch(e) { alert('Ошибка обновления статуса'); }
             },
