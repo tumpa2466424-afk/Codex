@@ -139,7 +139,20 @@ module.exports.handler = async function (event, context) {
 
         let bodyString = event.body;
         if (bodyString && event.isBase64Encoded) bodyString = Buffer.from(bodyString, 'base64').toString('utf8');
-        const body = bodyString ? JSON.parse(bodyString) : {};
+
+        let body = {};
+        if (bodyString) {
+            try {
+                body = JSON.parse(bodyString);
+            } catch (parseError) {
+                try {
+                    body = Object.fromEntries(new URLSearchParams(bodyString).entries());
+                } catch (formError) {
+                    console.error('Body parse error:', parseError.message);
+                    throw parseError;
+                }
+            }
+        }
         const action = event.queryStringParameters?.action || body.action;
         
         const rawToken = event.headers?.['x-auth-token'] || event.headers?.['X-Auth-Token'];
@@ -291,9 +304,9 @@ module.exports.handler = async function (event, context) {
                     } catch(e) {}
                 }
 
-                const outSum = params.OutSum;
-                const invId = params.InvId;
-                const sig = params.SignatureValue;
+                const outSum = params.OutSum || params.outsum || params.out_sum || params.out_summ;
+                const invId = params.InvId || params.invid || params.inv_id;
+                const sig = params.SignatureValue || params.signaturevalue || params.signature_value;
 
                 if (!outSum || !invId || !sig) {
                     responseData = { _isWebhook: true, text: 'Bad Request' };
