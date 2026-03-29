@@ -2495,7 +2495,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const welcomeDiscountVal = Math.floor((subtotal - loyaltyDiscountVal) * (welcomeBonusPercent / 100));
 
                 let totalAfterStoreDiscounts = subtotal - loyaltyDiscountVal - welcomeDiscountVal;
+                let fortuneDiscountVal = 0;
 
+                const fortuneDate = localStorage.getItem('locus_fortune_date');
+                const fortuneLot = localStorage.getItem('locus_fortune_lot');
+                if (fortuneDate === new Date().toDateString() && fortuneLot) {
+                    this.localCart.forEach(i => {
+                        if (i.item === fortuneLot) {
+                            fortuneDiscountVal += Math.floor((i.price * i.qty) * 0.10);
+                        }
+                    });
+                }
 
                 totalAfterStoreDiscounts -= fortuneDiscountVal;
 
