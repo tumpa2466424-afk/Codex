@@ -74,7 +74,8 @@ const RETRYABLE_SESSION_ACTIONS = new Set([
     'getAdminOrders',
     'getAdminWholesaleOrders',
     'getExtrinsicData',
-    'robokassaCallback'
+    'robokassaCallback',
+    'robokassaSuccess'
 ]);
 
 function verifyToken(token) {
@@ -208,6 +209,152 @@ async function syncRetailHistoryStatus(session, userId, orderId, patch) {
     });
 
     return true;
+}
+
+function matchesRobokassaSignature(outSum, invId, sig, password) {
+    if (!outSum || !invId || !sig || !password) return false;
+    const expected = crypto.createHash('md5').update(`${outSum}:${invId}:${password}`).digest('hex').toUpperCase();
+    return String(sig).toUpperCase() === expected;
+}
+
+async function finalizeRetailPayment(session, invId) {
+    const orderId = String(invId);
+    const qFindOrder = `DECLARE $id AS Utf8; SELECT userId, total, delivery, items, createdAt, customer, status FROM orders WHERE id = $id;`;
+    const { resultSets: ordRes } = await session.executeQuery(qFindOrder, { '$id': TypedValues.utf8(orderId) });
+
+    if (!ordRes[0] || ordRes[0].rows.length === 0) {
+        return { found: false, orderId };
+    }
+
+    const ord = rowToObj(ordRes[0].columns, ordRes[0].rows[0]);
+    if (ord.status !== 'paid') {
+        const qUpdOrder = `DECLARE $id AS Utf8; UPDATE orders SET status = 'paid' WHERE id = $id;`;
+        await session.executeQuery(qUpdOrder, { '$id': TypedValues.utf8(orderId) });
+        ord.status = 'paid';
+    }
+
+    const userId = ord.userid;
+    let deliveryCost = 0;
+    let delData = {};
+    try {
+        let rawDel = ord.delivery;
+        if (rawDel && rawDel.value !== undefined) rawDel = rawDel.value;
+        if (Buffer.isBuffer(rawDel)) rawDel = rawDel.toString('utf8');
+        delData = typeof rawDel === 'string' ? JSON.parse(rawDel) : (rawDel || {});
+        deliveryCost = Number(delData.finalCost) || 0;
+    } catch (e) {
+        console.error('Ошибка парсинга delivery:', e.message);
+    }
+
+    const productTotal = Number(ord.total) - deliveryCost;
+    let hasOrderInHistory = false;
+
+    if (userId) {
+        const qFindHist = `DECLARE $userId AS Utf8; SELECT history FROM users WHERE id = $userId;`;
+        const { resultSets: uRes } = await session.executeQuery(qFindHist, { '$userId': TypedValues.utf8(userId) });
+
+        let hist = [];
+        if (uRes[0] && uRes[0].rows.length > 0) {
+            const uRow = rowToObj(uRes[0].columns, uRes[0].rows[0]);
+            hist = getRawArray(uRow.history);
+        }
+
+        let parsedItems = [];
+        try {
+            let rawI = ord.items;
+            if (rawI && rawI.value !== undefined) rawI = rawI.value;
+            if (Buffer.isBuffer(rawI)) rawI = rawI.toString('utf8');
+            parsedItems = typeof rawI === 'string' ? JSON.parse(rawI) : (rawI || []);
+        } catch (e) {}
+
+        let d = new Date(getTimestampMs(ord.createdat));
+        if (isNaN(d.getTime())) d = new Date();
+        const datePart = d.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric' });
+        const timePart = d.toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' });
+
+        const newHistItem = {
+            isOrder: true,
+            orderId: orderId,
+            status: 'paid',
+            createdAt: ord.createdat,
+            date: datePart + ' ' + timePart,
+            total: ord.total,
+            items: parsedItems,
+            delivery: delData
+        };
+
+        hasOrderInHistory = hist.some(item => item && String(item.orderId || '') === orderId);
+        if (!hasOrderInHistory) hist.push(newHistItem);
+
+        if (!hasOrderInHistory) {
+            const emptyCart = JSON.stringify([]);
+            const qUpdHist = `DECLARE $userId AS Utf8; DECLARE $hist AS JsonDocument; DECLARE $cart AS JsonDocument; DECLARE $spent AS Double; UPDATE users SET history = $hist, cart = $cart, totalSpent = totalSpent + $spent WHERE id = $userId;`;
+            await session.executeQuery(qUpdHist, {
+                '$userId': TypedValues.utf8(userId),
+                '$hist': TypedValues.jsonDocument(JSON.stringify(hist)),
+                '$cart': TypedValues.jsonDocument(emptyCart),
+                '$spent': TypedValues.double(productTotal > 0 ? productTotal : 0)
+            });
+        }
+
+        let customerData = {};
+        try {
+            let rawCust = ord.customer;
+            if (rawCust && rawCust.value !== undefined) rawCust = rawCust.value;
+            if (Buffer.isBuffer(rawCust)) rawCust = rawCust.toString('utf8');
+            customerData = typeof rawCust === 'string' ? JSON.parse(rawCust) : (rawCust || {});
+        } catch (e) {}
+
+        const customerEmail = customerData.email;
+        if (!hasOrderInHistory && customerEmail && process.env.SMTP_PASSWORD) {
+            try {
+                const transporter = nodemailer.createTransport({
+                    host: 'smtp.yandex.ru',
+                    port: 465,
+                    secure: true,
+                    auth: { user: 'info@locus.coffee', pass: process.env.SMTP_PASSWORD }
+                });
+
+                let itemsHtmlList = '';
+                parsedItems.forEach(i => {
+                    itemsHtmlList += `<li style="margin-bottom: 5px;"><b>${i.item}</b> (${i.weight}г, ${i.grind}) x ${i.qty} шт. — <b>${i.price * i.qty} ₽</b></li>`;
+                });
+
+                let deliveryText = 'Уточняется';
+                if (delData.type === 'PICKUP') deliveryText = `Самовывоз (ТЦ Атолл, код: <b>${delData.code || ''}</b>)`;
+                else if (delData.city) deliveryText = `${delData.type === 'PVZ' ? 'СДЭК ПВЗ' : 'Курьер/Адрес'}: ${delData.city}${delData.address ? ', ' + delData.address : ''}`;
+
+                const mailOptions = {
+                    from: '"Locus Coffee" <info@locus.coffee>',
+                    to: customerEmail,
+                    bcc: 'info@locus.coffee',
+                    subject: `Заказ №${orderId} успешно оплачен | Locus Coffee`,
+                    html: `<div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #E5E1D8; border-radius: 8px; overflow: hidden;">
+                            <div style="background: #693a05; padding: 20px; text-align: center; color: #fff;">
+                                <h2 style="margin: 0; letter-spacing: 2px;">LOCUS COFFEE</h2>
+                            </div>
+                            <div style="padding: 20px; background: #F4F1EA;">
+                                <h3 style="margin-top: 0;">Здравствуйте, ${customerData.name || 'дорогой клиент'}!</h3>
+                                <p>Ваш заказ <b>№${orderId}</b> от ${datePart} ${timePart} успешно оплачен и передан на сборку.</p>
+                                <div style="background: #fff; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                                    <h4 style="margin-top: 0; color: #8B7E66;">Состав заказа:</h4>
+                                    <ul style="padding-left: 20px; margin: 0;">${itemsHtmlList}</ul>
+                                    <hr style="border: none; border-top: 1px dashed #ccc; margin: 15px 0;">
+                                    <p style="margin: 0;"><b>Доставка:</b> ${deliveryText} (${deliveryCost} ₽)</p>
+                                    <p style="margin: 5px 0 0 0; font-size: 18px;"><b>Итого оплачено: ${ord.total} ₽</b></p>
+                                </div>
+                            </div>
+                        </div>`
+                };
+                await transporter.sendMail(mailOptions);
+                console.log('Письмо отправлено на', customerEmail);
+            } catch (mailErr) {
+                console.error('ОШИБКА ПОЧТЫ:', mailErr.message);
+            }
+        }
+    }
+
+    return { found: true, orderId, status: 'paid', historyUpdated: !hasOrderInHistory };
 }
 
 module.exports.handler = async function (event, context) {
@@ -408,18 +555,16 @@ module.exports.handler = async function (event, context) {
             }
 
             // --- НАЧАЛО: WEBHOOK ОТ ROBOKASSA ---
-            else if (action === 'robokassaCallback') {
-                console.log('--- СТАРТ ВЕБХУКА РОБОКАССЫ ---');
-                
-                let params = event.queryStringParameters || {};
-                
-                // На случай если Робокасса пришлет данные в теле POST запроса
+            else if (action === 'robokassaCallback' || action === 'robokassaSuccess') {
+                const isWebhook = action === 'robokassaCallback';
+                let params = { ...(event.queryStringParameters || {}), ...(body || {}) };
+
                 if (!params.OutSum && event.body) {
                     try {
                         const bodyStr = event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString('utf8') : event.body;
                         const searchParams = new URLSearchParams(bodyStr);
-                        params = Object.fromEntries(searchParams.entries());
-                    } catch(e) {}
+                        params = { ...params, ...Object.fromEntries(searchParams.entries()) };
+                    } catch (e) {}
                 }
 
                 const outSum = params.OutSum || params.outsum || params.out_sum || params.out_summ;
@@ -427,153 +572,34 @@ module.exports.handler = async function (event, context) {
                 const sig = params.SignatureValue || params.signaturevalue || params.signature_value;
 
                 if (!outSum || !invId || !sig) {
-                    responseData = { _isWebhook: true, text: 'Bad Request' };
+                    responseData = isWebhook ? { _isWebhook: true, text: 'Bad Request' } : { success: false, error: 'Missing payment params' };
                     return;
                 }
 
-                const mySig = crypto.createHash('md5').update(`${outSum}:${invId}:j4zmL54MKN0SZ7tRiufa`).digest('hex').toUpperCase();
+                const validWebhookSig = matchesRobokassaSignature(outSum, invId, sig, 'j4zmL54MKN0SZ7tRiufa');
+                const validReturnSig = !isWebhook && matchesRobokassaSignature(outSum, invId, sig, 'VB3Js1HjXRqp5ahHe4p7');
 
-                if (sig.toUpperCase() === mySig) {
-                    try {
-                        // 1. Обновляем статус заказа
-                        const qUpdOrder = `DECLARE $id AS Utf8; UPDATE orders SET status = 'paid' WHERE id = $id;`;
-                        await session.executeQuery(qUpdOrder, { '$id': TypedValues.utf8(String(invId)) });
-
-                        // 2. Достаем заказ
-                        const qFindOrder = `DECLARE $id AS Utf8; SELECT userId, total, delivery, items, createdAt, customer, status FROM orders WHERE id = $id;`;
-                        const { resultSets: ordRes } = await session.executeQuery(qFindOrder, { '$id': TypedValues.utf8(String(invId)) });
-
-                        if (ordRes[0].rows.length > 0) {
-                            const ord = rowToObj(ordRes[0].columns, ordRes[0].rows[0]);
-                            const userId = ord.userid;
-                            
-                            let deliveryCost = 0;
-                            let delData = {}; // ПРАВИЛЬНАЯ ЗОНА ВИДИМОСТИ
-                            try {
-                                let rawDel = ord.delivery;
-                                if (rawDel && rawDel.value !== undefined) rawDel = rawDel.value;
-                                if (Buffer.isBuffer(rawDel)) rawDel = rawDel.toString('utf8');
-                                delData = typeof rawDel === 'string' ? JSON.parse(rawDel) : rawDel;
-                                deliveryCost = Number(delData.finalCost) || 0;
-                            } catch(e) { console.error('Ошибка парсинга delivery:', e.message); }
-
-                            const productTotal = Number(ord.total) - deliveryCost;
-                            
-                            if (userId) {
-                                // Начисляем лояльность
-                                // История клиента
-                                const qFindHist = `DECLARE $userId AS Utf8; SELECT history FROM users WHERE id = $userId;`;
-                                const { resultSets: uRes } = await session.executeQuery(qFindHist, { '$userId': TypedValues.utf8(userId) });
-                                
-                                let hist = [];
-                                if (uRes[0].rows.length > 0) {
-                                    const uRow = rowToObj(uRes[0].columns, uRes[0].rows[0]);
-                                    hist = getRawArray(uRow.history);
-                                }
-
-                                let parsedItems = [];
-                                try {
-                                    let rawI = ord.items;
-                                    if (rawI && rawI.value !== undefined) rawI = rawI.value;
-                                    if (Buffer.isBuffer(rawI)) rawI = rawI.toString('utf8');
-                                    parsedItems = typeof rawI === 'string' ? JSON.parse(rawI) : rawI;
-                                } catch(e){}
-
-                                let d = new Date(getTimestampMs(ord.createdat));
-                                if (isNaN(d.getTime())) d = new Date();
-                                const datePart = d.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric' });
-                                const timePart = d.toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' });
-
-                                const newHistItem = {
-                                    isOrder: true,
-                                    orderId: String(invId),
-                                    status: 'paid',
-                                    createdAt: ord.createdat,
-                                    date: datePart + ' ' + timePart,
-                                    total: ord.total,
-                                    items: parsedItems,
-                                    delivery: delData 
-                                };
-                                const hasOrderInHistory = hist.some(item => item && String(item.orderId || '') === String(invId));
-                                if (!hasOrderInHistory) hist.push(newHistItem);
-
-                                // Очистка корзины
-                                const emptyCart = JSON.stringify([]);
-                                const qUpdHist = `DECLARE $userId AS Utf8; DECLARE $hist AS JsonDocument; DECLARE $cart AS JsonDocument; DECLARE $spent AS Double; UPDATE users SET history = $hist, cart = $cart, totalSpent = totalSpent + $spent WHERE id = $userId;`;
-                                if (!hasOrderInHistory) await session.executeQuery(qUpdHist, { 
-                                    '$userId': TypedValues.utf8(userId), 
-                                    '$hist': TypedValues.jsonDocument(JSON.stringify(hist)),
-                                    '$cart': TypedValues.jsonDocument(emptyCart),
-                                    '$spent': TypedValues.double(productTotal > 0 ? productTotal : 0)
-                                });
-
-                                // Формируем Email
-                                let customerData = {};
-                                try {
-                                    let rawCust = ord.customer;
-                                    if (rawCust && rawCust.value !== undefined) rawCust = rawCust.value;
-                                    if (Buffer.isBuffer(rawCust)) rawCust = rawCust.toString('utf8');
-                                    customerData = typeof rawCust === 'string' ? JSON.parse(rawCust) : rawCust;
-                                } catch(e) {}
-                                
-                                const customerEmail = customerData.email; // БЕЗ DECODED.EMAIL
-
-                                if (!hasOrderInHistory && customerEmail && process.env.SMTP_PASSWORD) {
-                                    try {
-                                        const transporter = nodemailer.createTransport({
-                                            host: 'smtp.yandex.ru',
-                                            port: 465,
-                                            secure: true,
-                                            auth: { user: 'info@locus.coffee', pass: process.env.SMTP_PASSWORD }
-                                        });
-
-                                        let itemsHtmlList = '';
-                                        parsedItems.forEach(i => {
-                                            itemsHtmlList += `<li style="margin-bottom: 5px;"><b>${i.item}</b> (${i.weight}г, ${i.grind}) x ${i.qty} шт. — <b>${i.price * i.qty} ₽</b></li>`;
-                                        });
-
-                                        let deliveryText = 'Уточняется';
-                                        if (delData.type === 'PICKUP') deliveryText = `Самовывоз (ТЦ Атолл, код: <b>${delData.code}</b>)`;
-                                        else if (delData.city) deliveryText = `${delData.type === 'PVZ' ? 'СДЭК ПВЗ' : 'Курьер/Адрес'}: ${delData.city}, ${delData.address}`;
-
-                                        const mailOptions = {
-                                            from: '"Locus Coffee" <info@locus.coffee>',
-                                            to: customerEmail,
-                                            bcc: 'info@locus.coffee',
-                                            subject: `Заказ №${invId} успешно оплачен | Locus Coffee`,
-                                            html: `<div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #E5E1D8; border-radius: 8px; overflow: hidden;">
-                                                    <div style="background: #693a05; padding: 20px; text-align: center; color: #fff;">
-                                                        <h2 style="margin: 0; letter-spacing: 2px;">LOCUS COFFEE</h2>
-                                                    </div>
-                                                    <div style="padding: 20px; background: #F4F1EA;">
-                                                        <h3 style="margin-top: 0;">Здравствуйте, ${customerData.name || 'дорогой клиент'}!</h3>
-                                                        <p>Ваш заказ <b>№${invId}</b> от ${datePart} ${timePart} успешно оплачен и передан на сборку.</p>
-                                                        <div style="background: #fff; padding: 15px; border-radius: 6px; margin: 20px 0;">
-                                                            <h4 style="margin-top: 0; color: #8B7E66;">Состав заказа:</h4>
-                                                            <ul style="padding-left: 20px; margin: 0;">${itemsHtmlList}</ul>
-                                                            <hr style="border: none; border-top: 1px dashed #ccc; margin: 15px 0;">
-                                                            <p style="margin: 0;"><b>Доставка:</b> ${deliveryText} (${deliveryCost} ₽)</p>
-                                                            <p style="margin: 5px 0 0 0; font-size: 18px;"><b>Итого оплачено: ${ord.total} ₽</b></p>
-                                                        </div>
-                                                    </div>
-                                                </div>`
-                                        };
-                                        await transporter.sendMail(mailOptions);
-                                        console.log('Письмо отправлено на', customerEmail);
-                                    } catch (mailErr) {
-                                        console.error("ОШИБКА ПОЧТЫ:", mailErr.message);
-                                    }
-                                }
-                            }
-                        }
-                    } catch (dbErr) {
-                        console.error('КРИТИЧЕСКАЯ ОШИБКА БД:', dbErr.message);
-                        console.error(dbErr.stack);
-                    }
-                    responseData = { _isWebhook: true, text: `OK${invId}` };
-                } else {
-                    responseData = { _isWebhook: true, text: 'Bad signature' };
+                if (!validWebhookSig && !validReturnSig) {
+                    responseData = isWebhook ? { _isWebhook: true, text: 'Bad signature' } : { success: false, error: 'Invalid payment signature' };
+                    return;
                 }
+
+                try {
+                    const finalizeResult = await finalizeRetailPayment(session, invId);
+                    if (!finalizeResult.found) {
+                        responseData = isWebhook ? { _isWebhook: true, text: 'Order not found' } : { success: false, error: 'Order not found' };
+                        return;
+                    }
+                } catch (dbErr) {
+                    console.error('КРИТИЧЕСКАЯ ОШИБКА БД:', dbErr.message);
+                    console.error(dbErr.stack);
+                    responseData = isWebhook ? { _isWebhook: true, text: 'Temporary DB error' } : { success: false, error: 'Temporary DB error' };
+                    return;
+                }
+
+                responseData = isWebhook
+                    ? { _isWebhook: true, text: `OK${invId}` }
+                    : { success: true, orderId: String(invId), status: 'paid' };
             }
             // --- КОНЕЦ: WEBHOOK ОТ ROBOKASSA ---
 
