@@ -5439,9 +5439,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 // НАСТРОЙКА СТРЕЛОК
                 let arrowSymbol = '';
                 if (this.currentStep === 0) {
-                    arrowSymbol = isDesktop ? 'рџ‘€' : 'рџ‘†'; 
+                    arrowSymbol = isDesktop ? '\uD83D\uDC48' : '\uD83D\uDC46'; 
                 } else if (this.currentStep === 1) {
-                    arrowSymbol = isDesktop ? 'рџ‘‰' : 'рџ‘‡'; 
+                    arrowSymbol = isDesktop ? '\uD83D\uDC49' : '\uD83D\uDC47'; 
                 }
                 
                 arrowEl.textContent = arrowSymbol;
