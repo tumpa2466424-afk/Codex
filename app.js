@@ -2382,6 +2382,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             // WHOLESALE & PRICING
             pricingSettings: null,
             usdRate: 0,
+            userDataLoaded: false,
+            retailCountdownInterval: null,
+            retailCountdownPendingUpdates: {},
 
             init: function() {
                 const savedCart = localStorage.getItem('locus_cart');
@@ -2398,6 +2401,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     try {
                         const payload = JSON.parse(atob(token.split('.')[1])); 
                         this.uid = payload.userId;
+                        this.userDataLoaded = false;
                         this.currentUser = { id: this.uid, email: payload.email, totalSpent: 0, cart: [], history: [], subscription: [] }; 
                         this.updateUIState();
                         
@@ -2417,6 +2421,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     }
                 } else {
                     this.uid = null;
+                    this.userDataLoaded = false;
                     this.currentUser = null; 
                     this.updateUIState();
                     const btnAdmin = document.getElementById('btn-open-admin');
@@ -2470,6 +2475,217 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         this.toggleModal(true, 'login');
                     }
                 });
+            },
+
+            hasWelcomeFirstOrderBonus: function() {
+                if (!this.userDataLoaded || !this.currentUser) return false;
+                const history = Array.isArray(this.currentUser.history) ? this.currentUser.history : [];
+                return !history.some(item => item && item.isOrder && item.status !== 'pending_payment');
+            },
+
+            getRetailDiscountBreakdown: function(subtotal) {
+                let loyaltyPercent = 0;
+                if (this.currentUser) {
+                    loyaltyPercent = Math.floor((this.currentUser.totalSpent || 0) / 3000);
+                    if (loyaltyPercent > 15) loyaltyPercent = 15;
+                }
+
+                const loyaltyDiscountVal = Math.floor(subtotal * (loyaltyPercent / 100));
+                const welcomeBonusPercent = this.hasWelcomeFirstOrderBonus() ? 10 : 0;
+                const welcomeDiscountVal = Math.floor((subtotal - loyaltyDiscountVal) * (welcomeBonusPercent / 100));
+
+                let totalAfterStoreDiscounts = subtotal - loyaltyDiscountVal - welcomeDiscountVal;
+
+
+                totalAfterStoreDiscounts -= fortuneDiscountVal;
+
+                return {
+                    loyaltyPercent,
+                    loyaltyDiscountVal,
+                    welcomeBonusPercent,
+                    welcomeDiscountVal,
+                    fortuneDiscountVal,
+                    totalAfterStoreDiscounts
+                };
+            },
+
+            getOrderCreatedAtMs: function(order) {
+                if (!order) return 0;
+
+                const parseTs = (value) => {
+                    if (value === null || value === undefined || value === '') return 0;
+                    if (value instanceof Date) return value.getTime();
+
+                    if (typeof value === 'number') {
+                        if (!isNaN(value)) return value < 3000000000 ? value * 1000 : value;
+                        return 0;
+                    }
+
+                    if (typeof value === 'string') {
+                        const trimmed = value.trim();
+                        if (!trimmed) return 0;
+
+                        const numeric = Number(trimmed);
+                        if (!isNaN(numeric)) return numeric < 3000000000 ? numeric * 1000 : numeric;
+
+                        const ruMatch = trimmed.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?$/);
+                        if (ruMatch) {
+                            const day = Number(ruMatch[1]);
+                            const month = Number(ruMatch[2]);
+                            const year = Number(ruMatch[3]);
+                            const hour = Number(ruMatch[4] || '0');
+                            const minute = Number(ruMatch[5] || '0');
+                            return Date.UTC(year, month - 1, day, hour - 3, minute, 0);
+                        }
+
+                        const parsed = new Date(trimmed).getTime();
+                        return isNaN(parsed) ? 0 : parsed;
+                    }
+
+                    return 0;
+                };
+
+                return parseTs(order.createdAt) || parseTs(order.createdat) || parseTs(order.orderId) || parseTs(order.invId) || parseTs(order.date);
+            },
+
+            getPvzDeadlineMs: function(createdAtMs) {
+                if (!createdAtMs) return 0;
+
+                const formatter = new Intl.DateTimeFormat('en-GB', {
+                    timeZone: 'Europe/Moscow',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hourCycle: 'h23'
+                });
+
+                const parts = formatter.formatToParts(new Date(createdAtMs));
+                const getPart = (type) => Number(parts.find(p => p.type === type)?.value || 0);
+
+                const year = getPart('year');
+                const month = getPart('month');
+                const day = getPart('day');
+                const hour = getPart('hour');
+                const daysToAdd = hour < 18 ? 1 : 2;
+
+                return Date.UTC(year, month - 1, day + daysToAdd, 15, 0, 0);
+            },
+
+            formatCountdownText: function(remainingMs) {
+                const safeMs = Math.max(0, remainingMs);
+                const totalSeconds = Math.floor(safeMs / 1000);
+                const totalHours = Math.floor(totalSeconds / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                const seconds = totalSeconds % 60;
+                return `${String(totalHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            },
+
+            getPvzCountdownInfo: function(order) {
+                if (!order || !order.delivery || order.delivery.type !== 'PVZ') return null;
+
+                const doneStatuses = ['pvz_delivered', 'completed'];
+                if (doneStatuses.includes(order.status)) {
+                    return { active: false, delivered: true, label: 'Доставлено в пункт выдачи' };
+                }
+
+                const createdAtMs = this.getOrderCreatedAtMs(order);
+                if (!createdAtMs) return null;
+
+                const deadlineMs = this.getPvzDeadlineMs(createdAtMs);
+                if (!deadlineMs) return null;
+
+                const remainingMs = deadlineMs - Date.now();
+                return {
+                    active: remainingMs > 0,
+                    expired: remainingMs <= 0,
+                    deadlineMs,
+                    remainingMs,
+                    label: remainingMs > 0 ? this.formatCountdownText(remainingMs) : '00:00:00'
+                };
+            },
+
+            startRetailCountdownTicker: function() {
+                if (this.retailCountdownInterval) return;
+                this.retailCountdownInterval = setInterval(() => this.refreshRetailCountdowns(), 1000);
+                this.refreshRetailCountdowns();
+            },
+
+            stopRetailCountdownTicker: function() {
+                if (this.retailCountdownInterval) {
+                    clearInterval(this.retailCountdownInterval);
+                    this.retailCountdownInterval = null;
+                }
+            },
+
+            refreshRetailCountdowns: function() {
+                const timers = document.querySelectorAll('[data-retail-order-countdown="1"]');
+                if (!timers.length) {
+                    this.stopRetailCountdownTicker();
+                    return;
+                }
+
+                timers.forEach(el => {
+                    const deadlineMs = Number(el.getAttribute('data-deadline-ms') || '0');
+                    const orderId = el.getAttribute('data-order-id') || '';
+                    const autoStatus = el.getAttribute('data-auto-status') === '1';
+                    if (!deadlineMs) return;
+
+                    const remainingMs = deadlineMs - Date.now();
+                    if (remainingMs > 0) {
+                        el.textContent = `До ПВЗ: ${this.formatCountdownText(remainingMs)}`;
+                        return;
+                    }
+
+                    el.textContent = 'Доставлено в пункт выдачи';
+                    if (autoStatus && orderId) this.autoDeliverPvzOrder(orderId);
+                });
+            },
+
+            syncExpiredPvzOrdersFromHistory: function() {
+                if (!this.currentUser || !Array.isArray(this.currentUser.history)) return;
+                this.currentUser.history.forEach(item => {
+                    const countdownInfo = this.getPvzCountdownInfo(item);
+                    if (countdownInfo && countdownInfo.expired) {
+                        this.autoDeliverPvzOrder(item.orderId);
+                    }
+                });
+            },
+
+            autoDeliverPvzOrder: async function(orderId) {
+                if (!orderId || this.retailCountdownPendingUpdates[orderId]) return;
+
+                const order = (this.currentUser?.history || []).find(item => item && String(item.orderId || '') === String(orderId));
+                if (!order) return;
+
+                const countdownInfo = this.getPvzCountdownInfo(order);
+                if (!countdownInfo || !countdownInfo.expired) return;
+
+                this.retailCountdownPendingUpdates[orderId] = true;
+                const token = localStorage.getItem('locus_token');
+
+                try {
+                    const res = await fetch(LOCUS_API_URL + '?action=autoDeliverPvzOrder', {
+                        method: 'POST',
+                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'autoDeliverPvzOrder', orderId: orderId })
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.success) throw new Error(data.error || 'Не удалось обновить статус заказа');
+
+                    const historyItem = (this.currentUser.history || []).find(item => item && String(item.orderId || '') === String(orderId));
+                    if (historyItem) historyItem.status = 'pvz_delivered';
+
+                    if (document.getElementById('lc-modal')?.classList.contains('active')) {
+                        this.renderDashboard();
+                    }
+                } catch (e) {
+                    console.error('Ошибка автообновления статуса ПВЗ', e);
+                } finally {
+                    delete this.retailCountdownPendingUpdates[orderId];
+                }
             },
 
             // --- PRICING LOGIC ---
@@ -3359,6 +3575,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         this.currentUser.cart = parseSafe(this.currentUser.cart);
                         this.currentUser.history = parseSafe(this.currentUser.history);
                         this.currentUser.subscription = parseSafe(this.currentUser.subscription);
+                        this.userDataLoaded = true;
 
                         const pendingPaymentOrderId = localStorage.getItem('locus_pending_payment_order_id');
                         const paidPendingOrder = pendingPaymentOrderId && this.currentUser.history.some(h => h && String(h.orderId || '') === String(pendingPaymentOrderId) && h.status !== 'pending_payment');
@@ -3380,6 +3597,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         }
                         
                         this.updateCartBadge();
+                        this.syncExpiredPvzOrdersFromHistory();
                         let spent = parseFloat(this.currentUser.totalSpent);
                         if(isNaN(spent) || spent > 1000000000) spent = 0;
                         this.currentUser.totalSpent = spent;
@@ -3418,6 +3636,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                            JSON.stringify(serverData.cart) !== JSON.stringify(this.localCart)) {
                             
                             this.currentUser = serverData;
+                            this.userDataLoaded = true;
                             const pendingPaymentOrderId = localStorage.getItem('locus_pending_payment_order_id');
                             const paidPendingOrder = pendingPaymentOrderId && serverData.history.some(h => h && String(h.orderId || '') === String(pendingPaymentOrderId) && h.status !== 'pending_payment');
                             
@@ -3432,6 +3651,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 this.updateCartBadge();
                             }
                             
+                            this.syncExpiredPvzOrdersFromHistory();
+
                             if(document.getElementById('lc-modal').classList.contains('active')) {
                                 this.renderDashboard();
                                 if(document.getElementById('view-cart').classList.contains('show-view')) { this.renderCart(); }
@@ -3661,6 +3882,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                     html += `</tbody></table></div>`;
                     container.innerHTML = html;
+                    this.startRetailCountdownTicker();
 
                 } catch(e) {
                     console.error(e);
@@ -3982,6 +4204,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     });
                     html += '</tbody></table></div>';
                     container.innerHTML = html;
+                    this.startRetailCountdownTicker();
                 } catch(e) { container.innerHTML = '<div style="color:red; font-size:12px;">Ошибка загрузки</div>'; console.error(e); }
             },
             loadRetailOrders: async function() {
@@ -4011,6 +4234,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         const datePart = new Date(o.invId * 1000).toLocaleString('ru-RU');
                         const customer = o.customer || {};
                         const delivery = o.delivery || {};
+                        const countdownInfo = this.getPvzCountdownInfo(o);
+                        const countdownHtml = countdownInfo ? `
+                            <div data-retail-order-countdown="1" data-order-id="${o.id}" data-deadline-ms="${countdownInfo.deadlineMs || 0}" data-auto-status="0" style="margin-top:8px; font-size:11px; color:${countdownInfo.delivered ? '#187a30' : '#8B7E66'}; font-weight:600;">
+                                ${countdownInfo.delivered ? 'Доставлено в пункт выдачи' : `До ПВЗ: ${countdownInfo.label}`}
+                            </div>
+                        ` : '';
                         
                         const itemsHtml = (o.items || []).map(i => {
                             const meta = ProductManager.getDisplayMeta(i.item, i.weight, i.grind);
@@ -4025,7 +4254,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         
                         let rowStyle = '';
                         if (o.status === 'pending_payment') rowStyle = 'background-color:#fef6f5;';
-                        else if (o.status === 'completed' || o.status === 'shipped') rowStyle = 'background-color:#f0f0f0; opacity: 0.6;'; 
+                        else if (o.status === 'completed' || o.status === 'shipped' || o.status === 'pvz_delivered') rowStyle = 'background-color:#f0f0f0; opacity: 0.6;';
 
                         html += `<tr style="${rowStyle}">
                             <td style="vertical-align:top; padding-top:10px; font-size:12px; line-height:1.4;">
@@ -4034,6 +4263,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 <div style="margin-top:8px;"><b>${customer.name || 'Без ФИО'}</b></div>
                                 <div style="color:gray;">${customer.phone || ''}</div>
                                 <div style="color:gray;">${customer.email || ''}</div>
+                                ${countdownHtml}
                             </td>
                             <td style="vertical-align:top; padding-top:10px; font-size:12px; line-height:1.5;">
                                 ${itemsHtml}
@@ -4054,6 +4284,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             </td>
                             <td style="vertical-align:top; padding-top:10px;">
                                 <select class="lc-input" style="padding:4px; font-size:11px; margin:0; width:100%;" onchange="UserSystem.updateRetailOrderStatus('${o.id}', this.value)">
+                                    <option value="pvz_delivered" ${o.status === 'pvz_delivered' ? 'selected' : ''}>Доставлено в пункт выдачи</option>
                                     <option value="pending_payment" ${o.status === 'pending_payment' ? 'selected' : ''}>Не оплачен</option>
                                     <option value="paid" ${o.status === 'paid' ? 'selected' : ''}>Оплачен</option>
                                     <option value="processing" ${o.status === 'processing' ? 'selected' : ''}>В сборке</option>
@@ -4249,28 +4480,32 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             updateCartTotals: function() {
                 let subtotal = 0;
                 this.localCart.forEach(i => subtotal += (i.price * i.qty));
-                let discountPercent = 0;
-                if(this.currentUser) {
-                    discountPercent = Math.floor(this.currentUser.totalSpent / 3000);
-                    if(discountPercent > 15) discountPercent = 15;
-                }
+                const breakdown = this.getRetailDiscountBreakdown(subtotal);
+                const discountPercent = breakdown.loyaltyPercent;
+                const loyaltyDiscountVal = breakdown.loyaltyDiscountVal;
+                const welcomeBonusPercent = breakdown.welcomeBonusPercent;
+                const welcomeDiscountVal = breakdown.welcomeDiscountVal;
+                const fortuneDiscountVal = breakdown.fortuneDiscountVal;
+                let totalAfterLoyalty = breakdown.totalAfterStoreDiscounts + fortuneDiscountVal;
                 
-                let loyaltyDiscountVal = Math.floor(subtotal * (discountPercent / 100));
-                let totalAfterLoyalty = subtotal - loyaltyDiscountVal;
                 // --- СКИДКА УДАЧИ ---
-                let fortuneDiscountVal = 0;
-                const fortuneDate = localStorage.getItem('locus_fortune_date');
-                const fortuneLot = localStorage.getItem('locus_fortune_lot');
-                if (fortuneDate === new Date().toDateString() && fortuneLot) {
-                    this.localCart.forEach(i => {
-                        if (i.item === fortuneLot) {
-                            fortuneDiscountVal += Math.floor((i.price * i.qty) * 0.10);
-                        }
-                    });
-                }
                 totalAfterLoyalty -= fortuneDiscountVal; // Вычитаем удачу из Итого
                 
                 // Динамически добавляем строчку в интерфейс корзины
+                let rowWelcome = document.getElementById('row-welcome-discount');
+                if (!rowWelcome) {
+                    const loyaltyRow = document.getElementById('row-discount');
+                    if (loyaltyRow && loyaltyRow.parentNode) {
+                        rowWelcome = document.createElement('div');
+                        rowWelcome.className = 'summary-row';
+                        rowWelcome.id = 'row-welcome-discount';
+                        rowWelcome.style.color = '#187a30';
+                        rowWelcome.style.display = 'none';
+                        rowWelcome.innerHTML = `<span>Приветственный бонус</span><span id="cart-welcome-val">-0 ₽</span>`;
+                        loyaltyRow.parentNode.insertBefore(rowWelcome, loyaltyRow.nextSibling);
+                    }
+                }
+
                 let rowFortune = document.getElementById('row-fortune-discount');
                 if (!rowFortune) {
                     const promoRow = document.getElementById('row-promo-discount');
@@ -4282,6 +4517,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         rowFortune.style.display = 'none';
                         rowFortune.innerHTML = `<span>Скидка удачи</span><span id="cart-fortune-val">-0 ₽</span>`;
                         promoRow.parentNode.insertBefore(rowFortune, promoRow.nextSibling);
+                    }
+                }
+                if (rowWelcome) {
+                    if (welcomeDiscountVal > 0) {
+                        rowWelcome.style.display = 'flex';
+                        document.getElementById('cart-welcome-val').textContent = `-${welcomeDiscountVal} ₽ (${welcomeBonusPercent}%)`;
+                    } else {
+                        rowWelcome.style.display = 'none';
                     }
                 }
                 if (rowFortune) {
@@ -4391,9 +4634,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 let subtotal = 0;
                 this.localCart.forEach(i => subtotal += (i.price * i.qty));
-                let discountPercent = Math.floor(this.currentUser.totalSpent / 3000);
-                if(discountPercent > 15) discountPercent = 15;
-                let total = subtotal - Math.floor(subtotal * (discountPercent / 100));
+                const breakdown = this.getRetailDiscountBreakdown(subtotal);
+                const discountPercent = breakdown.loyaltyPercent;
+                const welcomeBonusPercent = breakdown.welcomeBonusPercent;
+                let total = breakdown.totalAfterStoreDiscounts;
 
                 let shippingCost = this.cdekPrice;
                 if (total >= 3000) shippingCost = 0;
@@ -4528,6 +4772,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 logout: async function() {
                     localStorage.removeItem('locus_token');
+                    this.stopRetailCountdownTicker();
+                    this.userDataLoaded = false;
                     this.currentUser = null; this.uid = null; this.localCart = []; 
                     this.saveCart(false); this.updateCartBadge(); this.updateUIState(); this.switchView('login');
                 },
@@ -4695,6 +4941,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         }
                     }
 
+                    if (elNext && this.hasWelcomeFirstOrderBonus()) {
+                        elNext.innerHTML += `<br><span style="font-size:10px; color:#187a30; margin-top:6px; display:inline-block;">Приветственный бонус: 10% на первую покупку.</span>`;
+                    }
+
                     const isAdmin = (u.email === 'info@locus.coffee');
                     const feedbackArea = document.querySelector('.feedback-area');
                     const msgSection = document.getElementById('user-messages-section');
@@ -4813,6 +5063,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                                 // --- НАШ НОВЫЙ БЛОК СО СТАТУСАМИ ---
                                 const statusMap = {
+                                    'pvz_delivered': '<span style="color:#187a30;">Доставлено в пункт выдачи</span>',
                                     'pending_payment': '<span style="color:#B66A58;">Не оплачен</span>',
                                     'paid': '<span style="color:#187a30;">Оплачен</span>',
                                     'processing': '<span style="color:#8B7E66;">В сборке</span>',
@@ -4822,6 +5073,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 const displayStatus = hItem.status ? (statusMap[hItem.status] || hItem.status) : '<span style="color:#B66A58;">Не оплачен</span>';
                                 // -----------------------------------
                                 
+                                const countdownInfo = !isWholesale ? this.getPvzCountdownInfo(hItem) : null;
+                                const countdownHtml = countdownInfo ? `
+                                    <div data-retail-order-countdown="1" data-order-id="${hItem.orderId}" data-deadline-ms="${countdownInfo.deadlineMs || 0}" data-auto-status="${countdownInfo.delivered ? '0' : '1'}" style="margin-top:6px; font-size:11px; color:${countdownInfo.delivered ? '#187a30' : '#8B7E66'}; font-weight:600;">
+                                        ${countdownInfo.delivered ? 'Доставлено в пункт выдачи' : `До ПВЗ: ${countdownInfo.label}`}
+                                    </div>
+                                ` : '';
+
                                 let pickupHtml = '';
                                 if (hItem.delivery && hItem.delivery.type === 'PICKUP') {
                                     pickupHtml = `
@@ -4846,6 +5104,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     <div style="margin-bottom:15px;">
                                         ${itemsHtml}
                                     </div>
+                                    ${countdownHtml}
                                     ${pickupHtml}
                                     <div style="display:flex; gap:10px; justify-content:flex-end;">
                                         <button class="btn-small-reorder btn-repeat-order" style="padding:8px 15px; font-size:10px;">Повторить заказ</button>
@@ -4938,6 +5197,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     // Вызываем отрисовку для двух списков раздельно
                     renderOrdersList(histCont, h => !h.isWholesaleOrder, false); // Розничные
                     renderOrdersList(wsHistCont, h => h.isWholesaleOrder, true); // Оптовые
+                    this.startRetailCountdownTicker();
                     // -----------------------------------------------------------------
                     this.renderRecommendations();
                 } catch(e) { console.error(e); }
