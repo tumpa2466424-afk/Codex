@@ -2477,8 +2477,27 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 });
             },
 
+            getWelcomeBonusStorageKey: function(userId = this.uid) {
+                return userId ? `locus_welcome_bonus_${userId}` : '';
+            },
+
+            syncWelcomeBonusFlag: function() {
+                if (!this.currentUser || !this.uid) return;
+                const key = this.getWelcomeBonusStorageKey();
+                if (!key) return;
+
+                const history = Array.isArray(this.currentUser.history) ? this.currentUser.history : [];
+                const hasPaidRetailOrder = history.some(item => item && item.isOrder && item.status !== 'pending_payment');
+                if (hasPaidRetailOrder) {
+                    localStorage.removeItem(key);
+                }
+            },
+
             hasWelcomeFirstOrderBonus: function() {
-                if (!this.userDataLoaded || !this.currentUser) return false;
+                if (!this.userDataLoaded || !this.currentUser || this.currentUser.email === 'info@locus.coffee') return false;
+                const key = this.getWelcomeBonusStorageKey();
+                if (!key || localStorage.getItem(key) !== '1') return false;
+
                 const history = Array.isArray(this.currentUser.history) ? this.currentUser.history : [];
                 return !history.some(item => item && item.isOrder && item.status !== 'pending_payment');
             },
@@ -2492,7 +2511,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 const loyaltyDiscountVal = Math.floor(subtotal * (loyaltyPercent / 100));
                 const welcomeBonusPercent = this.hasWelcomeFirstOrderBonus() ? 10 : 0;
-                const welcomeDiscountVal = Math.floor((subtotal - loyaltyDiscountVal) * (welcomeBonusPercent / 100));
+                const welcomeBase = Math.max(0, subtotal - loyaltyDiscountVal);
+                let welcomeDiscountVal = welcomeBonusPercent > 0 ? Math.max(1, Math.floor(welcomeBase * (welcomeBonusPercent / 100))) : 0;
+                if (welcomeDiscountVal > welcomeBase) welcomeDiscountVal = welcomeBase;
 
                 let totalAfterStoreDiscounts = subtotal - loyaltyDiscountVal - welcomeDiscountVal;
                 let fortuneDiscountVal = 0;
@@ -3586,6 +3607,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         this.currentUser.history = parseSafe(this.currentUser.history);
                         this.currentUser.subscription = parseSafe(this.currentUser.subscription);
                         this.userDataLoaded = true;
+                        this.syncWelcomeBonusFlag();
 
                         const pendingPaymentOrderId = localStorage.getItem('locus_pending_payment_order_id');
                         const paidPendingOrder = pendingPaymentOrderId && this.currentUser.history.some(h => h && String(h.orderId || '') === String(pendingPaymentOrderId) && h.status !== 'pending_payment');
@@ -3647,6 +3669,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             
                             this.currentUser = serverData;
                             this.userDataLoaded = true;
+                            this.syncWelcomeBonusFlag();
                             const pendingPaymentOrderId = localStorage.getItem('locus_pending_payment_order_id');
                             const paidPendingOrder = pendingPaymentOrderId && serverData.history.some(h => h && String(h.orderId || '') === String(pendingPaymentOrderId) && h.status !== 'pending_payment');
                             
@@ -4734,6 +4757,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         
                         localStorage.setItem('locus_token', data.token);
                         this.uid = data.user.id;
+                        localStorage.setItem(this.getWelcomeBonusStorageKey(this.uid), '1');
                         
                         await this.fetchUserData(); 
                         
@@ -5224,14 +5248,23 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 let userDescriptors = new Set();
                 history.forEach(hItem => {
-                    const cleanName = hItem.item.split(' (')[0].trim();
-                    const product = ALL_PRODUCTS_CACHE.find(p => p.sample.trim() === cleanName);
-                    if(product && product.flavorNotes) {
-                        product.flavorNotes.split(',').forEach(tag => {
-                            const t = tag.trim().toLowerCase();
-                            if(t) userDescriptors.add(t);
-                        });
-                    }
+                    const sourceItems = Array.isArray(hItem?.items) && hItem.items.length
+                        ? hItem.items
+                        : (hItem && hItem.item ? [hItem] : []);
+
+                    sourceItems.forEach(srcItem => {
+                        const rawName = String(srcItem?.item || '').trim();
+                        if (!rawName) return;
+
+                        const cleanName = rawName.split(' (')[0].trim();
+                        const product = ALL_PRODUCTS_CACHE.find(p => String(p.sample || '').trim() === cleanName);
+                        if(product && product.flavorNotes) {
+                            product.flavorNotes.split(',').forEach(tag => {
+                                const t = tag.trim().toLowerCase();
+                                if(t) userDescriptors.add(t);
+                            });
+                        }
+                    });
                 });
 
                 if(userDescriptors.size === 0) return; 
