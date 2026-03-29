@@ -435,15 +435,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             const cartPriceEl = document.getElementById('p-price-cart');
             if(cartPriceEl) {
                 if(userDiscount > 0 && basePrice > 0) {
-                    cartPriceEl.innerHTML = `<span style="text-decoration:line-through; opacity:0.6; font-size:10px;">${basePrice}</span> ${finalPrice} в‚Ѕ`;
+                    cartPriceEl.innerHTML = `<span style="text-decoration:line-through; opacity:0.6; font-size:10px;">${basePrice}</span> ${finalPrice} ₽`;
                 } else {
-                    cartPriceEl.textContent = basePrice > 0 ? basePrice + ' в‚Ѕ' : '0 в‚Ѕ';
+                    cartPriceEl.textContent = basePrice > 0 ? basePrice + ' ₽' : '0 ₽';
                 }
             }
             
             const subPriceEl = document.getElementById('p-price-sub');
             if(subPriceEl) {
-                subPriceEl.textContent = subPrice > 0 ? subPrice + ' в‚Ѕ' : '0 в‚Ѕ'; 
+                subPriceEl.textContent = subPrice > 0 ? subPrice + ' ₽' : '0 ₽'; 
             }
             
             const cartBtn = document.getElementById('btn-cart');
@@ -3089,13 +3089,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             <td style="font-size:10px; opacity:0.8; vertical-align:middle; line-height:1.4;">${displayDesc}</td>
                             <td style="vertical-align:middle;">
                                 <div style="display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap;">
-                                    <span style="white-space:nowrap;">${i.ws250} в‚Ѕ</span>
+                                    <span style="white-space:nowrap;">${i.ws250} ₽</span>
                                     <input type="number" min="0" class="ws-qty-input lc-input" data-item="${i.sample}" data-weight="250" data-price="${i.ws250}" placeholder="0" style="width:45px; padding:4px; text-align:center; height:auto; margin:0;" onchange="UserSystem.updateWholesaleTotal()" onkeyup="UserSystem.updateWholesaleTotal()">
                                 </div>
                             </td>
                             <td style="vertical-align:middle;">
                                 <div style="display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap;">
-                                    <span style="white-space:nowrap;">${i.ws1000} в‚Ѕ</span>
+                                    <span style="white-space:nowrap;">${i.ws1000} ₽</span>
                                     <input type="number" min="0" class="ws-qty-input lc-input" data-item="${i.sample}" data-weight="1000" data-price="${i.ws1000}" placeholder="0" style="width:45px; padding:4px; text-align:center; height:auto; margin:0;" onchange="UserSystem.updateWholesaleTotal()" onkeyup="UserSystem.updateWholesaleTotal()">
                                 </div>
                             </td>
@@ -3332,8 +3332,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     tableBody.push([
                         prefixText + p.sample, 
                         displayDesc, 
-                        { text: ws250 + '\u00A0в‚Ѕ', alignment: 'center', noWrap: true }, 
-                        { text: ws1000 + '\u00A0в‚Ѕ', alignment: 'center', noWrap: true }
+                        { text: ws250 + '\u00A0₽', alignment: 'center', noWrap: true }, 
+                        { text: ws1000 + '\u00A0₽', alignment: 'center', noWrap: true }
                     ]);
                 });
 
@@ -3912,7 +3912,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:20px; text-align:center;">
                             <div style="background:#fff; padding:10px; border:1px solid #E5E1D8; border-radius:8px;">
                                 <div style="font-size:10px; color:gray; text-transform:uppercase;">Оборот</div>
-                                <div style="font-size:16px; font-weight:bold;">${totalRevenue.toLocaleString()} в‚Ѕ</div>
+                                <div style="font-size:16px; font-weight:bold;">${totalRevenue.toLocaleString()} ₽</div>
                             </div>
                             <div style="background:#fff; padding:10px; border:1px solid #E5E1D8; border-radius:8px;">
                                 <div style="font-size:10px; color:gray; text-transform:uppercase;">Товаров куплено</div>
@@ -3920,7 +3920,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             </div>
                             <div style="background:#fff; padding:10px; border:1px solid #E5E1D8; border-radius:8px;">
                                 <div style="font-size:10px; color:gray; text-transform:uppercase;">Ср. цена товара</div>
-                                <div style="font-size:16px; font-weight:bold;">${totalOrders ? Math.round(totalRevenue/totalOrders) : 0} в‚Ѕ</div>
+                                <div style="font-size:16px; font-weight:bold;">${totalOrders ? Math.round(totalRevenue/totalOrders) : 0} ₽</div>
                             </div>
                         </div>
                     `;
@@ -3950,7 +3950,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 <td>${u.discount}%</td>
                                 <td style="font-size:10px;">${u.fav}</td>
                                 <td style="font-size:10px;">${u.freq}</td>
-                                <td style="font-weight:bold;">${u.spent} в‚Ѕ</td>
+                                <td style="font-weight:bold;">${u.spent} ₽</td>
                             </tr>
                         `;
                     });
@@ -4169,7 +4169,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             return `<div style="margin-bottom:6px; padding-bottom:6px; border-bottom:1px dashed #eee; font-size:12px;">
                                 <span style="font-weight:600; color:var(--locus-dark);">${lot.item}</span>
                                 ${weightText}${grindText}
-                                <span style="float:right; font-weight:600;">${lot.price} в‚Ѕ</span>
+                                <span style="float:right; font-weight:600;">${lot.price} ₽</span>
                             </div>`;
                         }).join('');
 
@@ -4182,7 +4182,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     ${lotsHtml}
                                 </td>
                                 <td style="vertical-align:top; padding-top:10px; font-weight:bold; font-size:14px; color:var(--locus-dark);">
-                                    ${group.totalMonthlyPrice} в‚Ѕ
+                                    ${group.totalMonthlyPrice} ₽
                                 </td>
                                 <td style="vertical-align:top; padding-top:10px; font-size:11px; color:gray;">
                                     ${group.displayDate}
@@ -4256,7 +4256,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                         html += `<tr style="${rowStyle}">
                             <td style="vertical-align:top; padding-top:10px; font-size:12px; line-height:1.4;">
-                                <b style="font-size:13px;">в„– ${String(o.id).replace('ws_', '')}</b><br>
+                                <b style="font-size:13px;">№ ${String(o.id).replace('ws_', '')}</b><br>
                                 <span style="font-size:10px; color:gray;">${dateStrHTML}</span><br>
                                 <div style="margin-top:8px;"><b>${email}</b></div>
                                 <div style="color:gray;">${phone}</div>
@@ -4334,7 +4334,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                         html += `<tr style="${rowStyle}">
                             <td style="vertical-align:top; padding-top:10px; font-size:12px; line-height:1.4;">
-                                <b style="font-size:13px;">в„– ${o.id}</b><br>
+                                <b style="font-size:13px;">№ ${o.id}</b><br>
                                 <span style="font-size:10px; color:gray;">${datePart}</span><br>
                                 <div style="margin-top:8px;"><b>${customer.name || 'Без ФИО'}</b></div>
                                 <div style="color:gray;">${customer.phone || ''}</div>
@@ -4521,7 +4521,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     const gDisplay = meta.grind ? ` <span style="font-size:10px; opacity:0.7; border:1px solid #ccc; padding:0 3px; border-radius:3px;">${meta.grind}</span>` : '';
                     
                     el.innerHTML = `
-                        <div class="cart-item-info"><div class="cart-item-title">${p.item}${wDisplay}${gDisplay}</div><div class="cart-item-meta">${p.price} в‚Ѕ</div></div>
+                        <div class="cart-item-info"><div class="cart-item-title">${p.item}${wDisplay}${gDisplay}</div><div class="cart-item-meta">${p.price} ₽</div></div>
                         <div class="cart-controls"><button class="qty-btn minus">-</button><span class="cart-qty">${p.qty}</span><button class="qty-btn plus">+</button></div>
                     `;
                     el.querySelector('.minus').onclick = () => this.updateItemQty(idx, -1);
@@ -4599,7 +4599,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (rowWelcome) {
                     if (welcomeDiscountVal > 0) {
                         rowWelcome.style.display = 'flex';
-                        document.getElementById('cart-welcome-val').textContent = `-${welcomeDiscountVal} в‚Ѕ (${welcomeBonusPercent}%)`;
+                        document.getElementById('cart-welcome-val').textContent = `-${welcomeDiscountVal} ₽ (${welcomeBonusPercent}%)`;
                     } else {
                         rowWelcome.style.display = 'none';
                     }
@@ -4607,7 +4607,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (rowFortune) {
                     if (fortuneDiscountVal > 0) {
                         rowFortune.style.display = 'flex';
-                        document.getElementById('cart-fortune-val').textContent = `-${fortuneDiscountVal} в‚Ѕ`;
+                        document.getElementById('cart-fortune-val').textContent = `-${fortuneDiscountVal} ₽`;
                     } else {
                         rowFortune.style.display = 'none';
                     }
@@ -4630,28 +4630,28 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (finalTotal < 0) finalTotal = 1;
 
                 const setTxt = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
-                setTxt('cart-subtotal', subtotal + ' в‚Ѕ');
+                setTxt('cart-subtotal', subtotal + ' ₽');
                 setTxt('cart-discount-percent', discountPercent);
-                setTxt('cart-discount-val', loyaltyDiscountVal + ' в‚Ѕ');
+                setTxt('cart-discount-val', loyaltyDiscountVal + ' ₽');
                 
                 const shipValEl = document.getElementById('cart-shipping-val');
                 if(shipValEl) {
                     if (this.cdekPrice === 0 && totalAfterLoyalty >= 3000) {
                         shipValEl.innerHTML = `<span style="color:#187a30; font-weight:bold;">Бесплатно</span>`;
                     } else if (this.cdekPrice > 0) {
-                        shipValEl.textContent = this.cdekPrice + ' в‚Ѕ';
+                        shipValEl.textContent = this.cdekPrice + ' ₽';
                     } else {
                         shipValEl.textContent = 'Не выбрано';
                     }
                 }
 
-                setTxt('cart-total', finalTotal + ' в‚Ѕ');
+                setTxt('cart-total', finalTotal + ' ₽');
 
                 const promoRow = document.getElementById('row-promo-discount');
                 const promoValEl = document.getElementById('cart-promo-val');
                 if (this.activePromo) {
                     promoRow.style.display = 'flex';
-                    promoValEl.textContent = `-${promoDiscountVal} в‚Ѕ (${this.activePromo.code})`;
+                    promoValEl.textContent = `-${promoDiscountVal} ₽ (${this.activePromo.code})`;
                 } else {
                     promoRow.style.display = 'none';
                 }
@@ -5154,7 +5154,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     const grindText = meta.grind ? ` <span style="font-size:9px; opacity:0.7; border:1px solid #ccc; padding:0 3px; border-radius:3px;">${meta.grind}</span>` : '';
                                     return `<div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:8px; border-bottom:1px dashed #eee; padding-bottom:8px;">
                                         <span><b style="font-weight:600;">${i.item}</b>${weightText}${grindText} x${i.qty}</span>
-                                        <span style="white-space:nowrap; font-weight:600;">${i.price * i.qty} в‚Ѕ</span>
+                                        <span style="white-space:nowrap; font-weight:600;">${i.price * i.qty} ₽</span>
                                     </div>`;
                                 }).join('');
 
@@ -5196,7 +5196,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                             <div style="font-weight:700; font-size:13px; color:var(--locus-dark); text-transform:uppercase;">Заказ № ${String(hItem.orderId).replace('ws_', '')}</div>
                                             <div style="font-size:10px; color:gray; margin-top:3px;">${hItem.date} • ${displayStatus}</div>
                                         </div>
-                                        <div style="font-weight:700; font-size:16px;">${hItem.total} в‚Ѕ</div>
+                                        <div style="font-weight:700; font-size:16px;">${hItem.total} ₽</div>
                                     </div>
                                     <div style="margin-bottom:15px;">
                                         ${itemsHtml}
