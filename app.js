@@ -1735,7 +1735,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 </div>
 
                                 <div class="sb-footer">
-                                    +7 906 660 4060 | locus.coffee
+                                    +7 906 660 4060 &nbsp;&nbsp; | &nbsp;&nbsp; locus.coffee
                                 </div>
                             </div>
 
