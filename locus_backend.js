@@ -61,6 +61,7 @@ async function withSingleSession(work) {
 const RETRYABLE_SESSION_ACTIONS = new Set([
     'login',
     'getUserData',
+    'getMyOrderStatus',
     'getAdminUsers',
     'getPromos',
     'checkPromo',
@@ -321,6 +322,39 @@ module.exports.handler = async function (event, context) {
                         subscription: getRawArray(user.subscription) 
                     }
                 };
+            }
+
+            else if (action === 'getMyOrderStatus') {
+                const decoded = verifyToken(rawToken);
+                const orderId = body.orderId || event.queryStringParameters?.orderId;
+                if (!orderId) throw new Error('Не указан ID заказа');
+
+                const query = `
+                    DECLARE $id AS Utf8;
+                    DECLARE $userId AS Utf8;
+                    SELECT id, status, createdAt
+                    FROM orders
+                    WHERE id = $id AND userId = $userId;
+                `;
+                const { resultSets } = await session.executeQuery(query, {
+                    '$id': TypedValues.utf8(String(orderId)),
+                    '$userId': TypedValues.utf8(String(decoded.userId))
+                });
+
+                if (!resultSets[0] || resultSets[0].rows.length === 0) {
+                    responseData = { success: true, found: false };
+                } else {
+                    const order = rowToObj(resultSets[0].columns, resultSets[0].rows[0]);
+                    responseData = {
+                        success: true,
+                        found: true,
+                        order: {
+                            id: order.id,
+                            status: order.status,
+                            createdAt: order.createdat
+                        }
+                    };
+                }
             }
 
             else if (action === 'updateUser') {
@@ -955,7 +989,11 @@ module.exports.handler = async function (event, context) {
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
                 
-                const query = `SELECT * FROM orders;`;
+                const query = `
+                    SELECT id, userId, invId, total, status, customer, delivery, items, createdAt
+                    FROM orders
+                    WHERE status <> 'pending_payment'
+                `;
                 const { resultSets } = await session.executeQuery(query);
                 
                 let retailOrders = [];
@@ -964,7 +1002,7 @@ module.exports.handler = async function (event, context) {
                         const o = rowToObj(resultSets[0].columns, row);
                         
                         // Фильтруем: берем розничные заказы, которые УЖЕ ОПЛАЧЕНЫ (исключаем pending_payment)
-                        if (o.id && !o.id.startsWith('ws_') && o.status !== 'pending_payment') {
+                        if (o.id && !o.id.startsWith('ws_')) {
                             let customerData = {};
                             let deliveryData = {};
                             try {
