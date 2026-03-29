@@ -3360,12 +3360,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         this.currentUser.history = parseSafe(this.currentUser.history);
                         this.currentUser.subscription = parseSafe(this.currentUser.subscription);
 
-                        // 2. Умная синхронизация корзины (решает проблему исчезновения)
+                        const pendingPaymentOrderId = localStorage.getItem('locus_pending_payment_order_id');
+                        const paidPendingOrder = pendingPaymentOrderId && this.currentUser.history.some(h => h && String(h.orderId || '') === String(pendingPaymentOrderId) && h.status !== 'pending_payment');
+
+                        // 2. Умная синхронизация корзины с учетом возврата после оплаты
                         if (this.currentUser.cart.length > 0) {
                             this.localCart = this.currentUser.cart;
                             this.saveCart(false); 
+                        } else if (paidPendingOrder) {
+                            this.localCart = [];
+                            localStorage.removeItem('locus_cart');
+                            localStorage.removeItem('locus_pending_payment_order_id');
+                        } else if (pendingPaymentOrderId) {
+                            // После возврата с оплаты не пушим локальную корзину обратно, пока ждем подтверждение webhook.
+                            this.saveCart(false);
                         } else if (this.localCart.length > 0) {
-                            // Если на сервере пусто, а локально есть товары - пушим их на сервер!
+                            // Если на сервере пусто, а локально есть товары - пушим их на сервер.
                             this.saveCart(true);
                         }
                         
@@ -3408,11 +3418,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                            JSON.stringify(serverData.cart) !== JSON.stringify(this.localCart)) {
                             
                             this.currentUser = serverData;
+                            const pendingPaymentOrderId = localStorage.getItem('locus_pending_payment_order_id');
+                            const paidPendingOrder = pendingPaymentOrderId && serverData.history.some(h => h && String(h.orderId || '') === String(pendingPaymentOrderId) && h.status !== 'pending_payment');
                             
                             if (serverData.cart.length > 0) { 
                                 this.localCart = serverData.cart; 
                                 this.saveCart(false); 
                                 this.updateCartBadge(); 
+                            } else if (paidPendingOrder) {
+                                this.localCart = [];
+                                localStorage.removeItem('locus_cart');
+                                localStorage.removeItem('locus_pending_payment_order_id');
+                                this.updateCartBadge();
                             }
                             
                             if(document.getElementById('lc-modal').classList.contains('active')) {
@@ -4431,11 +4448,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     
                     // Переход по безопасной ссылке, сгенерированной на сервере
                     if (data.paymentUrl) {
-                        // ОЧИЩАЕМ ЛОКАЛЬНУЮ КОРЗИНУ ПЕРЕД ПЕРЕХОДОМ В РОБОКАССУ (Задача 1)
-                        this.localCart = [];
-                        localStorage.removeItem('locus_cart');
-                        this.updateCartBadge();
-                        
+                        localStorage.setItem('locus_pending_payment_order_id', orderId);
                         window.location.href = data.paymentUrl;
                     } else {
                         alert('Ошибка генерации ссылки на оплату');
