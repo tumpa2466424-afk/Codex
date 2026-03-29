@@ -2377,6 +2377,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         const UserSystem = {
             currentUser: null, uid: null, localCart: [], activePromo: null,
             cdekPrice: 0, cdekInfo: null, currentPickupCode: null,
+            pickupLockerCodeEnabled: false,
             
             // WHOLESALE & PRICING
             pricingSettings: null,
@@ -3155,12 +3156,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const cdekWidget = document.getElementById('custom-cdek-widget');
 
                 if (cb && cb.checked) {
-                    // Генерируем 6-значный код, если его еще нет
-                    if (!this.currentPickupCode) {
-                        this.currentPickupCode = Math.floor(100000 + Math.random() * 900000).toString();
+                    if (this.pickupLockerCodeEnabled) {
+                        // Временный флаг: код ячейки можно быстро вернуть, переключив pickupLockerCodeEnabled в true.
+                        if (!this.currentPickupCode) {
+                            this.currentPickupCode = Math.floor(100000 + Math.random() * 900000).toString();
+                        }
+                        codeEl.textContent = this.currentPickupCode;
+                        codeBlock.style.display = 'block';
+                    } else {
+                        this.currentPickupCode = null;
+                        codeEl.textContent = '';
+                        codeBlock.style.display = 'none';
                     }
-                    codeEl.textContent = this.currentPickupCode;
-                    codeBlock.style.display = 'block';
                     
                     // Визуально глушим блок СДЭКа
                     if(cdekWidget) { cdekWidget.style.opacity = '0.3'; cdekWidget.style.pointerEvents = 'none'; }
@@ -4019,7 +4026,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 ${delivery.type === 'PICKUP' ? 
                                     `<div style="padding:6px; background:#f4f9f5; border:1px dashed #187a30; border-radius:4px;">
                                         <b>Самовывоз (Атолл)</b><br>
-                                        <span style="color:#187a30; font-size:12px;">Код: <b>${delivery.code}</b></span>
+                                        <span style="color:#187a30; font-size:12px;">${delivery.code ? `Код: <b>${delivery.code}</b>` : 'Код ячейки временно не выдается'}</span>
                                     </div>` 
                                 : 
                                     `<b>${delivery.type === 'PVZ' ? 'СДЭК ПВЗ' : (delivery.type === 'MANUAL' ? 'Ручной ввод' : 'Курьер')}</b><br>
@@ -4406,7 +4413,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         promo: this.activePromo ? this.activePromo.code : '',
                         status: 'pending_payment',
                         customer: { name, phone, email: email },
-                        delivery: isPickup ? { type: 'PICKUP', address: 'ТЦ Атолл, Октябрьская 27', code: this.currentPickupCode, finalCost: 0 } : { ...this.cdekInfo, finalCost: shippingCost },
+                        delivery: isPickup ? { type: 'PICKUP', address: 'ТЦ Атолл, Октябрьская 27', code: this.pickupLockerCodeEnabled ? this.currentPickupCode : '', finalCost: 0 } : { ...this.cdekInfo, finalCost: shippingCost },
                         items: this.localCart,
                         historyItems: [historyOrder] // Отправляем как заказ
                     };
@@ -4808,9 +4815,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                         <div style="margin-top:10px; margin-bottom:15px; padding:12px; background:#f4f9f5; border-radius:8px; border:1px dashed #187a30; display:flex; justify-content:space-between; align-items:center;">
                                             <div>
                                                 <div style="font-size:11px; color:#187a30; font-weight:700; text-transform:uppercase;">Самовывоз (ТЦ Атолл)</div>
-                                                <div style="font-size:11px; color:gray; margin-top:3px;">Код ячейки:</div>
+                                                <div style="font-size:11px; color:gray; margin-top:3px;">${hItem.delivery.code ? 'Код ячейки:' : 'Код ячейки временно не выдается'}</div>
                                             </div>
-                                            <div style="font-size:22px; font-weight:bold; letter-spacing:2px; color:var(--locus-dark);">${hItem.delivery.code}</div>
+                                            <div style="font-size:22px; font-weight:bold; letter-spacing:2px; color:var(--locus-dark);">${hItem.delivery.code || ''}</div>
                                         </div>
                                     `;
                                 }
