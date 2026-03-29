@@ -2405,9 +2405,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         this.currentUser = { id: this.uid, email: payload.email, totalSpent: 0, cart: [], history: [], subscription: [] }; 
                         this.updateUIState();
                         
-                        // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Принудительно скачиваем реальную историю и корзину из YDB при загрузке
-                        this.fetchUserData();
-                        
+                        // Сначала пробуем безопасно дозавершить оплату после возврата из Робокассы, затем тянем актуальный профиль
+                        (async () => {
+                            await this.finalizeRobokassaReturn();
+                            await this.fetchUserData();
+                            this.startPendingOrderWatcher();
+                        })();
                         if(payload.email === 'info@locus.coffee') {
                             const btnAdmin = document.getElementById('btn-open-admin');
                             if(btnAdmin) { 
@@ -2736,6 +2739,100 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     console.error('Ошибка проверки статуса ожидающей оплаты', e);
                     return null;
                 }
+            },
+            getRobokassaReturnValue: function(urlObj, allowedNames) {
+                if (!urlObj || !urlObj.searchParams || !Array.isArray(allowedNames)) return '';
+                const normalizedAllowed = allowedNames.map(name => String(name).toLowerCase());
+                for (const [key, value] of urlObj.searchParams.entries()) {
+                    if (normalizedAllowed.includes(String(key).toLowerCase())) return value;
+                }
+                return '';
+            },
+
+            cleanupRobokassaReturnParams: function() {
+                const url = new URL(window.location.href);
+                ['OutSum', 'outsum', 'out_sum', 'out_summ', 'InvId', 'invid', 'inv_id', 'SignatureValue', 'signaturevalue', 'signature_value', 'Culture', 'IncCurrLabel'].forEach(key => {
+                    url.searchParams.delete(key);
+                });
+                window.history.replaceState({}, '', url);
+            },
+
+            finalizeRobokassaReturn: async function() {
+                const url = new URL(window.location.href);
+                const outSum = this.getRobokassaReturnValue(url, ['outsum', 'out_sum', 'out_summ']);
+                const invId = this.getRobokassaReturnValue(url, ['invid', 'inv_id']);
+                const signatureValue = this.getRobokassaReturnValue(url, ['signaturevalue', 'signature_value']);
+
+                if (!outSum || !invId || !signatureValue) return false;
+
+                try {
+                    const res = await fetch(LOCUS_API_URL + '?action=robokassaSuccess', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'robokassaSuccess',
+                            OutSum: outSum,
+                            InvId: invId,
+                            SignatureValue: signatureValue
+                        })
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.success) throw new Error(data.error || 'Не удалось подтвердить оплату');
+
+                    this.localCart = [];
+                    if (this.currentUser && Array.isArray(this.currentUser.cart)) this.currentUser.cart = [];
+                    localStorage.removeItem('locus_cart');
+                    localStorage.removeItem('locus_pending_payment_order_id');
+                    this.stopPendingOrderWatcher();
+                    this.cleanupRobokassaReturnParams();
+                    this.updateCartBadge();
+                    return true;
+                } catch (e) {
+                    console.error('Ошибка подтверждения возврата из Робокассы', e);
+                    return false;
+                }
+            },
+
+            startPendingOrderWatcher: function(orderId) {
+                const targetOrderId = String(orderId || localStorage.getItem('locus_pending_payment_order_id') || '').trim();
+                if (!targetOrderId || !this.uid) return;
+                if (this.pendingOrderWatcherTimer && this.pendingOrderWatcherOrderId === targetOrderId) return;
+
+                this.stopPendingOrderWatcher();
+                this.pendingOrderWatcherOrderId = targetOrderId;
+                let attempts = 0;
+
+                this.pendingOrderWatcherTimer = setInterval(async () => {
+                    attempts++;
+                    const state = await this.getPendingOrderStatus(targetOrderId);
+
+                    if (!state) {
+                        if (attempts >= 10) this.stopPendingOrderWatcher();
+                        return;
+                    }
+
+                    if (state.found && state.order && state.order.status !== 'pending_payment') {
+                        this.stopPendingOrderWatcher();
+                        await this.fetchUserData();
+                        return;
+                    }
+
+                    if (state.found === false) {
+                        localStorage.removeItem('locus_pending_payment_order_id');
+                        this.stopPendingOrderWatcher();
+                        return;
+                    }
+
+                    if (attempts >= 40) {
+                        this.stopPendingOrderWatcher();
+                    }
+                }, 3000);
+            },
+
+            stopPendingOrderWatcher: function() {
+                if (this.pendingOrderWatcherTimer) clearInterval(this.pendingOrderWatcherTimer);
+                this.pendingOrderWatcherTimer = null;
+                this.pendingOrderWatcherOrderId = null;
             },
 
             // --- PRICING LOGIC ---
@@ -3640,8 +3737,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             this.currentUser.cart = [];
                             localStorage.removeItem('locus_cart');
                             localStorage.removeItem('locus_pending_payment_order_id');
+                            this.stopPendingOrderWatcher();
                         } else if (stalePendingOrder) {
                             localStorage.removeItem('locus_pending_payment_order_id');
+                            this.stopPendingOrderWatcher();
                             if (this.currentUser.cart.length > 0) {
                                 this.localCart = this.currentUser.cart;
                                 this.saveCart(false);
@@ -3650,13 +3749,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             }
                         } else if (this.currentUser.cart.length > 0) {
                             this.localCart = this.currentUser.cart;
-                            this.saveCart(false); 
+                            this.saveCart(false);
                         } else if (pendingPaymentOrderId) {
                             // После возврата с оплаты не пушим локальную корзину обратно, пока ждем подтверждение webhook.
                             this.saveCart(false);
                         } else if (this.localCart.length > 0) {
                             // Если на сервере пусто, а локально есть товары - пушим их на сервер.
                             this.saveCart(true);
+                        }
+
+                        if (pendingPaymentOrderId && !paidPendingOrder && !resolvedPendingOrder && !stalePendingOrder) {
+                            this.startPendingOrderWatcher(pendingPaymentOrderId);
                         }
                         
                         this.updateCartBadge();
@@ -3712,9 +3815,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 this.currentUser.cart = [];
                                 localStorage.removeItem('locus_cart');
                                 localStorage.removeItem('locus_pending_payment_order_id');
+                                this.stopPendingOrderWatcher();
                                 this.updateCartBadge();
                             } else if (stalePendingOrder) {
                                 localStorage.removeItem('locus_pending_payment_order_id');
+                                this.stopPendingOrderWatcher();
                                 if (serverData.cart.length > 0) {
                                     this.localCart = serverData.cart;
                                     this.saveCart(false);
@@ -3726,6 +3831,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 this.updateCartBadge(); 
                             }
                             
+                            if (pendingPaymentOrderId && !paidPendingOrder && !resolvedPendingOrder && !stalePendingOrder) {
+                                this.startPendingOrderWatcher(pendingPaymentOrderId);
+                            }
                             this.syncExpiredPvzOrdersFromHistory();
 
                             if(document.getElementById('lc-modal').classList.contains('active')) {
@@ -4869,6 +4977,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 logout: async function() {
                     localStorage.removeItem('locus_token');
+                    this.stopPendingOrderWatcher();
                     this.stopRetailCountdownTicker();
                     this.userDataLoaded = false;
                     this.currentUser = null; this.uid = null; this.localCart = []; 
