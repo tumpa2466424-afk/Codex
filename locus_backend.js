@@ -125,6 +125,90 @@ function getRawArray(dbValue) {
     return [];
 }
 
+function getTimestampMs(value) {
+    if (value === null || value === undefined || value === '') return 0;
+    if (value instanceof Date) return value.getTime();
+
+    if (typeof value === 'number') {
+        return !isNaN(value) ? (value < 3000000000 ? value * 1000 : value) : 0;
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return 0;
+
+        const numeric = Number(trimmed);
+        if (!isNaN(numeric)) return numeric < 3000000000 ? numeric * 1000 : numeric;
+
+        const parsed = new Date(trimmed).getTime();
+        return isNaN(parsed) ? 0 : parsed;
+    }
+
+    if (typeof value === 'object' && value.value !== undefined) {
+        return getTimestampMs(value.value);
+    }
+
+    return 0;
+}
+
+function getPvzDeadlineMs(createdAtValue) {
+    const createdAtMs = getTimestampMs(createdAtValue);
+    if (!createdAtMs) return 0;
+
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Moscow',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23'
+    });
+
+    const parts = formatter.formatToParts(new Date(createdAtMs));
+    const getPart = (type) => Number(parts.find(p => p.type === type)?.value || 0);
+
+    const year = getPart('year');
+    const month = getPart('month');
+    const day = getPart('day');
+    const hour = getPart('hour');
+    const daysToAdd = hour < 18 ? 1 : 2;
+
+    return Date.UTC(year, month - 1, day + daysToAdd, 15, 0, 0);
+}
+
+async function syncRetailHistoryStatus(session, userId, orderId, patch) {
+    if (!userId || !orderId) return false;
+
+    const qFindHist = `DECLARE $userId AS Utf8; SELECT history FROM users WHERE id = $userId;`;
+    const { resultSets } = await session.executeQuery(qFindHist, { '$userId': TypedValues.utf8(userId) });
+
+    if (!resultSets[0] || resultSets[0].rows.length === 0) return false;
+
+    const userRow = rowToObj(resultSets[0].columns, resultSets[0].rows[0]);
+    const history = getRawArray(userRow.history);
+    let changed = false;
+
+    const nextHistory = history.map(item => {
+        if (item && String(item.orderId || '') === String(orderId)) {
+            changed = true;
+            return { ...item, ...patch };
+        }
+        return item;
+    });
+
+    if (!changed) return false;
+
+    const qUpdateHist = `DECLARE $userId AS Utf8; DECLARE $hist AS JsonDocument; UPDATE users SET history = $hist WHERE id = $userId;`;
+    await session.executeQuery(qUpdateHist, {
+        '$userId': TypedValues.utf8(userId),
+        '$hist': TypedValues.jsonDocument(JSON.stringify(nextHistory))
+    });
+
+    return true;
+}
+
 module.exports.handler = async function (event, context) {
     const headers = {
         'Access-Control-Allow-Origin': '*',
@@ -370,6 +454,7 @@ module.exports.handler = async function (event, context) {
                                     isOrder: true,
                                     orderId: String(invId),
                                     status: 'paid',
+                                    createdAt: ord.createdat,
                                     date: datePart + ' ' + timePart,
                                     total: ord.total,
                                     items: parsedItems,
@@ -954,9 +1039,60 @@ module.exports.handler = async function (event, context) {
                 await session.executeQuery(query, { 
                     '$id': TypedValues.utf8(orderId), '$status': TypedValues.utf8(status) 
                 });
+                if (!String(orderId || '').startsWith('ws_')) {
+                    const qFindOrder = `DECLARE $id AS Utf8; SELECT userId, createdAt FROM orders WHERE id = $id;`;
+                    const { resultSets: orderRes } = await session.executeQuery(qFindOrder, { '$id': TypedValues.utf8(orderId) });
+                    if (orderRes[0] && orderRes[0].rows.length > 0) {
+                        const orderRow = rowToObj(orderRes[0].columns, orderRes[0].rows[0]);
+                        await syncRetailHistoryStatus(session, orderRow.userid, orderId, {
+                            status,
+                            createdAt: orderRow.createdat
+                        });
+                    }
+                }
                 responseData = { success: true };
             }
             // --- НАЧАЛО: УДАЛЕНИЕ ЗАКАЗА (АДМИНКА) ---
+            else if (action === 'autoDeliverPvzOrder') {
+                const decoded = verifyToken(rawToken);
+                const { orderId } = body;
+                if (!orderId) throw new Error('Не указан ID заказа');
+
+                const qFindOrder = `DECLARE $id AS Utf8; SELECT id, userId, status, delivery, createdAt FROM orders WHERE id = $id;`;
+                const { resultSets: orderRes } = await session.executeQuery(qFindOrder, { '$id': TypedValues.utf8(orderId) });
+
+                if (!orderRes[0] || orderRes[0].rows.length === 0) throw new Error('Заказ не найден');
+
+                const orderRow = rowToObj(orderRes[0].columns, orderRes[0].rows[0]);
+                if (String(orderRow.userid || '') !== String(decoded.userId || '')) throw new Error('Нет доступа к заказу');
+
+                let deliveryData = {};
+                try {
+                    let rawDel = orderRow.delivery;
+                    if (rawDel && rawDel.value !== undefined) rawDel = rawDel.value;
+                    if (Buffer.isBuffer(rawDel)) rawDel = rawDel.toString('utf8');
+                    deliveryData = typeof rawDel === 'string' ? JSON.parse(rawDel) : rawDel;
+                } catch (e) {}
+
+                if (deliveryData.type !== 'PVZ') throw new Error('Таймер доступен только для заказов в ПВЗ');
+
+                if (['pvz_delivered', 'completed'].includes(orderRow.status)) {
+                    responseData = { success: true };
+                    return;
+                }
+
+                const deadlineMs = getPvzDeadlineMs(orderRow.createdat);
+                if (!deadlineMs || Date.now() < deadlineMs) throw new Error('Срок заказа еще не истек');
+
+                const qUpdateOrder = `DECLARE $id AS Utf8; UPDATE orders SET status = 'pvz_delivered' WHERE id = $id;`;
+                await session.executeQuery(qUpdateOrder, { '$id': TypedValues.utf8(orderId) });
+                await syncRetailHistoryStatus(session, orderRow.userid, orderId, {
+                    status: 'pvz_delivered',
+                    createdAt: orderRow.createdat
+                });
+
+                responseData = { success: true };
+            }
             else if (action === 'deleteOrder') {
                 const decoded = verifyToken(rawToken);
                 // Проверяем, что удаляет именно админ
