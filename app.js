@@ -2615,7 +2615,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             getPvzCountdownInfo: function(order) {
-                if (!order || !order.delivery || order.delivery.type !== 'PVZ') return null;
+                if (!order || !order.delivery || order.delivery.type !== 'PICKUP') return null;
 
                 const doneStatuses = ['pvz_delivered', 'completed'];
                 if (doneStatuses.includes(order.status)) {
@@ -2666,7 +2666,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                     const remainingMs = deadlineMs - Date.now();
                     if (remainingMs > 0) {
-                        el.textContent = `До ПВЗ: ${this.formatCountdownText(remainingMs)}`;
+                        el.textContent = `До выдачи: ${this.formatCountdownText(remainingMs)}`;
                         return;
                     }
 
@@ -4270,7 +4270,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         const countdownInfo = this.getPvzCountdownInfo(o);
                         const countdownHtml = countdownInfo ? `
                             <div data-retail-order-countdown="1" data-order-id="${o.id}" data-deadline-ms="${countdownInfo.deadlineMs || 0}" data-auto-status="0" style="margin-top:8px; font-size:11px; color:${countdownInfo.delivered ? '#187a30' : '#8B7E66'}; font-weight:600;">
-                                ${countdownInfo.delivered ? 'Доставлено в пункт выдачи' : `До ПВЗ: ${countdownInfo.label}`}
+                                ${countdownInfo.delivered ? 'Доставлено в пункт выдачи' : `До выдачи: ${countdownInfo.label}`}
                             </div>
                         ` : '';
                         
@@ -5110,7 +5110,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 const countdownInfo = !isWholesale ? this.getPvzCountdownInfo(hItem) : null;
                                 const countdownHtml = countdownInfo ? `
                                     <div data-retail-order-countdown="1" data-order-id="${hItem.orderId}" data-deadline-ms="${countdownInfo.deadlineMs || 0}" data-auto-status="${countdownInfo.delivered ? '0' : '1'}" style="margin-top:6px; font-size:11px; color:${countdownInfo.delivered ? '#187a30' : '#8B7E66'}; font-weight:600;">
-                                        ${countdownInfo.delivered ? 'Доставлено в пункт выдачи' : `До ПВЗ: ${countdownInfo.label}`}
+                                        ${countdownInfo.delivered ? 'Доставлено в пункт выдачи' : `До выдачи: ${countdownInfo.label}`}
                                     </div>
                                 ` : '';
 
