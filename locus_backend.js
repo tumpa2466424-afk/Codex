@@ -1018,7 +1018,6 @@ module.exports.handler = async function (event, context) {
                 const query = `
                     SELECT id, userId, invId, total, status, customer, delivery, items, createdAt
                     FROM orders
-                    WHERE status <> 'pending_payment'
                 `;
                 const { resultSets } = await session.executeQuery(query);
                 
@@ -1099,22 +1098,41 @@ module.exports.handler = async function (event, context) {
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
                 
                 const { orderId, status } = body;
+                const normalizedOrderId = String(orderId || '').trim();
+                const normalizedStatus = String(status || '').trim();
+                if (!normalizedOrderId) throw new Error('Не указан ID заказа');
+                if (!normalizedStatus) throw new Error('Не указан статус заказа');
+
+                const isWholesaleOrder = normalizedOrderId.startsWith('ws_');
+                const allowedStatuses = isWholesaleOrder
+                    ? new Set(['wholesale_new', 'wholesale_processed', 'completed'])
+                    : new Set(['pending_payment', 'paid', 'processing', 'shipped', 'completed', 'pvz_delivered']);
+
+                if (!allowedStatuses.has(normalizedStatus)) {
+                    throw new Error('Недопустимый статус заказа');
+                }
+
+                const qFindExistingOrder = `DECLARE $id AS Utf8; SELECT id, userId, createdAt FROM orders WHERE id = $id;`;
+                const { resultSets: existingOrderRes } = await session.executeQuery(qFindExistingOrder, {
+                    '$id': TypedValues.utf8(normalizedOrderId)
+                });
+                if (!existingOrderRes[0] || existingOrderRes[0].rows.length === 0) {
+                    throw new Error('Заказ не найден');
+                }
+                const existingOrderRow = rowToObj(existingOrderRes[0].columns, existingOrderRes[0].rows[0]);
+
                 const query = `DECLARE $id AS Utf8; DECLARE $status AS Utf8; UPDATE orders SET status = $status WHERE id = $id;`;
                 await session.executeQuery(query, { 
-                    '$id': TypedValues.utf8(orderId), '$status': TypedValues.utf8(status) 
+                    '$id': TypedValues.utf8(normalizedOrderId),
+                    '$status': TypedValues.utf8(normalizedStatus)
                 });
-                if (!String(orderId || '').startsWith('ws_')) {
-                    const qFindOrder = `DECLARE $id AS Utf8; SELECT userId, createdAt FROM orders WHERE id = $id;`;
-                    const { resultSets: orderRes } = await session.executeQuery(qFindOrder, { '$id': TypedValues.utf8(orderId) });
-                    if (orderRes[0] && orderRes[0].rows.length > 0) {
-                        const orderRow = rowToObj(orderRes[0].columns, orderRes[0].rows[0]);
-                        await syncRetailHistoryStatus(session, orderRow.userid, orderId, {
-                            status,
-                            createdAt: orderRow.createdat
-                        });
-                    }
+                if (!isWholesaleOrder) {
+                    await syncRetailHistoryStatus(session, existingOrderRow.userid, normalizedOrderId, {
+                        status: normalizedStatus,
+                        createdAt: existingOrderRow.createdat
+                    });
                 }
-                responseData = { success: true };
+                responseData = { success: true, orderId: normalizedOrderId, status: normalizedStatus };
             }
             // --- НАЧАЛО: УДАЛЕНИЕ ЗАКАЗА (АДМИНКА) ---
             else if (action === 'autoDeliverPvzOrder') {
