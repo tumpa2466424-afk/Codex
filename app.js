@@ -1715,6 +1715,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     <div class="sb-label">Вид/Разновидность:</div><div class="sb-value">${variety}</div>
                                     <div class="sb-label">Год урожая:</div><div class="sb-value">${harvest}</div>
                                     <div class="sb-label">Описание обработки:</div><div class="sb-value">${processing}</div>
+                                    <div class="sb-label">Обжарено:</div><div class="sb-value"></div>
                                 </div>
 
                                 <div class="sb-info">
@@ -1722,8 +1723,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     Срок годности: 1 год<br>
                                     Срок реализации: 1 месяц<br>
                                     Производитель: ИП Зуева Е.В.<br>
-                                    Адрес: г. Орёл, ул. Наугорское шоссе, д. 5.<br>
-                                    Нетто: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; г.
+                                    Адрес: г. Орёл, ул. Наугорское шоссе, д. 5<br>
+                                    Нетто: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; г.
                                 </div>
 
                                 <div class="sb-footer">
