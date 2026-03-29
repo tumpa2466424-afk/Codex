@@ -58,7 +58,7 @@ async function withSingleSession(work) {
     return dbDriver.tableClient.withSession(work);
 }
 
-const RETRYABLE_READ_ACTIONS = new Set([
+const RETRYABLE_SESSION_ACTIONS = new Set([
     'login',
     'getUserData',
     'getAdminUsers',
@@ -72,7 +72,8 @@ const RETRYABLE_READ_ACTIONS = new Set([
     'getPricingSettings',
     'getAdminOrders',
     'getAdminWholesaleOrders',
-    'getExtrinsicData'
+    'getExtrinsicData',
+    'robokassaCallback'
 ]);
 
 function verifyToken(token) {
@@ -145,7 +146,7 @@ module.exports.handler = async function (event, context) {
 
         let responseData = {};
 
-        const runWithSession = RETRYABLE_READ_ACTIONS.has(action) ? withSessionRetry : withSingleSession;
+        const runWithSession = RETRYABLE_SESSION_ACTIONS.has(action) ? withSessionRetry : withSingleSession;
 
         await runWithSession(async (session) => {
             
@@ -308,7 +309,7 @@ module.exports.handler = async function (event, context) {
                         await session.executeQuery(qUpdOrder, { '$id': TypedValues.utf8(String(invId)) });
 
                         // 2. Достаем заказ
-                        const qFindOrder = `DECLARE $id AS Utf8; SELECT userId, total, delivery, items, createdAt, customer FROM orders WHERE id = $id;`;
+                        const qFindOrder = `DECLARE $id AS Utf8; SELECT userId, total, delivery, items, createdAt, customer, status FROM orders WHERE id = $id;`;
                         const { resultSets: ordRes } = await session.executeQuery(qFindOrder, { '$id': TypedValues.utf8(String(invId)) });
 
                         if (ordRes[0].rows.length > 0) {
@@ -329,11 +330,6 @@ module.exports.handler = async function (event, context) {
                             
                             if (userId) {
                                 // Начисляем лояльность
-                                if (productTotal > 0) {
-                                    const qUpdUser = `DECLARE $userId AS Utf8; DECLARE $spent AS Double; UPDATE users SET totalSpent = totalSpent + $spent WHERE id = $userId;`;
-                                    await session.executeQuery(qUpdUser, { '$userId': TypedValues.utf8(userId), '$spent': TypedValues.double(productTotal) });
-                                }
-
                                 // История клиента
                                 const qFindHist = `DECLARE $userId AS Utf8; SELECT history FROM users WHERE id = $userId;`;
                                 const { resultSets: uRes } = await session.executeQuery(qFindHist, { '$userId': TypedValues.utf8(userId) });
@@ -366,15 +362,17 @@ module.exports.handler = async function (event, context) {
                                     items: parsedItems,
                                     delivery: delData 
                                 };
-                                hist.push(newHistItem);
+                                const hasOrderInHistory = hist.some(item => item && String(item.orderId || '') === String(invId));
+                                if (!hasOrderInHistory) hist.push(newHistItem);
 
                                 // Очистка корзины
                                 const emptyCart = JSON.stringify([]);
-                                const qUpdHist = `DECLARE $userId AS Utf8; DECLARE $hist AS JsonDocument; DECLARE $cart AS JsonDocument; UPDATE users SET history = $hist, cart = $cart WHERE id = $userId;`;
-                                await session.executeQuery(qUpdHist, { 
+                                const qUpdHist = `DECLARE $userId AS Utf8; DECLARE $hist AS JsonDocument; DECLARE $cart AS JsonDocument; DECLARE $spent AS Double; UPDATE users SET history = $hist, cart = $cart, totalSpent = totalSpent + $spent WHERE id = $userId;`;
+                                if (!hasOrderInHistory) await session.executeQuery(qUpdHist, { 
                                     '$userId': TypedValues.utf8(userId), 
                                     '$hist': TypedValues.jsonDocument(JSON.stringify(hist)),
-                                    '$cart': TypedValues.jsonDocument(emptyCart)
+                                    '$cart': TypedValues.jsonDocument(emptyCart),
+                                    '$spent': TypedValues.double(productTotal > 0 ? productTotal : 0)
                                 });
 
                                 // Формируем Email
@@ -388,7 +386,7 @@ module.exports.handler = async function (event, context) {
                                 
                                 const customerEmail = customerData.email; // БЕЗ DECODED.EMAIL
 
-                                if (customerEmail && process.env.SMTP_PASSWORD) {
+                                if (!hasOrderInHistory && customerEmail && process.env.SMTP_PASSWORD) {
                                     try {
                                         const transporter = nodemailer.createTransport({
                                             host: 'smtp.yandex.ru',
