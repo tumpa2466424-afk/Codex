@@ -445,7 +445,7 @@ module.exports.handler = async function (event, context) {
                                     parsedItems = typeof rawI === 'string' ? JSON.parse(rawI) : rawI;
                                 } catch(e){}
 
-                                let d = new Date(ord.createdat);
+                                let d = new Date(getTimestampMs(ord.createdat));
                                 if (isNaN(d.getTime())) d = new Date();
                                 const datePart = d.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric' });
                                 const timePart = d.toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' });
@@ -1074,7 +1074,7 @@ module.exports.handler = async function (event, context) {
                     deliveryData = typeof rawDel === 'string' ? JSON.parse(rawDel) : rawDel;
                 } catch (e) {}
 
-                if (deliveryData.type !== 'PVZ') throw new Error('Таймер доступен только для заказов в ПВЗ');
+                if (deliveryData.type !== 'PICKUP') throw new Error('Таймер доступен только для локального самовывоза');
 
                 if (['pvz_delivered', 'completed'].includes(orderRow.status)) {
                     responseData = { success: true };
