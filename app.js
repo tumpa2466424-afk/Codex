@@ -30,9 +30,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         const CATEGORY_DESCRIPTIONS = {
             'ЭСПРЕССО': 'В этой категории собраны сорта и смеси, которые подойдут для приготовления в эспрессо, турке, гейзере и другими способами. Идеально под молоко.',
             'ФИЛЬТР': 'В этой категории собраны сорта и смеси, которые подойдут для приготовления в любых фильтровых способах: воронки, аэропресс, капельные.',
-            '������������': '��������� ����� � ������ �������������. ����������� ������������ �������������. ��������� ����� ��� ���, ��� ����� ������������� �������� ������ ������ ������ ���������.',
+            'АРОМАТИЗАЦИЯ': 'Десертные сорта с мягкой ароматизацией. Применяются кондитерские ароматизаторы. Идеальный выбор для тех, кто хочет разнообразить кофейную рутину новыми яркими ароматами.',
             'АКСЕССУАРЫ': 'Все, с помощью чего вы сможете приготовить себе чашку вкусного кофе.',
-            '����������': '������������ � ����������� � ���� �������, ����� ������ � ��� ������.'
+            'ИНФОРМАЦИЯ': 'Ознакомьтесь с информацией в этом разделе, чтобы узнать о нас больше.'
         };
         
         const SCA_CSV_MAP = {
@@ -325,9 +325,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         let SHOP_DATA = [
             { id: 'espresso', label: 'ЭСПРЕССО', color: CATEGORY_COLORS['Эспрессо'], desc: CATEGORY_DESCRIPTIONS['ЭСПРЕССО'], children: [] },
             { id: 'filter', label: 'ФИЛЬТР', color: CATEGORY_COLORS['Фильтр'], desc: CATEGORY_DESCRIPTIONS['ФИЛЬТР'], children: [] },
-            { id: 'aroma', label: '������������', color: CATEGORY_COLORS['������������'], desc: CATEGORY_DESCRIPTIONS['������������'], children: [] },
+            { id: 'aroma', label: 'АРОМАТИЗАЦИЯ', color: CATEGORY_COLORS['Ароматизация'], desc: CATEGORY_DESCRIPTIONS['АРОМАТИЗАЦИЯ'], children: [] },
             { id: 'accessories', label: 'АКСЕССУАРЫ', color: CATEGORY_COLORS['Аксессуары'], desc: CATEGORY_DESCRIPTIONS['АКСЕССУАРЫ'], children: [] },
-            { id: 'info', label: '����������', color: CATEGORY_COLORS['����������'], desc: CATEGORY_DESCRIPTIONS['����������'], children: [] }
+            { id: 'info', label: 'ИНФОРМАЦИЯ', color: CATEGORY_COLORS['Информация'], desc: CATEGORY_DESCRIPTIONS['ИНФОРМАЦИЯ'], children: [] }
         ];
 
         let rotation = 0, isDragging = false, lastAngle = 0, velocity = 0, lastTime = Date.now();
@@ -659,10 +659,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                        // --- СЕКЦИЯ 1: FARMING ---
                         addE('Страна', r.country);
-                        addE('������', r.region);
+                        addE('Регион', r.region);
                         addE('Ферма / Кооператив', r.farm);
                         addE('Производитель', r.producer);
-                        addE('��� / �������������', r.variety);
+                        addE('Вид / Разновидность', r.variety);
                         addE('Год урожая', r.harvest);
                         addE('Другое (Фермерство)', r.otherFarming);
 
@@ -691,7 +691,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             addE('Цена Farm Gate', r.farmGatePrice);
                         }
                         
-                        addE('������ ����', r.lotSize);
+                        addE('Размер лота', r.lotSize);
                         addE('Другое (Торговля)', r.otherTrading);
 
                         // --- СЕКЦИЯ 4: CERTIFICATIONS ---
@@ -1282,7 +1282,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     promoCode = document.getElementById('action-promo-code').value.toUpperCase().trim();
                     discountVal = parseFloat(document.getElementById('action-discount-val').value) || 0;
                     discountType = document.getElementById('action-discount-type').value;
-                    if (!promoCode || !discountVal) return alert('��� ������ ������� �������� � ������ ������');
+                    if (!promoCode || !discountVal) return alert('Для скидки укажите Промокод и Размер скидки');
                 }
 
                 const data = {
@@ -1556,7 +1556,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 let typeColor = '#7A8F7C';
                                 
                                 if (catStr.includes('ароматизац')) {
-                                    typeText = '������������';
+                                    typeText = 'АРОМАТИЗАЦИЯ';
                                 } else if (catStr.includes('эспрессо') || (!catStr.includes('фильтр') && roastVal >= 10)) {
                                     typeText = 'ЭСПРЕССО';
                                 }
@@ -1587,10 +1587,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                                 <input type="checkbox" id="cat-check-${r.id}" ${isChecked} onchange="CatalogSystem.updateCatalogRow('${r.id}', this)">
                                                 В каталоге
                                             </div>
-                                            <button class="cat-btn-icon" title="������������� ���" onclick="CatalogSystem.openEditMode('${r.id}', event)">
+                                            <button class="cat-btn-icon" title="Редактировать лот" onclick="CatalogSystem.openEditMode('${r.id}', event)">
                                                 <span style="font-size:9px; font-weight:700; letter-spacing:0.6px; line-height:1;">DE</span>
                                             </button>
-                                            <button class="cat-btn-icon" title="������������� ������� �����" onclick="CatalogSystem.openExtrinsicEditMode('${r.id}', event)">
+                                            <button class="cat-btn-icon" title="Редактировать внешнюю форму" onclick="CatalogSystem.openExtrinsicEditMode('${r.id}', event)">
                                                 <span style="font-size:9px; font-weight:700; letter-spacing:0.6px; line-height:1;">EX</span>
                                             </button>
                                             <button class="cat-btn-icon" title="Дублировать лот" onclick="CatalogSystem.duplicateRow('${r.id}', event)">
@@ -1639,20 +1639,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 let region, variety, harvest, processing;
 
                 // Извлекаем все данные с надежными запасными вариантами (fallbacks)
-                region = (fullProduct && (fullProduct.region || fullProduct['������'])) || '-';
-                variety = (fullProduct && (fullProduct.variety || fullProduct['���/�������������'])) || '-';
+                region = (fullProduct && (fullProduct.region || fullProduct['Регион'])) || '-';
+                variety = (fullProduct && (fullProduct.variety || fullProduct['Вид/Разновидность'])) || '-';
                 harvest = (fullProduct && (fullProduct.cropYear || fullProduct.harvest || fullProduct['Год урожая'])) || '-';
                 // Берем Описание обработки из правильной переменной кэша
                 processing = (fullProduct && fullProduct.processDesc) ? fullProduct.processDesc : '-';
 
                 if (isAroma) {
-                    roastTextLabel = '�����������������';
+                    roastTextLabel = 'АРОМАТИЗИРОВАННЫЙ';
                     country = r.sample || 'НАЗВАНИЕ ЛОТА';
                     farm = ''; 
                     notes = (fullProduct && fullProduct.flavorDesc) ? fullProduct.flavorDesc : (r.flavorDesc || 'Описание отсутствует');
                 } else {
                     country = (fullProduct && fullProduct.country) ? fullProduct.country : 'СТРАНА НЕ УКАЗАНА';
-                    farm = (fullProduct && fullProduct.farm) ? fullProduct.farm : ((fullProduct && fullProduct.producer) ? fullProduct.producer : '����� / ����������');
+                    farm = (fullProduct && fullProduct.farm) ? fullProduct.farm : ((fullProduct && fullProduct.producer) ? fullProduct.producer : 'ФЕРМА / КООПЕРАТИВ');
                     notes = (fullProduct && fullProduct.flavorNotes) ? fullProduct.flavorNotes : (r.flavorNotes || 'Дескрипторы не указаны');
                     
                     let catStr = (r.category || '').toLowerCase();
@@ -1660,7 +1660,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     if (catStr.includes('эспрессо') || (!catStr.includes('фильтр') && roastVal >= 10)) {
                         roastTextLabel = 'ЭСПРЕССО-ОБЖАРКА';
                     } else {
-                        roastTextLabel = '������-�������';
+                        roastTextLabel = 'ФИЛЬТР-ОБЖАРКА';
                     }
                 }
 
@@ -1717,9 +1717,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 
                                 <div class="sb-grid">
                                     <div class="sb-label">Страна:</div><div class="sb-value">${country}</div>
-                                    <div class="sb-label">������:</div><div class="sb-value">${region}</div>
+                                    <div class="sb-label">Регион:</div><div class="sb-value">${region}</div>
                                     <div class="sb-label">Ферма:</div><div class="sb-value">${farm}</div>
-                                    <div class="sb-label">���/�������������:</div><div class="sb-value">${variety}</div>
+                                    <div class="sb-label">Вид/Разновидность:</div><div class="sb-value">${variety}</div>
                                     <div class="sb-label">Год урожая:</div><div class="sb-value">${harvest}</div>
                                     <div class="sb-label">Описание обработки:</div><div class="sb-value">${processing}</div>
                                     <div class="sb-label">Обжарено:</div><div class="sb-value"></div>
@@ -1865,10 +1865,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 return {
                     textFields: [
                         { section: 'farming', dom: 'country', requestKey: 'Country', productKey: 'country', label: 'Страна' },
-                        { section: 'farming', dom: 'region', requestKey: 'Region', productKey: 'region', label: '������' },
+                        { section: 'farming', dom: 'region', requestKey: 'Region', productKey: 'region', label: 'Регион' },
                         { section: 'farming', dom: 'farm', requestKey: 'Name of farm or Co-op', productKey: 'farm', label: 'Ферма / Кооператив' },
                         { section: 'farming', dom: 'producer', requestKey: 'Name of Producer(s)', productKey: 'producer', label: 'Производитель' },
-                        { section: 'farming', dom: 'variety', requestKey: 'Species Variety or Varieties', productKey: 'variety', label: '��� / �������������' },
+                        { section: 'farming', dom: 'variety', requestKey: 'Species Variety or Varieties', productKey: 'variety', label: 'Вид / Разновидность' },
                         { section: 'farming', dom: 'harvest', requestKey: 'Harvest Date/Year', productKey: 'harvest', label: 'Год урожая' },
                         { section: 'farming', dom: 'otherFarming', requestKey: 'Other_Farming', productKey: 'otherFarming', label: 'Другое (Фермерство)', multiline: true },
 
@@ -1885,7 +1885,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         { section: 'trading', dom: 'importer', requestKey: 'Name of Importer', productKey: 'importer', label: 'Импортер' },
                         { section: 'trading', dom: 'exporter', requestKey: 'Name of Exporter', productKey: 'exporter', label: 'Экспортер' },
                         { section: 'trading', dom: 'farmGatePrice', requestKey: 'Farm Gate Price', productKey: 'farmGatePrice', label: 'Farm Gate Price' },
-                        { section: 'trading', dom: 'lotSize', requestKey: 'Lot Size', productKey: 'lotSize', label: '������ ����' },
+                        { section: 'trading', dom: 'lotSize', requestKey: 'Lot Size', productKey: 'lotSize', label: 'Размер лота' },
                         { section: 'trading', dom: 'otherTrading', requestKey: 'Other_Trading', productKey: 'otherTrading', label: 'Другое (Торговля)', multiline: true },
 
                         { section: 'certs', dom: 'otherCertifications', requestKey: 'Other_Certifications', productKey: 'otherCertifications', label: 'Другие сертификаты', multiline: true },
@@ -2808,7 +2808,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         if (category.includes('ПОСТОЯН') || category.includes('OPEX') || name.includes('аренда') || name.includes('оклад')) {
                             opex += val;
                         } 
-                        else if (category.includes('�������')) {
+                        else if (category.includes('ПЕРЕМЕН')) {
                             const isGreenCoffee = name.includes('зелёный') || name.includes('зеленый') || 
                                                   name.includes('перу') || name.includes('бразилия') || 
                                                   name.includes('эфиопия') || name.includes('колумбия');
@@ -3065,7 +3065,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         
                         // ИСПРАВЛЕНО: Используем catName вместо ошибочного catStr
                         if (catName.includes('ароматизац')) {
-                            typeText = '������������';
+                            typeText = 'АРОМАТИЗАЦИЯ';
                         } else if (catName.includes('эспрессо') || (!catName.includes('фильтр') && roastVal >= 10)) {
                             typeText = 'ЭСПРЕССО';
                         }
@@ -3315,7 +3315,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     
                     let typeText = 'ФИЛЬТР';
                     if (catName.includes('ароматизац')) {
-                        typeText = '�����';
+                        typeText = 'АРОМАТИЗАЦИЯ';
                     } else if (catName.includes('эспрессо')) {
                         typeText = 'ЭСПРЕССО';
                     } else if (!catName.includes('фильтр') && roastVal >= 10) {
@@ -3526,7 +3526,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (manualInput) manualInput.value = ''; // Очищаем ручной ввод, если выбрали ПВЗ
                 
                 if(statusEl) {
-                    statusEl.innerHTML = `<b>���:</b> ${cityInput}, ${address} <br><span style="font-size: 10px; opacity: 0.7;">������������ ��������� ��������...</span>`;
+                    statusEl.innerHTML = `<b>ПВЗ:</b> ${cityInput}, ${address} <br><span style="font-size: 10px; opacity: 0.7;">Рассчитываем стоимость доставки...</span>`;
                     statusEl.style.color = 'var(--locus-dark)';
                 }
 
@@ -4260,7 +4260,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 <span style="font-size:10px; color:gray;">${dateStrHTML}</span><br>
                                 <div style="margin-top:8px;"><b>${email}</b></div>
                                 <div style="color:gray;">${phone}</div>
-                                ${reqs ? `<div style="margin-top:6px; font-size:10px; line-height:1.3; color:#444; background:rgba(255,255,255,0.7); padding:6px; border-radius:4px; border:1px dashed #ccc; max-height:60px; overflow-y:auto;"><b>���������:</b><br>${reqs.replace(/\n/g, '<br>')}</div>` : ''}
+                                ${reqs ? `<div style="margin-top:6px; font-size:10px; line-height:1.3; color:#444; background:rgba(255,255,255,0.7); padding:6px; border-radius:4px; border:1px dashed #ccc; max-height:60px; overflow-y:auto;"><b>Реквизиты:</b><br>${reqs.replace(/\n/g, '<br>')}</div>` : ''}
                             </td>
                             <td style="vertical-align:top; padding-top:10px; font-size:12px; line-height:1.5;">
                                 ${itemsHtml}
@@ -4828,7 +4828,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         this.switchView('dashboard');
                         this.renderDashboard(); // ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА ЛК
                         
-                        alert('����������� �������!');
+                        alert('Платеж успешно подтвержден!');
                     } catch (e) { alert('Ошибка: ' + e.message); }
                 },
 
@@ -5714,11 +5714,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             const dbCat = raw.category ? String(raw.category).toLowerCase() : '';
                             
                             if (dbCat.includes('ароматизация')) {
-                                targetCategoryLabel = '������������';
+                                targetCategoryLabel = 'АРОМАТИЗАЦИЯ';
                             } else if (dbCat.includes('аксессуар')) {
                                 targetCategoryLabel = 'АКСЕССУАРЫ';
                             } else if (dbCat.includes('информац')) {
-                                targetCategoryLabel = '����������';
+                                targetCategoryLabel = 'ИНФОРМАЦИЯ';
                             } else if (dbCat.includes('эспрессо')) {
                                 targetCategoryLabel = 'ЭСПРЕССО';
                             } else if (dbCat.includes('фильтр')) {
