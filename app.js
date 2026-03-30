@@ -2480,6 +2480,58 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 });
             },
 
+            normalizeEmailAddress: function(value) {
+                return String(value || '').trim().toLowerCase();
+            },
+
+            isValidEmailAddress: function(email) {
+                const value = this.normalizeEmailAddress(email);
+                if (!value || value.length > 254) return false;
+
+                const parts = value.split('@');
+                if (parts.length !== 2) return false;
+
+                const [localPart, domain] = parts;
+                if (!localPart || !domain || localPart.length > 64 || domain.length > 253) return false;
+                if (localPart.startsWith('.') || localPart.endsWith('.') || domain.startsWith('.') || domain.endsWith('.')) return false;
+                if (localPart.includes('..') || domain.includes('..')) return false;
+                if (!/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(localPart)) return false;
+                if (!/^[A-Za-z0-9.-]+\.[A-Za-z]{2,63}$/.test(domain)) return false;
+
+                return domain.split('.').every(label => label && label.length <= 63 && !label.startsWith('-') && !label.endsWith('-'));
+            },
+
+            getRegistrationPasswordError: function(password) {
+                const value = typeof password === 'string' ? password : '';
+                if (!value) return 'Укажите пароль.';
+                if (value.length < 8) return 'Пароль должен содержать минимум 8 символов.';
+                if (value.length > 72) return 'Пароль слишком длинный. Максимум 72 символа.';
+                if (/\s/.test(value)) return 'Пароль не должен содержать пробелы.';
+                if (!/[A-ZА-ЯЁ]/.test(value)) return 'Пароль должен содержать хотя бы одну заглавную букву.';
+                if (!/[a-zа-яё]/.test(value)) return 'Пароль должен содержать хотя бы одну строчную букву.';
+                if (!/\d/.test(value)) return 'Пароль должен содержать хотя бы одну цифру.';
+                return '';
+            },
+
+            validateRegistrationCredentials: function(emailValue, passwordValue) {
+                const email = this.normalizeEmailAddress(emailValue);
+                if (!email) throw new Error('Укажите email.');
+                if (!this.isValidEmailAddress(email)) throw new Error('Укажите корректный email в формате name@example.com.');
+
+                const passwordError = this.getRegistrationPasswordError(passwordValue);
+                if (passwordError) throw new Error(passwordError);
+
+                return { email, password: passwordValue };
+            },
+
+            formatProductSelectionMeta: function(productOrName, weight, grind) {
+                const meta = ProductManager.getDisplayMeta(productOrName, weight, grind);
+                const parts = [];
+                if (meta.weight) parts.push(`${meta.weight} г`);
+                if (meta.grind) parts.push(meta.grind);
+                return parts.length ? ` (${parts.join(', ')})` : '';
+            },
+
             getWelcomeBonusStorageKey: function(userId = this.uid) {
                 return userId ? `locus_welcome_bonus_${userId}` : '';
             },
@@ -2669,10 +2721,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                     const remainingMs = deadlineMs - Date.now();
                     if (remainingMs > 0) {
+                        el.classList.remove('is-delivered');
+                        el.classList.add('is-active');
                         el.textContent = `До выдачи: ${this.formatCountdownText(remainingMs)}`;
                         return;
                     }
 
+                    el.classList.remove('is-active');
+                    el.classList.add('is-delivered');
                     el.textContent = 'Доставлено в пункт выдачи';
                     if (autoStatus && orderId) this.autoDeliverPvzOrder(orderId);
                 });
@@ -4419,7 +4475,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         const delivery = o.delivery || {};
                         const countdownInfo = this.getPvzCountdownInfo(o);
                         const countdownHtml = countdownInfo ? `
-                            <div data-retail-order-countdown="1" data-order-id="${o.id}" data-deadline-ms="${countdownInfo.deadlineMs || 0}" data-auto-status="0" style="margin-top:8px; font-size:11px; color:${countdownInfo.delivered ? '#187a30' : '#8B7E66'}; font-weight:600;">
+                            <div class="retail-order-countdown ${countdownInfo.delivered ? 'is-delivered' : 'is-active'}" data-retail-order-countdown="1" data-order-id="${o.id}" data-deadline-ms="${countdownInfo.deadlineMs || 0}" data-auto-status="0" style="margin-top:8px;">
                                 ${countdownInfo.delivered ? 'Доставлено в пункт выдачи' : `До выдачи: ${countdownInfo.label}`}
                             </div>
                         ` : '';
@@ -4581,7 +4637,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 
                 this.saveCart(true);
                 this.updateCartBadge();
-                alert(`"${item}" (${weight} г, ${grind}) добавлен в корзину`);
+                alert(`"${item}"${this.formatProductSelectionMeta(product, weight, grind)} добавлен в корзину`);
             },
 
             // --- НАЧАЛО: НОВОЕ СОХРАНЕНИЕ КОРЗИНЫ ---
@@ -4913,13 +4969,23 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
             // --- НАЧАЛО: АВТОРИЗАЦИЯ ЧЕРЕЗ YDB ---
                 register: async function() {
-                    const email = document.getElementById('reg-email')?.value; 
-                    const pass = document.getElementById('reg-pass')?.value;
-                    if(!email || !pass) return alert('Заполните поля');
+                    const emailInput = document.getElementById('reg-email');
+                    const passInput = document.getElementById('reg-pass');
+                    const rawEmail = emailInput ? emailInput.value : '';
+                    const pass = passInput ? passInput.value : '';
+
+                    let credentials;
+                    try {
+                        credentials = this.validateRegistrationCredentials(rawEmail, pass);
+                    } catch (validationError) {
+                        return alert(validationError.message);
+                    }
+
+                    if (emailInput) emailInput.value = credentials.email;
                     try {
                         const res = await fetch(LOCUS_API_URL + '?action=register', {
                             method: 'POST',
-                            body: JSON.stringify({ action: 'register', email, password: pass })
+                            body: JSON.stringify({ action: 'register', email: credentials.email, password: credentials.password })
                         });
                         const data = await res.json();
                         
@@ -4942,9 +5008,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 },
 
                 login: async function() {
-                    const email = document.getElementById('login-email')?.value; 
+                    const emailInput = document.getElementById('login-email');
+                    const email = this.normalizeEmailAddress(emailInput?.value);
                     const pass = document.getElementById('login-pass')?.value;
                     if(!email || !pass) return alert('Заполните поля');
+                    if(!this.isValidEmailAddress(email)) return alert('Укажите корректный email.');
+                    if(emailInput) emailInput.value = email;
                     try {
                         const res = await fetch(LOCUS_API_URL + '?action=login', {
                             method: 'POST',
@@ -5029,7 +5098,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const subItem = { item: itemName, price: subPrice, weight: weight, grind: grind, dateAdded: new Date().toLocaleDateString(), active: true };
                 this.currentUser.subscription.push(subItem);
                 
-                alert(`Сорт "${itemName}" (${weight} г, ${grind}) добавлен в вашу подписку.`);
+                alert(`Сорт "${itemName}"${this.formatProductSelectionMeta(product, weight, grind)} добавлен в вашу подписку.`);
                 this.renderDashboard();
                 
                 const token = localStorage.getItem('locus_token');
@@ -5282,7 +5351,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 
                                 const countdownInfo = !isWholesale ? this.getPvzCountdownInfo(hItem) : null;
                                 const countdownHtml = countdownInfo ? `
-                                    <div data-retail-order-countdown="1" data-order-id="${hItem.orderId}" data-deadline-ms="${countdownInfo.deadlineMs || 0}" data-auto-status="${countdownInfo.delivered ? '0' : '1'}" style="margin-top:6px; font-size:11px; color:${countdownInfo.delivered ? '#187a30' : '#8B7E66'}; font-weight:600;">
+                                    <div class="retail-order-countdown ${countdownInfo.delivered ? 'is-delivered' : 'is-active'}" data-retail-order-countdown="1" data-order-id="${hItem.orderId}" data-deadline-ms="${countdownInfo.deadlineMs || 0}" data-auto-status="${countdownInfo.delivered ? '0' : '1'}" style="margin-top:6px;">
                                         ${countdownInfo.delivered ? 'Доставлено в пункт выдачи' : `До выдачи: ${countdownInfo.label}`}
                                     </div>
                                 ` : '';
