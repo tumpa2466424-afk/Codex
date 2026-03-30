@@ -810,6 +810,34 @@ module.exports.handler = async function (event, context) {
                 responseData = { success: true, users: usersList };
             }
 
+            else if (action === 'deleteUser') {
+                const decoded = verifyToken(rawToken);
+                if (decoded.email !== 'info@locus.coffee') throw new Error('\u0414\u043e\u0441\u0442\u0443\u043f \u0437\u0430\u043f\u0440\u0435\u0449\u0435\u043d');
+
+                const userId = String(body.id || '').trim();
+                if (!userId) throw new Error('\u041d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d ID \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f');
+
+                const findQuery = `DECLARE $id AS Utf8; SELECT id, email FROM users WHERE id = $id;`;
+                const { resultSets } = await session.executeQuery(findQuery, {
+                    '$id': TypedValues.utf8(userId)
+                });
+
+                if (!resultSets[0]?.rows?.length) throw new Error('\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d');
+
+                const user = rowToObj(resultSets[0].columns, resultSets[0].rows[0]);
+                const normalizedUserEmail = normalizeEmailAddress(user.email);
+                if (normalizedUserEmail === 'info@locus.coffee' || userId === String(decoded.userId || '')) {
+                    throw new Error('\u0413\u043b\u0430\u0432\u043d\u044b\u0439 \u0430\u043a\u043a\u0430\u0443\u043d\u0442 \u043c\u0430\u0433\u0430\u0437\u0438\u043d\u0430 \u0443\u0434\u0430\u043b\u044f\u0442\u044c \u043d\u0435\u043b\u044c\u0437\u044f');
+                }
+
+                const deleteQuery = `DECLARE $id AS Utf8; DELETE FROM users WHERE id = $id;`;
+                await session.executeQuery(deleteQuery, {
+                    '$id': TypedValues.utf8(userId)
+                });
+
+                responseData = { success: true };
+            }
+
             else if (action === 'getPromos') {
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
