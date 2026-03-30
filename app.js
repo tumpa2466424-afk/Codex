@@ -4183,6 +4183,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     });
 
                     usersList.sort((a, b) => b.spent - a.spent);
+                    this.adminUsersMap = Object.fromEntries(usersList.map(u => [u.id, u]));
 
                     let html = `
                         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:20px; text-align:center;">
@@ -4211,12 +4212,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     <th>Любимый сорт</th>
                                     <th>Статус</th>
                                     <th>LTV (Сумма)</th>
+                                    <th style="width:42px;"></th>
                                 </tr>
                             </thead>
                             <tbody>
                     `;
 
                     usersList.forEach(u => {
+                        const isProtectedUser = this.normalizeEmailAddress(u.email) === 'info@locus.coffee';
                         html += `
                             <tr>
                                 <td>
@@ -4227,6 +4230,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 <td style="font-size:10px;">${u.fav}</td>
                                 <td style="font-size:10px;">${u.freq}</td>
                                 <td style="font-weight:bold;">${u.spent} ₽</td>
+                                <td class="admin-user-actions-cell">
+                                    <button class="cat-btn-icon delete admin-user-delete-btn" type="button" title="${isProtectedUser ? '\u0413\u043b\u0430\u0432\u043d\u044b\u0439 \u0430\u043a\u043a\u0430\u0443\u043d\u0442 \u043d\u0435\u043b\u044c\u0437\u044f \u0443\u0434\u0430\u043b\u0438\u0442\u044c' : '\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f'}" onclick="UserSystem.deleteUser('${u.id}')" ${isProtectedUser ? 'disabled aria-disabled="true"' : ''}>&times;</button>
+                                </td>
                             </tr>
                         `;
                     });
@@ -4306,7 +4312,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             deletePromo: async function(id) {
-                if(!confirm('Удалить промокод?')) return;
+                if(!confirm('\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u0440\u043e\u043c\u043e\u043a\u043e\u0434?')) return;
                 const token = localStorage.getItem('locus_token');
                 try { 
                     await fetch(LOCUS_API_URL + '?action=deletePromo', {
@@ -4316,6 +4322,31 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     });
                     this.loadPromos(); 
                 } catch(e) { console.error(e); }
+            },
+
+            deleteUser: async function(userId) {
+                const user = this.adminUsersMap?.[userId];
+                const userEmail = user?.email || '\u0432\u044b\u0431\u0440\u0430\u043d\u043d\u043e\u0433\u043e \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f';
+                if (this.normalizeEmailAddress(userEmail) === 'info@locus.coffee') {
+                    alert('\u0413\u043b\u0430\u0432\u043d\u044b\u0439 \u0430\u043a\u043a\u0430\u0443\u043d\u0442 \u043c\u0430\u0433\u0430\u0437\u0438\u043d\u0430 \u0443\u0434\u0430\u043b\u044f\u0442\u044c \u043d\u0435\u043b\u044c\u0437\u044f.');
+                    return;
+                }
+                if(!confirm(`\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f ${userEmail} \u0438\u0437 \u0431\u0430\u0437\u044b \u0430\u043a\u043a\u0430\u0443\u043d\u0442\u043e\u0432? \u042d\u0442\u043e \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u043d\u0435\u043e\u0431\u0440\u0430\u0442\u0438\u043c\u043e.`)) return;
+
+                const token = localStorage.getItem('locus_token');
+                try {
+                    const res = await fetch(LOCUS_API_URL + '?action=deleteUser', {
+                        method: 'POST',
+                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'deleteUser', id: userId })
+                    });
+                    const data = await res.json();
+                    if (!data.success) throw new Error(data.error || '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0443\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f');
+                    this.loadUsers();
+                } catch(e) {
+                    console.error(e);
+                    alert('\u041e\u0448\u0438\u0431\u043a\u0430 \u0443\u0434\u0430\u043b\u0435\u043d\u0438\u044f: ' + e.message);
+                }
             },
 
             applyPromo: async function() {
