@@ -135,7 +135,16 @@ async function sendPasswordResetEmail(email, resetUrl) {
 
 function isArticleCategory(category) {
     const value = String(category || '').toLowerCase();
-    return value.includes('информац') && value.includes('стат');
+    return value.includes('информац');
+}
+
+function isArticleOrderItem(item) {
+    if (!item) return false;
+    if (item.isArticle === true) return true;
+
+    const title = String(item.item || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const numericPrice = parseFloat(item.price);
+    return isArticleCategory(item.category) && title !== 'статьи' && numericPrice > 0;
 }
 
 function createSystemHistoryEntry(key, extra = {}) {
@@ -269,7 +278,7 @@ function createArticleAccessRecord(item) {
 function collectArticleAccessRecords(items) {
     const result = [];
     (Array.isArray(items) ? items : []).forEach(item => {
-        if (!item || !isArticleCategory(item.category)) return;
+        if (!isArticleOrderItem(item)) return;
         const articleId = String(item.lotId || item.item || '').trim();
         if (!articleId) return;
         const access = createArticleAccessRecord(item);
