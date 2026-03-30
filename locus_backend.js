@@ -8,6 +8,39 @@ const JWT_SECRET = 'locus-coffee-super-secret-key-2026';
 
 let driver;
 
+function normalizeEmailAddress(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function isValidEmailAddress(email) {
+    const value = normalizeEmailAddress(email);
+    if (!value || value.length > 254) return false;
+
+    const parts = value.split('@');
+    if (parts.length !== 2) return false;
+
+    const [localPart, domain] = parts;
+    if (!localPart || !domain || localPart.length > 64 || domain.length > 253) return false;
+    if (localPart.startsWith('.') || localPart.endsWith('.') || domain.startsWith('.') || domain.endsWith('.')) return false;
+    if (localPart.includes('..') || domain.includes('..')) return false;
+    if (!/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(localPart)) return false;
+    if (!/^[A-Za-z0-9.-]+\.[A-Za-z]{2,63}$/.test(domain)) return false;
+
+    return domain.split('.').every(label => label && label.length <= 63 && !label.startsWith('-') && !label.endsWith('-'));
+}
+
+function getRegistrationPasswordError(password) {
+    const value = typeof password === 'string' ? password : '';
+    if (!value) return 'Пароль обязателен';
+    if (value.length < 8) return 'Пароль должен содержать минимум 8 символов';
+    if (value.length > 72) return 'Пароль слишком длинный. Максимум 72 символа';
+    if (/\s/.test(value)) return 'Пароль не должен содержать пробелы';
+    if (!/[A-ZА-ЯЁ]/.test(value)) return 'Пароль должен содержать хотя бы одну заглавную букву';
+    if (!/[a-zа-яё]/.test(value)) return 'Пароль должен содержать хотя бы одну строчную букву';
+    if (!/\d/.test(value)) return 'Пароль должен содержать хотя бы одну цифру';
+    return '';
+}
+
 async function getDriver(forceNew = false) {
     if (forceNew && driver) {
         try {
@@ -397,11 +430,23 @@ module.exports.handler = async function (event, context) {
             
             if (action === 'register') {
                 const { email, password } = body;
-                if (!email || !password) throw new Error('Email и пароль обязательны');
+                const rawEmail = String(email || '').trim();
+                const normalizedEmail = normalizeEmailAddress(rawEmail);
+                if (!normalizedEmail || !password) throw new Error('Email и пароль обязательны');
+                if (!isValidEmailAddress(normalizedEmail)) throw new Error('Укажите корректный email в формате name@example.com');
 
-                const checkQuery = `DECLARE $email AS Utf8; SELECT * FROM users WHERE email = $email;`;
-                const { resultSets: checkRes } = await session.executeQuery(checkQuery, { '$email': TypedValues.utf8(email) });
-                if (checkRes[0].rows.length > 0) throw new Error('Пользователь с таким email уже существует');
+                const passwordError = getRegistrationPasswordError(password);
+                if (passwordError) throw new Error(passwordError);
+
+                const checkQuery = `DECLARE $email AS Utf8; DECLARE $rawEmail AS Utf8; SELECT * FROM users WHERE email = $email OR email = $rawEmail;`;
+                const { resultSets: checkRes } = await session.executeQuery(checkQuery, {
+                    '$email': TypedValues.utf8(normalizedEmail),
+                    '$rawEmail': TypedValues.utf8(rawEmail)
+                });
+                const existingUsers = (checkRes[0]?.rows || []).map(row => rowToObj(checkRes[0].columns, row));
+                if (existingUsers.some(user => normalizeEmailAddress(user.email) === normalizedEmail)) {
+                    throw new Error('Пользователь с таким email уже существует');
+                }
 
                 const userId = uuidv4();
                 const hash = bcrypt.hashSync(password, 10); 
@@ -416,23 +461,30 @@ module.exports.handler = async function (event, context) {
                     VALUES ($id, $email, $hash, $role, 0, $cart, $history, $sub);
                 `;
                 await session.executeQuery(insertQuery, {
-                    '$id': TypedValues.utf8(userId), '$email': TypedValues.utf8(email),
-                    '$hash': TypedValues.utf8(hash), '$role': TypedValues.utf8(email === 'info@locus.coffee' ? 'admin' : 'user'), 
+                    '$id': TypedValues.utf8(userId), '$email': TypedValues.utf8(normalizedEmail),
+                    '$hash': TypedValues.utf8(hash), '$role': TypedValues.utf8(normalizedEmail === 'info@locus.coffee' ? 'admin' : 'user'), 
                     '$cart': TypedValues.jsonDocument(emptyArr), '$history': TypedValues.jsonDocument(emptyArr), '$sub': TypedValues.jsonDocument(emptyArr)
                 });
 
-                const token = jwt.sign({ userId, email }, JWT_SECRET, { expiresIn: '30d' });
-                responseData = { success: true, token, user: { id: userId, email, totalSpent: 0, cart: [], history: [], subscription: [] } };
+                const token = jwt.sign({ userId, email: normalizedEmail }, JWT_SECRET, { expiresIn: '30d' });
+                responseData = { success: true, token, user: { id: userId, email: normalizedEmail, totalSpent: 0, cart: [], history: [], subscription: [] } };
             }
             
             else if (action === 'login') {
                 const { email, password } = body;
-                const loginQuery = `DECLARE $email AS Utf8; SELECT * FROM users WHERE email = $email;`;
-                const { resultSets } = await session.executeQuery(loginQuery, { '$email': TypedValues.utf8(email) });
+                const rawEmail = String(email || '').trim();
+                const normalizedEmail = normalizeEmailAddress(rawEmail);
+                if (!normalizedEmail || !password) throw new Error('Email и пароль обязательны');
+                const loginQuery = `DECLARE $email AS Utf8; DECLARE $rawEmail AS Utf8; SELECT * FROM users WHERE email = $email OR email = $rawEmail;`;
+                const { resultSets } = await session.executeQuery(loginQuery, {
+                    '$email': TypedValues.utf8(normalizedEmail),
+                    '$rawEmail': TypedValues.utf8(rawEmail)
+                });
 
                 if (resultSets[0].rows.length === 0) throw new Error('Неверный email или пароль');
                 
-                const user = rowToObj(resultSets[0].columns, resultSets[0].rows[0]);
+                const users = resultSets[0].rows.map(row => rowToObj(resultSets[0].columns, row));
+                const user = users.find(item => normalizeEmailAddress(item.email) === normalizedEmail) || users[0];
                 const pwdHash = user.passwordhash || user.password_hash;
                 if (!pwdHash || !bcrypt.compareSync(password, pwdHash)) throw new Error('Неверный email или пароль');
 
