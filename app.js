@@ -569,8 +569,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         }
                         
                         if (articleAccessPanel) articleAccessPanel.style.display = isArticle ? 'block' : 'none';
-                        if (isArticle) this.renderArticleAccessPanel(r);
-                        else this.renderArticleReader(null, '');
+                        if (isArticle) UserSystem.renderArticleAccessPanel(r);
+                        else UserSystem.renderArticleReader(null, '');
 
                         const grid = document.getElementById('cupping-data');
                         if(grid) grid.innerHTML = ''; // Убираем таблицу каппинга
@@ -630,7 +630,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                     if (!isArticle) {
                         if (articleAccessPanel) articleAccessPanel.style.display = 'none';
-                        this.renderArticleReader(null, '');
+                        UserSystem.renderArticleReader(null, '');
                     }
 
                     // ЛОГИКА КНОПКИ ПОКУПКИ (Скрываем для раздела Инфо с ценой 0)
