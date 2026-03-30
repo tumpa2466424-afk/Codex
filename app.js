@@ -642,7 +642,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                     // ЛОГИКА КНОПКИ ПОКУПКИ (Скрываем для раздела Инфо с ценой 0)
                     const priceVal = parseFloat(r.price) || 0;
-                    if (isArticleHub || (isInfo && priceVal === 0)) {
+                    const hasActiveArticleAccess = isArticle ? !!UserSystem.getActiveArticleAccess(r) : false;
+                    if (isArticleHub || hasActiveArticleAccess || (isInfo && priceVal === 0)) {
                         document.getElementById('p-buy-area').style.display = 'none';
                     } else {
                         document.getElementById('p-buy-area').style.display = 'flex';
@@ -3344,10 +3345,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                             <div class="article-hub-card-price">${price} ₽</div>
                                         </div>
                                         <div class="article-hub-card-actions">
-                                            <button type="button" class="lc-btn lc-btn-secondary article-hub-btn" onclick="UserSystem.openProductById('${article.id}')">Открыть</button>
+                                            <button type="button" class="btn-locus btn-sub article-hub-btn" onclick="UserSystem.openProductById('${article.id}')">Открыть</button>
                                             ${access
-                                                ? `<button type="button" class="lc-btn article-hub-btn" onclick="UserSystem.openProductById('${article.id}')">Читать</button>`
-                                                : `<button type="button" class="lc-btn article-hub-btn" ${inCart ? 'disabled' : ''} onclick="UserSystem.addArticleToCart('${article.id}')">${inCart ? 'В корзине' : 'В корзину'}</button>`
+                                                ? `<button type="button" class="btn-locus btn-cart article-hub-btn" onclick="UserSystem.openProductById('${article.id}', { focusAccess: true })">Читать</button>`
+                                                : `<button type="button" class="btn-locus btn-cart article-hub-btn" ${inCart ? 'disabled' : ''} onclick="UserSystem.addArticleToCart('${article.id}')">${inCart ? 'В корзине' : 'Купить'}</button>`
                                             }
                                         </div>
                                     </div>
@@ -3373,6 +3374,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const url = new URL(window.location);
                 url.searchParams.set('lot', product.sample || '');
                 window.history.replaceState({}, '', url);
+
+                if (options.focusAccess) {
+                    setTimeout(() => {
+                        const accessPanel = document.getElementById('article-access-panel');
+                        const passwordInput = document.getElementById('article-access-password');
+                        accessPanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        passwordInput?.focus();
+                    }, 420);
+                }
             },
 
             addArticleToCart: function(articleId) {
