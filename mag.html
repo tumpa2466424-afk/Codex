@@ -171,6 +171,7 @@
                 <input type="email" id="login-email" class="lc-input" placeholder="Email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="254">
                 <input type="password" id="login-pass" class="lc-input" placeholder="Пароль" autocomplete="current-password" maxlength="72">
                 <button class="lc-btn" id="btn-action-login">Войти</button>
+                <div class="lc-link" id="link-to-forgot">Забыли пароль?</div>
                 <div class="lc-link" id="link-to-reg">Нет аккаунта? Зарегистрироваться</div>
             </div>
 
@@ -178,8 +179,28 @@
                 <div class="lc-title">Регистрация</div>
                 <input type="email" id="reg-email" class="lc-input" placeholder="Email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="254">
                 <input type="password" id="reg-pass" class="lc-input" placeholder="Придумайте пароль" autocomplete="new-password" minlength="8" maxlength="72">
+                <button class="lc-btn lc-btn-secondary" id="btn-gen-password" type="button">Сгенерировать надежный пароль</button>
+                <div class="lc-note" id="reg-pass-note">Браузер может предложить сохранить пароль автоматически. Если не предложит, менеджер паролей попробуем вызвать после регистрации.</div>
                 <button class="lc-btn" id="btn-action-reg">Создать аккаунт</button>
                 <div class="lc-link" id="link-to-login">Уже есть аккаунт? Войти</div>
+            </div>
+
+            <div id="view-forgot-password" class="auth-form-container">
+                <div class="lc-title">Восстановление доступа</div>
+                <div class="lc-note">Введите email, с которым регистрировались. Мы отправим ссылку для сброса пароля на 30 минут.</div>
+                <input type="email" id="forgot-email" class="lc-input" placeholder="Email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="254">
+                <button class="lc-btn" id="btn-action-forgot">Отправить ссылку</button>
+                <div class="lc-link" id="link-to-login-from-forgot">Вернуться ко входу</div>
+            </div>
+
+            <div id="view-reset-password" class="auth-form-container">
+                <div class="lc-title">Новый пароль</div>
+                <div class="lc-note" id="reset-password-note">Придумайте новый пароль для входа в аккаунт. После сохранения можно будет войти с новым паролем на любом устройстве.</div>
+                <input type="password" id="reset-pass" class="lc-input" placeholder="Новый пароль" autocomplete="new-password" minlength="8" maxlength="72">
+                <input type="password" id="reset-pass-confirm" class="lc-input" placeholder="Повторите новый пароль" autocomplete="new-password" minlength="8" maxlength="72">
+                <button class="lc-btn lc-btn-secondary" id="btn-gen-reset-password" type="button">Сгенерировать надежный пароль</button>
+                <button class="lc-btn" id="btn-action-reset">Сохранить новый пароль</button>
+                <div class="lc-link" id="link-to-login-from-reset">Вернуться ко входу</div>
             </div>
 
             <div id="view-dashboard" class="dashboard-container">
