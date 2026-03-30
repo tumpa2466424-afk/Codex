@@ -2446,8 +2446,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 safeListen('btn-close-lc', () => this.toggleModal(false));
                 safeListen('link-to-reg', () => this.switchView('register'));
                 safeListen('link-to-login', () => this.switchView('login'));
+                safeListen('link-to-forgot', () => this.switchView('forgot-password'));
+                safeListen('link-to-login-from-forgot', () => this.switchView('login'));
+                safeListen('link-to-login-from-reset', () => this.switchView('login'));
                 safeListen('btn-action-reg', () => this.register());
                 safeListen('btn-action-login', () => this.login());
+                safeListen('btn-action-forgot', () => this.requestPasswordReset());
+                safeListen('btn-action-reset', () => this.submitPasswordReset());
+                safeListen('btn-gen-password', () => this.fillGeneratedPassword('reg-pass'));
+                safeListen('btn-gen-reset-password', () => this.fillGeneratedPassword('reset-pass', 'reset-pass-confirm'));
                 safeListen('btn-logout', () => this.logout());
                 safeListen('btn-checkout', () => this.placeOrder());
                 safeListen('btn-apply-promo', () => this.applyPromo());
@@ -2530,6 +2537,71 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (meta.weight) parts.push(`${meta.weight} г`);
                 if (meta.grind) parts.push(meta.grind);
                 return parts.length ? ` (${parts.join(', ')})` : '';
+            },
+
+            getResetPasswordTokenFromUrl: function() {
+                return new URL(window.location.href).searchParams.get('reset_token') || '';
+            },
+
+            cleanupAuthUrlParams: function() {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('reset_token');
+                const currentView = url.searchParams.get('view');
+                if (currentView === 'forgot-password' || currentView === 'reset-password' || currentView === 'login') {
+                    url.searchParams.delete('view');
+                }
+                window.history.replaceState({}, '', url);
+            },
+
+            generateStrongPassword: function(length = 16) {
+                const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+                const lower = 'abcdefghijkmnopqrstuvwxyz';
+                const digits = '23456789';
+                const symbols = '!@#$%&*_-+=';
+                const all = upper + lower + digits + symbols;
+                const randomIndex = (limit) => {
+                    if (window.crypto && window.crypto.getRandomValues) {
+                        const bytes = new Uint32Array(1);
+                        window.crypto.getRandomValues(bytes);
+                        return bytes[0] % limit;
+                    }
+                    return Math.floor(Math.random() * limit);
+                };
+                const pick = (alphabet) => alphabet[randomIndex(alphabet.length)];
+
+                const targetLength = Math.max(12, Number(length) || 16);
+                const chars = [pick(upper), pick(lower), pick(digits), pick(symbols)];
+                while (chars.length < targetLength) chars.push(pick(all));
+
+                for (let i = chars.length - 1; i > 0; i--) {
+                    const swapIndex = randomIndex(i + 1);
+                    [chars[i], chars[swapIndex]] = [chars[swapIndex], chars[i]];
+                }
+
+                return chars.join('');
+            },
+
+            fillGeneratedPassword: function(primaryInputId, confirmInputId = '') {
+                const nextPassword = this.generateStrongPassword();
+                const primaryInput = document.getElementById(primaryInputId);
+                const confirmInput = confirmInputId ? document.getElementById(confirmInputId) : null;
+                if (!primaryInput) return;
+
+                primaryInput.value = nextPassword;
+                if (confirmInput) confirmInput.value = nextPassword;
+                primaryInput.focus();
+                primaryInput.select();
+            },
+
+            storeCredentialWithPasswordManager: async function(email, password) {
+                if (!email || !password || !window.PasswordCredential || !navigator.credentials || !navigator.credentials.store) return false;
+                try {
+                    const credential = new PasswordCredential({ id: email, password: password, name: email });
+                    await navigator.credentials.store(credential);
+                    return true;
+                } catch (e) {
+                    return false;
+                }
             },
 
             getWelcomeBonusStorageKey: function(userId = this.uid) {
@@ -3911,13 +3983,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const url = new URL(window.location);
 
                 if(show) {
+                    if (initialView === 'reset-password' && !this.getResetPasswordTokenFromUrl()) initialView = 'forgot-password';
                     document.body.style.overflow = 'hidden';
                     m.classList.add('active');
                     if(initialView === 'wholesale') m.classList.add('wide'); else m.classList.remove('wide');
                     
                     // ДОБАВЛЕНО: Обновляем URL для прямых ссылок (Опт, Корзина, Вход)
-                    if (initialView === 'wholesale' || initialView === 'cart' || initialView === 'login') {
+                    if (initialView === 'wholesale' || initialView === 'cart' || initialView === 'login' || initialView === 'forgot-password' || initialView === 'reset-password') {
                         url.searchParams.set('view', initialView);
+                        if (initialView !== 'reset-password') url.searchParams.delete('reset_token');
                         window.history.replaceState({}, '', url);
                     }
                     
@@ -3941,6 +4015,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         m.classList.remove('admin-wide');
                         this.switchView('wholesale'); 
                     }
+                    else if(initialView === 'forgot-password') {
+                        m.classList.remove('wide'); m.classList.remove('admin-wide');
+                        this.switchView('forgot-password');
+                    }
+                    else if(initialView === 'reset-password') {
+                        m.classList.remove('wide'); m.classList.remove('admin-wide');
+                        this.switchView('reset-password');
+                    }
                     else if(this.uid) { 
                         m.classList.remove('wide'); m.classList.remove('admin-wide');
                         this.renderDashboard(); this.switchView('dashboard'); 
@@ -3955,15 +4037,45 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     
                     // ДОБАВЛЕНО: Очищаем параметр view при закрытии окна, чтобы вернуть чистый URL
                     url.searchParams.delete('view');
+                    url.searchParams.delete('reset_token');
                     window.history.replaceState({}, '', url);
                 }
             },
             // --- КОНЕЦ: ИСПРАВЛЕННОЕ ОТКРЫТИЕ ОКОН ---
 
             switchView: function(viewName) {
-                ['view-login', 'view-register', 'view-dashboard', 'view-cart', 'view-admin', 'view-wholesale'].forEach(id => {
+                const authViews = ['login', 'register', 'forgot-password', 'reset-password'];
+                ['view-login', 'view-register', 'view-forgot-password', 'view-reset-password', 'view-dashboard', 'view-cart', 'view-admin', 'view-wholesale'].forEach(id => {
                     const el = document.getElementById(id); if(el) el.classList.remove('show-view');
                 });
+                if (viewName === 'forgot-password') {
+                    const forgotInput = document.getElementById('forgot-email');
+                    const loginInput = document.getElementById('login-email');
+                    if (forgotInput && !forgotInput.value && loginInput?.value) forgotInput.value = this.normalizeEmailAddress(loginInput.value);
+                }
+                if (viewName === 'reset-password') {
+                    const note = document.getElementById('reset-password-note');
+                    if (note) {
+                        note.textContent = this.getResetPasswordTokenFromUrl()
+                            ? 'Придумайте новый пароль для входа в аккаунт. После сохранения можно будет войти с новым паролем на любом устройстве.'
+                            : 'Ссылка для восстановления не найдена. Запросите новую ссылку ниже.';
+                    }
+                    if (!this.getResetPasswordTokenFromUrl()) viewName = 'forgot-password';
+                }
+                if (document.getElementById('lc-modal')?.classList.contains('active') && authViews.includes(viewName)) {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('view', viewName);
+                    if (viewName !== 'reset-password') url.searchParams.delete('reset_token');
+                    window.history.replaceState({}, '', url);
+                } else if (document.getElementById('lc-modal')?.classList.contains('active')) {
+                    const url = new URL(window.location.href);
+                    const currentView = url.searchParams.get('view');
+                    if (currentView === 'login' || currentView === 'register' || currentView === 'forgot-password' || currentView === 'reset-password') {
+                        url.searchParams.delete('view');
+                        url.searchParams.delete('reset_token');
+                        window.history.replaceState({}, '', url);
+                    }
+                }
                 const view = document.getElementById(`view-${viewName}`); if(view) view.classList.add('show-view');
             },
             
@@ -4994,6 +5106,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         }
                         
                         localStorage.setItem('locus_token', data.token);
+                        await this.storeCredentialWithPasswordManager(credentials.email, credentials.password);
                         this.uid = data.user.id;
                         localStorage.setItem(this.getWelcomeBonusStorageKey(this.uid), '1');
                         
@@ -5043,6 +5156,63 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             }
                         }
                     } catch (e) { alert('Ошибка: ' + e.message); }
+                },
+
+                requestPasswordReset: async function() {
+                    const emailInput = document.getElementById('forgot-email');
+                    const email = this.normalizeEmailAddress(emailInput?.value);
+                    if (!email) return alert('Укажите email.');
+                    if (!this.isValidEmailAddress(email)) return alert('Укажите корректный email.');
+                    if (emailInput) emailInput.value = email;
+
+                    try {
+                        const res = await fetch(LOCUS_API_URL + '?action=requestPasswordReset', {
+                            method: 'POST',
+                            body: JSON.stringify({ action: 'requestPasswordReset', email })
+                        });
+                        const data = await res.json();
+                        if (!res.ok || !data.success) throw new Error(data.error || 'Не удалось отправить ссылку для сброса пароля');
+
+                        const loginEmailInput = document.getElementById('login-email');
+                        if (loginEmailInput && !loginEmailInput.value) loginEmailInput.value = email;
+                        alert(data.message || 'Если аккаунт существует, ссылка для восстановления уже отправлена на почту.');
+                        this.switchView('login');
+                    } catch (e) {
+                        alert('Ошибка: ' + e.message);
+                    }
+                },
+
+                submitPasswordReset: async function() {
+                    const token = this.getResetPasswordTokenFromUrl();
+                    if (!token) return alert('Ссылка для восстановления не найдена или уже недействительна.');
+
+                    const passInput = document.getElementById('reset-pass');
+                    const confirmInput = document.getElementById('reset-pass-confirm');
+                    const password = passInput ? passInput.value : '';
+                    const confirmPassword = confirmInput ? confirmInput.value : '';
+                    const passwordError = this.getRegistrationPasswordError(password);
+                    if (passwordError) return alert(passwordError);
+                    if (password !== confirmPassword) return alert('Пароли не совпадают.');
+
+                    try {
+                        const res = await fetch(LOCUS_API_URL + '?action=resetPassword', {
+                            method: 'POST',
+                            body: JSON.stringify({ action: 'resetPassword', token, password })
+                        });
+                        const data = await res.json();
+                        if (!res.ok || !data.success) throw new Error(data.error || 'Не удалось сохранить новый пароль');
+
+                        await this.storeCredentialWithPasswordManager(data.email || '', password);
+                        this.cleanupAuthUrlParams();
+                        if (passInput) passInput.value = '';
+                        if (confirmInput) confirmInput.value = '';
+                        const loginEmailInput = document.getElementById('login-email');
+                        if (loginEmailInput && data.email) loginEmailInput.value = data.email;
+                        alert('Новый пароль сохранен. Теперь можно войти в аккаунт.');
+                        this.switchView('login');
+                    } catch (e) {
+                        alert('Ошибка: ' + e.message);
+                    }
                 },
 
                 logout: async function() {
@@ -5959,8 +6129,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             document.getElementById('btn-open-wholesale')?.click();
                         } else if (viewFromUrl === 'cart') {
                             document.getElementById('btn-open-cart')?.click();
-                        } else if (viewFromUrl === 'login') {
-                            document.getElementById('btn-open-lc')?.click();
+                        } else if (viewFromUrl === 'login' || viewFromUrl === 'forgot-password' || viewFromUrl === 'reset-password') {
+                            window.UserSystem?.toggleModal(true, viewFromUrl);
                         }
                     }
                 }, 800); // Небольшая задержка для отрисовки интерфейса
