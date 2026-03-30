@@ -449,7 +449,9 @@
         .cart-controls { display: flex; align-items: center; gap: 10px; }
         .qty-btn { width: 24px; height: 24px; background: transparent; border: 1px solid var(--locus-dark); color: var(--locus-dark); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px; border-radius: 4px; }
         .cart-qty { font-size: 12px; font-weight: 600; width: 15px; text-align: center; }
-        .retail-order-countdown { font-size: 11px; font-weight: 600; color: var(--locus-countdown); }
+        .retail-order-countdown { font-size: 11px; font-weight: 600; color: var(--locus-countdown); display: flex; flex-direction: column; gap: 2px; }
+        .retail-order-countdown::before { content: attr(data-deadline-text); font-size: 10px; font-weight: 500; color: var(--locus-accent); }
+        .retail-order-countdown[data-deadline-text=""]::before { content: none; }
         .retail-order-countdown.is-delivered { color: var(--locus-success); }
 
         .cart-summary {
