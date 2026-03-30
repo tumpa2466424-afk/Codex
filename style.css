@@ -356,6 +356,45 @@
             font-family: inherit; font-size: 14px; color: var(--locus-dark); border-radius: 0;
         }
         .lc-input:focus { outline: none; border-bottom: 2px solid var(--locus-dark); }
+        .lc-password-field {
+            position: relative;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .lc-password-field .lc-input {
+            margin-bottom: 0;
+            padding-right: 38px;
+        }
+        .password-visibility-toggle {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: var(--locus-accent);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: color 0.2s ease, opacity 0.2s ease;
+            opacity: 0.86;
+        }
+        .password-visibility-toggle:hover,
+        .password-visibility-toggle:focus-visible {
+            color: var(--locus-dark);
+            opacity: 1;
+            outline: none;
+        }
+        .password-visibility-toggle svg {
+            display: block;
+        }
+        .password-visibility-toggle.is-visible {
+            color: var(--locus-dark);
+        }
         .lc-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--locus-accent); margin-bottom: 5px; display: block; }
         
         .lc-btn {
