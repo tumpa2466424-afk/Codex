@@ -285,15 +285,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             // 2. Определение типа товара (Кофе, Дрип, Аксессуар и т.д.)
             getTypeInfo: function(productOrName) {
                 const p = typeof productOrName === 'string' ? this.getProduct(productOrName) : productOrName;
-                if (!p) return { isSpecial: false, isAccessory: false, isInfo: false, isArticle: false, isAroma: false, isCoffee: true, isDrip: false };
+                if (!p) return { isSpecial: false, isAccessory: false, isInfo: false, isArticle: false, isArticleHub: false, isAroma: false, isCoffee: true, isDrip: false };
 
                 const cat = (p.category || '').toLowerCase();
                 const sName = (p.sample || '').toLowerCase();
+                const normalizedName = sName.replace(/\s+/g, ' ').trim();
+                const numericPrice = parseFloat(p.price);
 
                 const isAroma = cat.includes('ароматизац');
                 const isAcc = cat.includes('аксессуар');
                 const isInfo = cat.includes('информац');
-                const isArticle = isInfo && cat.includes('стат');
+                const isArticleHub = isInfo && normalizedName === 'статьи';
+                const hasArticlePayload = !!this.getArticlePayload(p);
+                const isArticle = isInfo && !isArticleHub && (hasArticlePayload || numericPrice > 0);
                 const isDrip = sName.includes('дрип');
 
                 return {
@@ -301,6 +305,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     isAccessory: isAcc,
                     isInfo: isInfo,
                     isArticle: isArticle,
+                    isArticleHub: isArticleHub,
                     isDrip: isDrip,
                     isAroma: isAroma,
                     isCoffee: !isAcc && !isInfo && !isDrip
@@ -501,7 +506,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     
                     // Исправлено: используем ProductManager
                     const typeInfo = ProductManager.getTypeInfo(r);
-                    const { isAroma, isInfo, isSpecial, isArticle } = typeInfo;
+                    const { isAroma, isInfo, isSpecial, isArticle, isArticleHub } = typeInfo;
 
                   
                     // Находим элементы интерфейса карточки товара
@@ -546,9 +551,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     if (isSpecial) {
                         // 1. АКСЕССУАРЫ И ИНФО
                         const articlePayload = isArticle ? ProductManager.getArticlePayload(r) : null;
-                        const specialBodyHtml = isArticle
-                            ? (articlePayload?.previewHtml || r.flavorDesc || '')
-                            : `<div style="text-align: justify; line-height: 1.5; white-space: pre-wrap;">${r.customDesc || r.flavorDesc || ''}</div>`;
+                        const specialBodyHtml = isArticleHub
+                            ? UserSystem.getArticleHubHtml(r)
+                            : (isArticle
+                                ? (articlePayload?.previewHtml || r.flavorDesc || '')
+                                : `<div style="text-align: justify; line-height: 1.5; white-space: pre-wrap;">${r.customDesc || r.flavorDesc || ''}</div>`);
                         let descHtml = galleryHtml + specialBodyHtml;
                         document.getElementById('p-simple-desc').innerHTML = descHtml;
 
@@ -635,7 +642,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                     // ЛОГИКА КНОПКИ ПОКУПКИ (Скрываем для раздела Инфо с ценой 0)
                     const priceVal = parseFloat(r.price) || 0;
-                    if (isInfo && priceVal === 0) {
+                    if (isArticleHub || (isInfo && priceVal === 0)) {
                         document.getElementById('p-buy-area').style.display = 'none';
                     } else {
                         document.getElementById('p-buy-area').style.display = 'flex';
@@ -3180,13 +3187,24 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 return (Array.isArray(history) ? history : []).filter(item => !this.isSystemHistoryItem(item));
             },
 
+            escapeHtmlText: function(value) {
+                return String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            },
+
             getWelcomePopupDismissStorageKey: function(userId = this.uid) {
                 return userId ? `locus_welcome_popup_dismissed_${userId}` : '';
             },
 
             isArticleCartItem: function(item) {
                 const category = String(item?.category || '').toLowerCase();
-                return !!(item && (item.isArticle === true || (category.includes('информац') && category.includes('стат'))));
+                const title = String(item?.item || '').toLowerCase().replace(/\s+/g, ' ').trim();
+                const numericPrice = parseFloat(item?.price);
+                return !!(item && (item.isArticle === true || (category.includes('информац') && title !== 'статьи' && numericPrice > 0)));
             },
 
             hasOnlyDigitalCartItems: function() {
@@ -3284,6 +3302,90 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 btn.onclick = handleClose;
                 close.onclick = handleClose;
+            },
+
+            getPublishedArticles: function() {
+                return (Array.isArray(ALL_PRODUCTS_CACHE) ? ALL_PRODUCTS_CACHE : [])
+                    .filter(product => {
+                        const typeInfo = ProductManager.getTypeInfo(product);
+                        const isActive = product.inCatalog === "1" || product.inCatalog === 1 || product.inCatalog === true;
+                        return isActive && typeInfo.isArticle;
+                    })
+                    .sort((a, b) => String(a.sample || '').localeCompare(String(b.sample || '')));
+            },
+
+            getArticleHubHtml: function() {
+                const articles = this.getPublishedArticles();
+                if (!articles.length) {
+                    return `
+                        <div class="article-hub-empty">
+                            Скоро здесь появятся авторские статьи о кофе.
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div class="article-hub-list">
+                        <div class="article-hub-lead">Выберите материал, чтобы купить его или открыть уже оплаченный доступ.</div>
+                        ${articles.map(article => {
+                            const access = this.getActiveArticleAccess(article);
+                            const inCart = this.localCart.some(item => this.isArticleCartItem(item) && String(item.lotId || item.item || '') === String(article.id || ''));
+                            const price = parseFloat(article.price) || 0;
+                            const previewHtml = ProductManager.getDisplayDesc(article);
+                            const accessText = access
+                                ? `Доступ до ${new Date(access.expiresAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                                : 'Доступ на 1 месяц после оплаты';
+
+                            return `
+                                <article class="article-hub-card">
+                                    <div class="article-hub-card-head">
+                                        <div>
+                                            <div class="article-hub-card-title">${this.escapeHtmlText(article.sample || 'Статья')}</div>
+                                            <div class="article-hub-card-price">${price} ₽</div>
+                                        </div>
+                                        <div class="article-hub-card-actions">
+                                            <button type="button" class="lc-btn lc-btn-secondary article-hub-btn" onclick="UserSystem.openProductById('${article.id}')">Открыть</button>
+                                            ${access
+                                                ? `<button type="button" class="lc-btn article-hub-btn" onclick="UserSystem.openProductById('${article.id}')">Читать</button>`
+                                                : `<button type="button" class="lc-btn article-hub-btn" ${inCart ? 'disabled' : ''} onclick="UserSystem.addArticleToCart('${article.id}')">${inCart ? 'В корзине' : 'В корзину'}</button>`
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="article-hub-card-preview">${previewHtml}</div>
+                                    <div class="article-hub-card-meta">${accessText}</div>
+                                </article>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            },
+
+            openProductById: function(productId, options = {}) {
+                const product = (Array.isArray(ALL_PRODUCTS_CACHE) ? ALL_PRODUCTS_CACHE : []).find(item => String(item.id) === String(productId));
+                if (!product) {
+                    alert('Лот не найден в каталоге.');
+                    return;
+                }
+
+                updateInfo({ depth: 1, raw: product });
+                if (options.syncUrl === false) return;
+
+                const url = new URL(window.location);
+                url.searchParams.set('lot', product.sample || '');
+                window.history.replaceState({}, '', url);
+            },
+
+            addArticleToCart: function(articleId) {
+                const article = (Array.isArray(ALL_PRODUCTS_CACHE) ? ALL_PRODUCTS_CACHE : []).find(item => String(item.id) === String(articleId));
+                if (!article) return alert('Статья не найдена.');
+                if (!this.currentUser || !this.uid) {
+                    alert('Войдите в Личный кабинет чтобы купить статью.');
+                    this.toggleModal(true, 'login');
+                    return;
+                }
+
+                this.addToCart(article.sample || '', 250, '');
+                this.toggleModal(true, 'cart');
             },
 
             getActiveArticleAccess: function(productOrId) {
@@ -6975,7 +7077,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         if(raw.inCatalog === "1" || raw.inCatalog === 1 || raw.inCatalog === true) {
                             const roastVal = parseFloat(raw.roast);
                             let targetCategoryLabel = 'ФИЛЬТР'; 
-                            
+                            const typeInfo = ProductManager.getTypeInfo(raw);
+                             
                             const dbCat = raw.category ? String(raw.category).toLowerCase() : '';
                             
                             if (dbCat.includes('ароматизация')) {
@@ -6993,7 +7096,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             }
                             
                             const target = SHOP_DATA.find(c => c.label === targetCategoryLabel);
-                            if (target) {
+                            if (target && !typeInfo.isArticle) {
                                 // ИЗМЕНЕНИЕ: Теперь передаем только заметки о букете (где дескрипторы через запятую)
                                 const petalColor = mixFlavorColors(raw.flavorNotes, target.color);
                                 let wheelLabel = raw.sample;
@@ -7027,16 +7130,21 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 setTimeout(() => {
                     const urlParams = new URLSearchParams(window.location.search);
                     const lotFromUrl = urlParams.get('lot');
-                    if (lotFromUrl) {
-                        // Ищем лепесток с нужным названием
-                        const allGroups = document.querySelectorAll('#wheel-spinner svg g');
-                        const targetGroup = Array.from(allGroups).find(g => g.getAttribute('data-lot') === lotFromUrl);
-                        
-                        if (targetGroup) {
-                            // Имитируем клик
-                            targetGroup.dispatchEvent(new Event('click')); 
+                        if (lotFromUrl) {
+                            // Ищем лепесток с нужным названием
+                            const allGroups = document.querySelectorAll('#wheel-spinner svg g');
+                            const targetGroup = Array.from(allGroups).find(g => g.getAttribute('data-lot') === lotFromUrl);
+                             
+                            if (targetGroup) {
+                                // Имитируем клик
+                                targetGroup.dispatchEvent(new Event('click')); 
+                            } else {
+                                const hiddenProduct = ALL_PRODUCTS_CACHE.find(p => String(p.sample || p.sample_no || '') === String(lotFromUrl));
+                                if (hiddenProduct) {
+                                    window.UserSystem?.openProductById(hiddenProduct.id, { syncUrl: false });
+                                }
+                            }
                         }
-                    }
 
                     // ДОБАВЛЕНО: Чтение ссылки на разделы модального окна (Опт, Корзина и т.д.)
                     const viewFromUrl = urlParams.get('view');
