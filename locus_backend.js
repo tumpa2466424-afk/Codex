@@ -838,6 +838,44 @@ module.exports.handler = async function (event, context) {
                 responseData = { success: true };
             }
 
+            else if (action === 'sendStickerPackEmail') {
+                const decoded = verifyToken(rawToken);
+                if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
+                if (!process.env.SMTP_PASSWORD) throw new Error('Почтовый сервер не настроен');
+
+                const lotTitle = String(body.lotTitle || '').trim();
+                const attachmentsInput = Array.isArray(body.attachments) ? body.attachments : [];
+                if (!lotTitle) throw new Error('Не указано название лота');
+                if (attachmentsInput.length !== 2) throw new Error('Нужно передать две наклейки');
+
+                const attachments = attachmentsInput.map((item, index) => {
+                    const filename = String(item?.filename || '').trim();
+                    const contentType = String(item?.contentType || '').trim().toLowerCase();
+                    const contentBase64 = String(item?.contentBase64 || '').trim();
+
+                    if (!filename) throw new Error(`У вложения №${index + 1} нет имени файла`);
+                    if (contentType !== 'image/png') throw new Error(`Вложение №${index + 1} должно быть PNG`);
+                    if (!contentBase64) throw new Error(`Вложение №${index + 1} пустое`);
+
+                    return {
+                        filename,
+                        content: Buffer.from(contentBase64, 'base64'),
+                        contentType: 'image/png'
+                    };
+                });
+
+                const sent = await sendTransactionalMail({
+                    from: '"Locus Coffee" <info@locus.coffee>',
+                    to: 'info@locus.coffee',
+                    subject: lotTitle,
+                    text: `Во вложении две наклейки для лота ${lotTitle} в разрешении 300 dpi.`,
+                    attachments
+                });
+
+                if (!sent) throw new Error('Не удалось отправить письмо с наклейками');
+                responseData = { success: true };
+            }
+
             else if (action === 'getPromos') {
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
