@@ -554,7 +554,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         const specialBodyHtml = isArticleHub
                             ? UserSystem.getArticleHubHtml(r)
                             : (isArticle
-                                ? (articlePayload?.previewHtml || r.flavorDesc || '')
+                                ? `<div id="article-preview-body">${articlePayload?.previewHtml || r.flavorDesc || ''}</div>`
                                 : `<div style="text-align: justify; line-height: 1.5; white-space: pre-wrap;">${r.customDesc || r.flavorDesc || ''}</div>`);
                         let descHtml = galleryHtml + specialBodyHtml;
                         document.getElementById('p-simple-desc').innerHTML = descHtml;
@@ -3446,7 +3446,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     if (!res.ok || !data.success || !data.article) throw new Error(data.error || data.errorMessage || 'Не удалось открыть статью');
 
                     const articleId = String(data.article.id || product.id || product.sample || '');
-                    this.articleUnlockCache[articleId] = data.article.html || '';
+                    const articleHtml = String(data.article.html || '');
+                    if (!articleHtml.trim()) throw new Error('Полный текст статьи пока пустой');
+                    this.articleUnlockCache[articleId] = articleHtml;
                     this.renderArticleAccessPanel({ ...product, id: articleId });
                     document.getElementById('article-reader-block')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     return true;
@@ -3494,14 +3496,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             renderArticleReader: function(product, articleHtml = '') {
                 const block = document.getElementById('article-reader-block');
                 const content = document.getElementById('article-reader-content');
+                const previewBody = document.getElementById('article-preview-body');
                 if (!block || !content) return;
                 if (!articleHtml) {
                     block.style.display = 'none';
                     content.innerHTML = '';
+                    if (previewBody) previewBody.style.display = '';
                     return;
                 }
+                if (previewBody) previewBody.style.display = 'none';
                 block.style.display = 'block';
-                content.innerHTML = articleHtml;
+                content.innerHTML = `<div class="article-reader-title">Полный текст статьи</div>${articleHtml}`;
                 if (content.dataset.locked !== '1') {
                     ['contextmenu', 'copy', 'cut', 'dragstart', 'selectstart'].forEach(eventName => {
                         content.addEventListener(eventName, (event) => event.preventDefault());
@@ -3536,7 +3541,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const articleId = String(product.id || product.sample || '').trim();
                 const cachedHtml = this.articleUnlockCache[articleId] || '';
                 if (access) {
-                    status.textContent = `Доступ активен до ${new Date(access.expiresAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}. Для чтения введите пароль из письма.`;
+                    status.textContent = cachedHtml
+                        ? `Статья открыта. Доступ активен до ${new Date(access.expiresAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.`
+                        : `Доступ активен до ${new Date(access.expiresAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}. Для чтения введите пароль из письма.`;
                     input.disabled = false;
                     button.disabled = false;
                     button.textContent = cachedHtml ? 'Открыть снова' : 'Открыть статью';
