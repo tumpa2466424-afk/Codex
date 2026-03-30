@@ -3449,6 +3449,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     const articleHtml = String(data.article.html || '');
                     if (!articleHtml.trim()) throw new Error('Полный текст статьи пока пустой');
                     this.articleUnlockCache[articleId] = articleHtml;
+                    this.renderArticleReader({ ...product, id: articleId }, articleHtml);
                     this.renderArticleAccessPanel({ ...product, id: articleId });
                     document.getElementById('article-reader-block')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     return true;
@@ -3540,10 +3541,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const access = this.getActiveArticleAccess(product);
                 const articleId = String(product.id || product.sample || '').trim();
                 const cachedHtml = this.articleUnlockCache[articleId] || '';
-                if (access) {
+                const hasUnlockedContent = !!String(cachedHtml).trim();
+                if (access || hasUnlockedContent) {
+                    const expiresText = access?.expiresAt
+                        ? new Date(access.expiresAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : '';
                     status.textContent = cachedHtml
-                        ? `Статья открыта. Доступ активен до ${new Date(access.expiresAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.`
-                        : `Доступ активен до ${new Date(access.expiresAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}. Для чтения введите пароль из письма.`;
+                        ? (expiresText ? `Статья открыта. Доступ активен до ${expiresText}.` : 'Статья открыта.')
+                        : `Доступ активен до ${expiresText}. Для чтения введите пароль из письма.`;
                     input.disabled = false;
                     button.disabled = false;
                     button.textContent = cachedHtml ? 'Открыть снова' : 'Открыть статью';
