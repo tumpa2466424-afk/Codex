@@ -5,6 +5,8 @@ const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer'); // <-- Добавили nodemailer
 const JWT_SECRET = 'locus-coffee-super-secret-key-2026'; 
+const PASSWORD_RESET_PURPOSE = 'password_reset';
+const PUBLIC_WEB_URL = process.env.PUBLIC_WEB_URL || 'https://locus.coffee/';
 
 let driver;
 
@@ -39,6 +41,89 @@ function getRegistrationPasswordError(password) {
     if (!/[a-zа-яё]/.test(value)) return 'Пароль должен содержать хотя бы одну строчную букву';
     if (!/\d/.test(value)) return 'Пароль должен содержать хотя бы одну цифру';
     return '';
+}
+
+function createMailTransport() {
+    if (!process.env.SMTP_PASSWORD) return null;
+    return nodemailer.createTransport({
+        host: 'smtp.yandex.ru',
+        port: 465,
+        secure: true,
+        auth: { user: 'info@locus.coffee', pass: process.env.SMTP_PASSWORD }
+    });
+}
+
+async function sendTransactionalMail(mailOptions) {
+    if (!process.env.SMTP_PASSWORD) return false;
+    try {
+        const transporter = createMailTransport();
+        if (!transporter) return false;
+        await transporter.sendMail(mailOptions);
+        return true;
+    } catch (mailErr) {
+        console.error('ОШИБКА ПОЧТЫ:', mailErr.message);
+        return false;
+    }
+}
+
+function buildPasswordResetUrl(token) {
+    const url = new URL(PUBLIC_WEB_URL);
+    url.searchParams.set('view', 'reset-password');
+    url.searchParams.set('reset_token', token);
+    return url.toString();
+}
+
+function createPasswordResetToken(userId, email, passwordHash) {
+    return jwt.sign(
+        { purpose: PASSWORD_RESET_PURPOSE, userId, email: normalizeEmailAddress(email) },
+        `${JWT_SECRET}:${passwordHash}`,
+        { expiresIn: '30m' }
+    );
+}
+
+async function sendRegistrationWelcomeEmail(email) {
+    return sendTransactionalMail({
+        from: '"Locus Coffee" <info@locus.coffee>',
+        to: email,
+        bcc: 'info@locus.coffee',
+        subject: 'Регистрационные данные на locus.coffee',
+        html: `<div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #E5E1D8; border-radius: 8px; overflow: hidden;">
+                <div style="background: #693a05; padding: 20px; text-align: center; color: #fff;">
+                    <h2 style="margin: 0; letter-spacing: 2px;">LOCUS COFFEE</h2>
+                </div>
+                <div style="padding: 20px; background: #F4F1EA;">
+                    <h3 style="margin-top: 0;">Здравствуйте!</h3>
+                    <p>Спасибо за регистрацию в пространстве <b>locus.coffee</b>.</p>
+                    <div style="background: #fff; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                        <p style="margin: 0 0 10px 0;"><b>Логин:</b> ${email}</p>
+                        <p style="margin: 0;">Пароль вы задали при регистрации. Если браузер предложил сохранить его, восстановить доступ можно через менеджер паролей или по ссылке «Забыли пароль?» на сайте.</p>
+                    </div>
+                </div>
+            </div>`
+    });
+}
+
+async function sendPasswordResetEmail(email, resetUrl) {
+    return sendTransactionalMail({
+        from: '"Locus Coffee" <info@locus.coffee>',
+        to: email,
+        bcc: 'info@locus.coffee',
+        subject: 'Восстановление пароля на locus.coffee',
+        html: `<div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #E5E1D8; border-radius: 8px; overflow: hidden;">
+                <div style="background: #693a05; padding: 20px; text-align: center; color: #fff;">
+                    <h2 style="margin: 0; letter-spacing: 2px;">LOCUS COFFEE</h2>
+                </div>
+                <div style="padding: 20px; background: #F4F1EA;">
+                    <h3 style="margin-top: 0;">Восстановление доступа</h3>
+                    <p>Мы получили запрос на смену пароля для аккаунта <b>${email}</b>.</p>
+                    <p>Ссылка ниже действует 30 минут и подходит только для одного актуального пароля аккаунта.</p>
+                    <div style="margin: 24px 0; text-align: center;">
+                        <a href="${resetUrl}" style="display: inline-block; padding: 12px 22px; border-radius: 999px; background: #693a05; color: #fff; text-decoration: none; font-weight: 600;">Сбросить пароль</a>
+                    </div>
+                    <p style="font-size: 12px; line-height: 1.5; color: #8B7E66;">Если это были не вы, просто проигнорируйте письмо. Текущий пароль останется без изменений.</p>
+                </div>
+            </div>`
+    });
 }
 
 async function getDriver(forceNew = false) {
@@ -93,6 +178,8 @@ async function withSingleSession(work) {
 
 const RETRYABLE_SESSION_ACTIONS = new Set([
     'login',
+    'requestPasswordReset',
+    'resetPassword',
     'getUserData',
     'getMyOrderStatus',
     'getAdminUsers',
@@ -340,50 +427,37 @@ async function finalizeRetailPayment(session, invId) {
 
         const customerEmail = customerData.email;
         if (!hasOrderInHistory && customerEmail && process.env.SMTP_PASSWORD) {
-            try {
-                const transporter = nodemailer.createTransport({
-                    host: 'smtp.yandex.ru',
-                    port: 465,
-                    secure: true,
-                    auth: { user: 'info@locus.coffee', pass: process.env.SMTP_PASSWORD }
-                });
+            let itemsHtmlList = '';
+            parsedItems.forEach(i => {
+                itemsHtmlList += `<li style="margin-bottom: 5px;"><b>${i.item}</b> (${i.weight}г, ${i.grind}) x ${i.qty} шт. — <b>${i.price * i.qty} ₽</b></li>`;
+            });
 
-                let itemsHtmlList = '';
-                parsedItems.forEach(i => {
-                    itemsHtmlList += `<li style="margin-bottom: 5px;"><b>${i.item}</b> (${i.weight}г, ${i.grind}) x ${i.qty} шт. — <b>${i.price * i.qty} ₽</b></li>`;
-                });
+            let deliveryText = 'Уточняется';
+            if (delData.type === 'PICKUP') deliveryText = `Самовывоз (ТЦ Атолл, код: <b>${delData.code || ''}</b>)`;
+            else if (delData.city) deliveryText = `${delData.type === 'PVZ' ? 'СДЭК ПВЗ' : 'Курьер/Адрес'}: ${delData.city}${delData.address ? ', ' + delData.address : ''}`;
 
-                let deliveryText = 'Уточняется';
-                if (delData.type === 'PICKUP') deliveryText = `Самовывоз (ТЦ Атолл, код: <b>${delData.code || ''}</b>)`;
-                else if (delData.city) deliveryText = `${delData.type === 'PVZ' ? 'СДЭК ПВЗ' : 'Курьер/Адрес'}: ${delData.city}${delData.address ? ', ' + delData.address : ''}`;
-
-                const mailOptions = {
-                    from: '"Locus Coffee" <info@locus.coffee>',
-                    to: customerEmail,
-                    bcc: 'info@locus.coffee',
-                    subject: `Заказ №${orderId} успешно оплачен | Locus Coffee`,
-                    html: `<div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #E5E1D8; border-radius: 8px; overflow: hidden;">
-                            <div style="background: #693a05; padding: 20px; text-align: center; color: #fff;">
-                                <h2 style="margin: 0; letter-spacing: 2px;">LOCUS COFFEE</h2>
+            await sendTransactionalMail({
+                from: '"Locus Coffee" <info@locus.coffee>',
+                to: customerEmail,
+                bcc: 'info@locus.coffee',
+                subject: `Заказ №${orderId} успешно оплачен | Locus Coffee`,
+                html: `<div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #E5E1D8; border-radius: 8px; overflow: hidden;">
+                        <div style="background: #693a05; padding: 20px; text-align: center; color: #fff;">
+                            <h2 style="margin: 0; letter-spacing: 2px;">LOCUS COFFEE</h2>
+                        </div>
+                        <div style="padding: 20px; background: #F4F1EA;">
+                            <h3 style="margin-top: 0;">Здравствуйте, ${customerData.name || 'дорогой клиент'}!</h3>
+                            <p>Ваш заказ <b>№${orderId}</b> от ${datePart} ${timePart} успешно оплачен и передан на сборку.</p>
+                            <div style="background: #fff; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                                <h4 style="margin-top: 0; color: #8B7E66;">Состав заказа:</h4>
+                                <ul style="padding-left: 20px; margin: 0;">${itemsHtmlList}</ul>
+                                <hr style="border: none; border-top: 1px dashed #ccc; margin: 15px 0;">
+                                <p style="margin: 0;"><b>Доставка:</b> ${deliveryText} (${deliveryCost} ₽)</p>
+                                <p style="margin: 5px 0 0 0; font-size: 18px;"><b>Итого оплачено: ${ord.total} ₽</b></p>
                             </div>
-                            <div style="padding: 20px; background: #F4F1EA;">
-                                <h3 style="margin-top: 0;">Здравствуйте, ${customerData.name || 'дорогой клиент'}!</h3>
-                                <p>Ваш заказ <b>№${orderId}</b> от ${datePart} ${timePart} успешно оплачен и передан на сборку.</p>
-                                <div style="background: #fff; padding: 15px; border-radius: 6px; margin: 20px 0;">
-                                    <h4 style="margin-top: 0; color: #8B7E66;">Состав заказа:</h4>
-                                    <ul style="padding-left: 20px; margin: 0;">${itemsHtmlList}</ul>
-                                    <hr style="border: none; border-top: 1px dashed #ccc; margin: 15px 0;">
-                                    <p style="margin: 0;"><b>Доставка:</b> ${deliveryText} (${deliveryCost} ₽)</p>
-                                    <p style="margin: 5px 0 0 0; font-size: 18px;"><b>Итого оплачено: ${ord.total} ₽</b></p>
-                                </div>
-                            </div>
-                        </div>`
-                };
-                await transporter.sendMail(mailOptions);
-                console.log('Письмо отправлено на', customerEmail);
-            } catch (mailErr) {
-                console.error('ОШИБКА ПОЧТЫ:', mailErr.message);
-            }
+                        </div>
+                    </div>`
+            });
         }
     }
 
@@ -468,6 +542,8 @@ module.exports.handler = async function (event, context) {
 
                 const token = jwt.sign({ userId, email: normalizedEmail }, JWT_SECRET, { expiresIn: '30d' });
                 responseData = { success: true, token, user: { id: userId, email: normalizedEmail, totalSpent: 0, cart: [], history: [], subscription: [] } };
+
+                await sendRegistrationWelcomeEmail(normalizedEmail);
             }
             
             else if (action === 'login') {
@@ -496,11 +572,68 @@ module.exports.handler = async function (event, context) {
                         id: user.id, email: user.email, totalSpent: Number(user.totalspent) || 0, 
                         cart: getRawArray(user.cart), 
                         history: getRawArray(user.history), 
-                        subscription: getRawArray(user.subscription) 
+                        subscription: getRawArray(user.subscription)
                     } 
                 };
             }
-            
+
+            else if (action === 'requestPasswordReset') {
+                const normalizedEmail = normalizeEmailAddress(body.email);
+                responseData = { success: true, message: 'Если аккаунт с таким email существует, ссылка для восстановления уже отправлена на почту.' };
+
+                if (!normalizedEmail || !isValidEmailAddress(normalizedEmail)) return;
+
+                const query = `DECLARE $email AS Utf8; SELECT id, email, password_hash FROM users WHERE email = $email;`;
+                const { resultSets } = await session.executeQuery(query, { '$email': TypedValues.utf8(normalizedEmail) });
+                if (!resultSets[0] || resultSets[0].rows.length === 0) return;
+
+                const user = rowToObj(resultSets[0].columns, resultSets[0].rows[0]);
+                const pwdHash = user.passwordhash || user.password_hash;
+                if (!user.id || !user.email || !pwdHash) return;
+
+                const token = createPasswordResetToken(user.id, user.email, pwdHash);
+                const resetUrl = buildPasswordResetUrl(token);
+                await sendPasswordResetEmail(normalizeEmailAddress(user.email), resetUrl);
+            }
+
+            else if (action === 'resetPassword') {
+                const resetToken = String(body.token || '').trim();
+                const nextPassword = typeof body.password === 'string' ? body.password : '';
+                const passwordError = getRegistrationPasswordError(nextPassword);
+                if (!resetToken) throw new Error('Ссылка для восстановления не найдена или уже недействительна');
+                if (passwordError) throw new Error(passwordError);
+
+                const decoded = jwt.decode(resetToken);
+                if (!decoded || decoded.purpose !== PASSWORD_RESET_PURPOSE || !decoded.userId) {
+                    throw new Error('Ссылка для восстановления недействительна или уже устарела');
+                }
+
+                const query = `DECLARE $id AS Utf8; SELECT id, email, password_hash FROM users WHERE id = $id;`;
+                const { resultSets } = await session.executeQuery(query, { '$id': TypedValues.utf8(String(decoded.userId)) });
+                if (!resultSets[0] || resultSets[0].rows.length === 0) {
+                    throw new Error('Ссылка для восстановления недействительна или уже устарела');
+                }
+
+                const user = rowToObj(resultSets[0].columns, resultSets[0].rows[0]);
+                const currentHash = user.passwordhash || user.password_hash;
+                if (!currentHash) throw new Error('Ссылка для восстановления недействительна или уже устарела');
+
+                try {
+                    jwt.verify(resetToken, `${JWT_SECRET}:${currentHash}`);
+                } catch (e) {
+                    throw new Error('Ссылка для восстановления недействительна или уже устарела');
+                }
+
+                const nextHash = bcrypt.hashSync(nextPassword, 10);
+                const updateQuery = `DECLARE $id AS Utf8; DECLARE $hash AS Utf8; UPDATE users SET password_hash = $hash WHERE id = $id;`;
+                await session.executeQuery(updateQuery, {
+                    '$id': TypedValues.utf8(String(user.id)),
+                    '$hash': TypedValues.utf8(nextHash)
+                });
+
+                responseData = { success: true, email: normalizeEmailAddress(user.email) };
+            }
+
             else if (action === 'getUserData') {
                 const decoded = verifyToken(rawToken);
                 const query = `DECLARE $id AS Utf8; SELECT * FROM users WHERE id = $id;`;
