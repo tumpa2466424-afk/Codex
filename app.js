@@ -3065,6 +3065,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 return `${String(totalHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
             },
 
+            formatPvzDeadlineText: function(deadlineMs) {
+                if (!deadlineMs) return '';
+                return new Date(deadlineMs).toLocaleString('ru-RU', {
+                    timeZone: 'Europe/Moscow',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            },
+
             getPvzCountdownInfo: function(order) {
                 if (!order || !order.delivery || order.delivery.type !== 'PICKUP') return null;
 
@@ -3078,12 +3090,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 const deadlineMs = this.getPvzDeadlineMs(createdAtMs);
                 if (!deadlineMs) return null;
+                const deadlineText = this.formatPvzDeadlineText(deadlineMs);
 
                 const remainingMs = deadlineMs - Date.now();
                 return {
                     active: remainingMs > 0,
                     expired: remainingMs <= 0,
                     deadlineMs,
+                    deadlineText,
                     remainingMs,
                     label: remainingMs > 0 ? this.formatCountdownText(remainingMs) : '00:00:00'
                 };
@@ -4942,7 +4956,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         const delivery = o.delivery || {};
                         const countdownInfo = this.getPvzCountdownInfo(o);
                         const countdownHtml = countdownInfo ? `
-                            <div class="retail-order-countdown ${countdownInfo.delivered ? 'is-delivered' : 'is-active'}" data-retail-order-countdown="1" data-order-id="${o.id}" data-deadline-ms="${countdownInfo.deadlineMs || 0}" data-auto-status="0" style="margin-top:8px;">
+                            <div class="retail-order-countdown ${countdownInfo.delivered ? 'is-delivered' : 'is-active'}" data-retail-order-countdown="1" data-order-id="${o.id}" data-deadline-ms="${countdownInfo.deadlineMs || 0}" data-deadline-text="${countdownInfo.deadlineText ? `Выдача до ${countdownInfo.deadlineText}` : ''}" data-auto-status="0" style="margin-top:8px;">
                                 ${countdownInfo.delivered ? 'Доставлено в пункт выдачи' : `До выдачи: ${countdownInfo.label}`}
                             </div>
                         ` : '';
@@ -5876,7 +5890,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 
                                 const countdownInfo = !isWholesale ? this.getPvzCountdownInfo(hItem) : null;
                                 const countdownHtml = countdownInfo ? `
-                                    <div class="retail-order-countdown ${countdownInfo.delivered ? 'is-delivered' : 'is-active'}" data-retail-order-countdown="1" data-order-id="${hItem.orderId}" data-deadline-ms="${countdownInfo.deadlineMs || 0}" data-auto-status="${countdownInfo.delivered ? '0' : '1'}" style="margin-top:6px;">
+                                    <div class="retail-order-countdown ${countdownInfo.delivered ? 'is-delivered' : 'is-active'}" data-retail-order-countdown="1" data-order-id="${hItem.orderId}" data-deadline-ms="${countdownInfo.deadlineMs || 0}" data-deadline-text="${countdownInfo.deadlineText ? `Выдача до ${countdownInfo.deadlineText}` : ''}" data-auto-status="${countdownInfo.delivered ? '0' : '1'}" style="margin-top:6px;">
                                         ${countdownInfo.delivered ? 'Доставлено в пункт выдачи' : `До выдачи: ${countdownInfo.label}`}
                                     </div>
                                 ` : '';
