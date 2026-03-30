@@ -7,6 +7,13 @@ const nodemailer = require('nodemailer'); // <-- Добавили nodemailer
 const JWT_SECRET = 'locus-coffee-super-secret-key-2026'; 
 const PASSWORD_RESET_PURPOSE = 'password_reset';
 const PUBLIC_WEB_URL = process.env.PUBLIC_WEB_URL || 'https://locus.coffee/';
+const YANDEX_CATALOG_FUNCTION_URL = process.env.YANDEX_CATALOG_FUNCTION_URL || 'https://functions.yandexcloud.net/d4ekgff0csfc77v2nu5q';
+const ARTICLE_CONTENT_SECRET = process.env.ARTICLE_CONTENT_SECRET || JWT_SECRET;
+const ARTICLE_PAYLOAD_KIND = 'paid_article';
+const WELCOME_POPUP_PENDING_KEY = 'welcome_popup_pending';
+const WELCOME_POPUP_DISMISSED_KEY = 'welcome_popup_dismissed';
+const WELCOME_BONUS_AVAILABLE_KEY = 'welcome_bonus_available';
+const WELCOME_BONUS_USED_KEY = 'welcome_bonus_used';
 
 let driver;
 
@@ -126,6 +133,177 @@ async function sendPasswordResetEmail(email, resetUrl) {
     });
 }
 
+function isArticleCategory(category) {
+    const value = String(category || '').toLowerCase();
+    return value.includes('информац') && value.includes('стат');
+}
+
+function createSystemHistoryEntry(key, extra = {}) {
+    return {
+        isSystemMeta: true,
+        systemType: key,
+        createdAt: new Date().toISOString(),
+        ...extra
+    };
+}
+
+function hasSystemHistoryEntry(history, key) {
+    return getRawArray(history).some(item => item && item.isSystemMeta && item.systemType === key);
+}
+
+function upsertSystemHistoryEntry(history, key, extra = {}) {
+    const list = getRawArray(history);
+    let replaced = false;
+    const next = list.map(item => {
+        if (item && item.isSystemMeta && item.systemType === key) {
+            replaced = true;
+            return { ...item, ...extra, isSystemMeta: true, systemType: key };
+        }
+        return item;
+    });
+    if (!replaced) next.push(createSystemHistoryEntry(key, extra));
+    return next;
+}
+
+function removeSystemHistoryEntry(history, key) {
+    return getRawArray(history).filter(item => !(item && item.isSystemMeta && item.systemType === key));
+}
+
+function deriveArticleCryptoKey() {
+    return crypto.createHash('sha256').update(String(ARTICLE_CONTENT_SECRET)).digest();
+}
+
+function encryptArticleHtml(html) {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', deriveArticleCryptoKey(), iv);
+    const encrypted = Buffer.concat([cipher.update(String(html || ''), 'utf8'), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return `${iv.toString('base64')}.${tag.toString('base64')}.${encrypted.toString('base64')}`;
+}
+
+function decryptArticleHtml(payload) {
+    const parts = String(payload || '').split('.');
+    if (parts.length !== 3) throw new Error('Поврежденный шифр статьи');
+    const [ivBase64, tagBase64, bodyBase64] = parts;
+    const decipher = crypto.createDecipheriv('aes-256-gcm', deriveArticleCryptoKey(), Buffer.from(ivBase64, 'base64'));
+    decipher.setAuthTag(Buffer.from(tagBase64, 'base64'));
+    const decrypted = Buffer.concat([decipher.update(Buffer.from(bodyBase64, 'base64')), decipher.final()]);
+    return decrypted.toString('utf8');
+}
+
+function buildArticlePayload(previewHtml, bodyHtml) {
+    return JSON.stringify({
+        kind: ARTICLE_PAYLOAD_KIND,
+        version: 1,
+        previewHtml: String(previewHtml || ''),
+        encryptedBody: encryptArticleHtml(bodyHtml || ''),
+        updatedAt: new Date().toISOString()
+    });
+}
+
+function parseArticlePayload(rawValue) {
+    if (!rawValue) return null;
+    try {
+        const parsed = typeof rawValue === 'string' ? JSON.parse(rawValue) : rawValue;
+        if (!parsed || parsed.kind !== ARTICLE_PAYLOAD_KIND || !parsed.encryptedBody) return null;
+        return parsed;
+    } catch (e) {
+        return null;
+    }
+}
+
+async function fetchCatalogProducts() {
+    const response = await fetch(`${YANDEX_CATALOG_FUNCTION_URL}?type=catalog`);
+    const data = await response.json();
+    if (!response.ok || !data || data.success === false || !Array.isArray(data.data)) {
+        throw new Error(data?.error || 'Не удалось загрузить каталог');
+    }
+    return data.data;
+}
+
+function findCatalogProductById(catalog, productId) {
+    const normalizedId = String(productId || '').trim();
+    if (!normalizedId) return null;
+    return (Array.isArray(catalog) ? catalog : []).find(item =>
+        String(item?.id || '').trim() === normalizedId ||
+        String(item?.sample_no || item?.sample || '').trim() === normalizedId
+    ) || null;
+}
+
+async function proxyCatalogEdit(updatedData) {
+    const response = await fetch(`${YANDEX_CATALOG_FUNCTION_URL}?type=catalog_edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData || {})
+    });
+    const data = await response.json();
+    if (!response.ok || !data || data.success === false) {
+        throw new Error(data?.error || 'Не удалось сохранить статью');
+    }
+    return data;
+}
+
+function createArticleAccessPassword(length = 12) {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    const bytes = crypto.randomBytes(length);
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += alphabet[bytes[i] % alphabet.length];
+    }
+    return result;
+}
+
+function createArticleAccessRecord(item) {
+    const password = createArticleAccessPassword();
+    const now = Date.now();
+    return {
+        articleId: String(item?.lotId || item?.item || '').trim(),
+        title: String(item?.item || '').trim(),
+        password,
+        passwordHash: bcrypt.hashSync(password, 10),
+        grantedAt: new Date(now).toISOString(),
+        expiresAt: new Date(now + (31 * 24 * 60 * 60 * 1000)).toISOString()
+    };
+}
+
+function collectArticleAccessRecords(items) {
+    const result = [];
+    (Array.isArray(items) ? items : []).forEach(item => {
+        if (!item || !isArticleCategory(item.category)) return;
+        const articleId = String(item.lotId || item.item || '').trim();
+        if (!articleId) return;
+        const access = createArticleAccessRecord(item);
+        item.articleAccess = {
+            articleId: access.articleId,
+            title: access.title,
+            grantedAt: access.grantedAt,
+            expiresAt: access.expiresAt,
+            passwordHash: access.passwordHash
+        };
+        result.push(access);
+    });
+    return result;
+}
+
+function getActiveArticleAccessFromHistory(history, articleId) {
+    const normalizedArticleId = String(articleId || '').trim();
+    if (!normalizedArticleId) return null;
+    const now = Date.now();
+    let found = null;
+    getRawArray(history).forEach(entry => {
+        if (!entry || !Array.isArray(entry.items)) return;
+        entry.items.forEach(item => {
+            const access = item?.articleAccess;
+            if (!access) return;
+            if (String(access.articleId || '').trim() !== normalizedArticleId) return;
+            const expiresAtMs = Date.parse(access.expiresAt || '');
+            if (!expiresAtMs || expiresAtMs <= now) return;
+            if (!found || expiresAtMs > Date.parse(found.expiresAt || '')) found = access;
+        });
+    });
+    return found;
+}
+
 async function getDriver(forceNew = false) {
     if (forceNew && driver) {
         try {
@@ -182,6 +360,7 @@ const RETRYABLE_SESSION_ACTIONS = new Set([
     'resetPassword',
     'getUserData',
     'getMyOrderStatus',
+    'getArticleLotEditorData',
     'getAdminUsers',
     'getPromos',
     'checkPromo',
@@ -386,12 +565,14 @@ async function finalizeRetailPayment(session, invId) {
             if (Buffer.isBuffer(rawI)) rawI = rawI.toString('utf8');
             parsedItems = typeof rawI === 'string' ? JSON.parse(rawI) : (rawI || []);
         } catch (e) {}
+        const articleAccessRecords = collectArticleAccessRecords(parsedItems);
 
         let d = new Date(getTimestampMs(ord.createdat));
         if (isNaN(d.getTime())) d = new Date();
         const datePart = d.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric' });
         const timePart = d.toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' });
 
+        const hadPaidRetailOrderBefore = hist.some(item => item && item.isOrder && item.status !== 'pending_payment');
         const newHistItem = {
             isOrder: true,
             orderId: orderId,
@@ -405,6 +586,14 @@ async function finalizeRetailPayment(session, invId) {
 
         hasOrderInHistory = hist.some(item => item && String(item.orderId || '') === orderId);
         if (!hasOrderInHistory) hist.push(newHistItem);
+
+        if (!hasOrderInHistory && !hadPaidRetailOrderBefore && hasSystemHistoryEntry(hist, WELCOME_BONUS_AVAILABLE_KEY)) {
+            hist = removeSystemHistoryEntry(hist, WELCOME_BONUS_AVAILABLE_KEY);
+            hist = upsertSystemHistoryEntry(hist, WELCOME_BONUS_USED_KEY, {
+                usedAt: new Date().toISOString(),
+                orderId
+            });
+        }
 
         if (!hasOrderInHistory) {
             const emptyCart = JSON.stringify([]);
@@ -429,12 +618,25 @@ async function finalizeRetailPayment(session, invId) {
         if (!hasOrderInHistory && customerEmail && process.env.SMTP_PASSWORD) {
             let itemsHtmlList = '';
             parsedItems.forEach(i => {
-                itemsHtmlList += `<li style="margin-bottom: 5px;"><b>${i.item}</b> (${i.weight}г, ${i.grind}) x ${i.qty} шт. — <b>${i.price * i.qty} ₽</b></li>`;
+                const metaParts = [];
+                if (i.weight) metaParts.push(`${i.weight}г`);
+                if (i.grind) metaParts.push(i.grind);
+                const metaText = metaParts.length ? ` (${metaParts.join(', ')})` : '';
+                itemsHtmlList += `<li style="margin-bottom: 5px;"><b>${i.item}</b>${metaText} x ${i.qty} шт. — <b>${i.price * i.qty} ₽</b></li>`;
             });
 
             let deliveryText = 'Уточняется';
             if (delData.type === 'PICKUP') deliveryText = `Самовывоз (ТЦ Атолл, код: <b>${delData.code || ''}</b>)`;
             else if (delData.city) deliveryText = `${delData.type === 'PVZ' ? 'СДЭК ПВЗ' : 'Курьер/Адрес'}: ${delData.city}${delData.address ? ', ' + delData.address : ''}`;
+            else if (delData.type === 'DIGITAL') deliveryText = 'Цифровой доступ к статье';
+            const articleAccessHtml = articleAccessRecords.length ? `
+                <div style="background: #fff; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                    <h4 style="margin-top: 0; color: #8B7E66;">Доступ к статьям на 1 месяц:</h4>
+                    <ul style="padding-left: 20px; margin: 0;">
+                        ${articleAccessRecords.map(access => `<li style="margin-bottom: 8px;"><b>${access.title}</b><br>Пароль: <b>${access.password}</b><br>Доступ до: <b>${new Date(access.expiresAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</b></li>`).join('')}
+                    </ul>
+                </div>
+            ` : '';
 
             await sendTransactionalMail({
                 from: '"Locus Coffee" <info@locus.coffee>',
@@ -455,6 +657,7 @@ async function finalizeRetailPayment(session, invId) {
                                 <p style="margin: 0;"><b>Доставка:</b> ${deliveryText} (${deliveryCost} ₽)</p>
                                 <p style="margin: 5px 0 0 0; font-size: 18px;"><b>Итого оплачено: ${ord.total} ₽</b></p>
                             </div>
+                            ${articleAccessHtml}
                         </div>
                     </div>`
             });
@@ -524,7 +727,12 @@ module.exports.handler = async function (event, context) {
 
                 const userId = uuidv4();
                 const hash = bcrypt.hashSync(password, 10); 
+                const initialHistory = [
+                    createSystemHistoryEntry(WELCOME_POPUP_PENDING_KEY),
+                    createSystemHistoryEntry(WELCOME_BONUS_AVAILABLE_KEY)
+                ];
                 const emptyArr = JSON.stringify([]);
+                const initialHistoryJson = JSON.stringify(initialHistory);
 
                 const insertQuery = `
                     DECLARE $id AS Utf8; DECLARE $email AS Utf8; DECLARE $hash AS Utf8;
@@ -537,11 +745,11 @@ module.exports.handler = async function (event, context) {
                 await session.executeQuery(insertQuery, {
                     '$id': TypedValues.utf8(userId), '$email': TypedValues.utf8(normalizedEmail),
                     '$hash': TypedValues.utf8(hash), '$role': TypedValues.utf8(normalizedEmail === 'info@locus.coffee' ? 'admin' : 'user'), 
-                    '$cart': TypedValues.jsonDocument(emptyArr), '$history': TypedValues.jsonDocument(emptyArr), '$sub': TypedValues.jsonDocument(emptyArr)
+                    '$cart': TypedValues.jsonDocument(emptyArr), '$history': TypedValues.jsonDocument(initialHistoryJson), '$sub': TypedValues.jsonDocument(emptyArr)
                 });
 
                 const token = jwt.sign({ userId, email: normalizedEmail }, JWT_SECRET, { expiresIn: '30d' });
-                responseData = { success: true, token, user: { id: userId, email: normalizedEmail, totalSpent: 0, cart: [], history: [], subscription: [] } };
+                responseData = { success: true, token, user: { id: userId, email: normalizedEmail, totalSpent: 0, cart: [], history: initialHistory, subscription: [] } };
 
                 await sendRegistrationWelcomeEmail(normalizedEmail);
             }
@@ -652,6 +860,97 @@ module.exports.handler = async function (event, context) {
                         cart: getRawArray(user.cart), 
                         history: getRawArray(user.history), 
                         subscription: getRawArray(user.subscription) 
+                    }
+                };
+            }
+
+            else if (action === 'dismissWelcomePopup') {
+                const decoded = verifyToken(rawToken);
+                const query = `DECLARE $id AS Utf8; SELECT history FROM users WHERE id = $id;`;
+                const { resultSets } = await session.executeQuery(query, { '$id': TypedValues.utf8(decoded.userId) });
+                if (!resultSets[0] || resultSets[0].rows.length === 0) throw new Error('Пользователь не найден');
+
+                const user = rowToObj(resultSets[0].columns, resultSets[0].rows[0]);
+                let history = getRawArray(user.history);
+                history = removeSystemHistoryEntry(history, WELCOME_POPUP_PENDING_KEY);
+                history = upsertSystemHistoryEntry(history, WELCOME_POPUP_DISMISSED_KEY, { dismissedAt: new Date().toISOString() });
+
+                const updateQuery = `DECLARE $id AS Utf8; DECLARE $history AS JsonDocument; UPDATE users SET history = $history WHERE id = $id;`;
+                await session.executeQuery(updateQuery, {
+                    '$id': TypedValues.utf8(decoded.userId),
+                    '$history': TypedValues.jsonDocument(JSON.stringify(history))
+                });
+                responseData = { success: true };
+            }
+
+            else if (action === 'unlockArticle') {
+                const decoded = verifyToken(rawToken);
+                const articleId = String(body.articleId || '').trim();
+                const password = String(body.password || '');
+                if (!articleId) throw new Error('Не указан идентификатор статьи');
+                if (!password) throw new Error('Введите пароль из письма');
+
+                const query = `DECLARE $id AS Utf8; SELECT history FROM users WHERE id = $id;`;
+                const { resultSets } = await session.executeQuery(query, { '$id': TypedValues.utf8(decoded.userId) });
+                if (!resultSets[0] || resultSets[0].rows.length === 0) throw new Error('Пользователь не найден');
+
+                const user = rowToObj(resultSets[0].columns, resultSets[0].rows[0]);
+                const access = getActiveArticleAccessFromHistory(user.history, articleId);
+                if (!access) throw new Error('Доступ к статье не найден или уже истек');
+                if (!bcrypt.compareSync(password, access.passwordHash || '')) throw new Error('Неверный пароль для статьи');
+
+                const catalog = await fetchCatalogProducts();
+                const product = catalog.find(item => String(item.id || '').trim() === articleId || String(item.sample_no || item.sample || '').trim() === articleId);
+                if (!product) throw new Error('Статья не найдена в каталоге');
+
+                const articlePayload = parseArticlePayload(product.custom_desc || product.customDesc);
+                if (!articlePayload) throw new Error('Полный текст статьи еще не опубликован');
+
+                responseData = {
+                    success: true,
+                    article: {
+                        id: String(product.id || articleId),
+                        title: String(product.sample_no || product.sample || access.title || ''),
+                        html: decryptArticleHtml(articlePayload.encryptedBody),
+                        expiresAt: access.expiresAt
+                    }
+                };
+            }
+
+            else if (action === 'saveArticleLot') {
+                const decoded = verifyToken(rawToken);
+                if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
+
+                const updatedData = body && typeof body.updatedData === 'object' ? { ...body.updatedData } : null;
+                if (!updatedData || !updatedData.id) throw new Error('Не переданы данные статьи');
+
+                updatedData.customDesc = buildArticlePayload(body.previewHtml || '', body.bodyHtml || '');
+                await proxyCatalogEdit(updatedData);
+                responseData = { success: true };
+            }
+
+            else if (action === 'getArticleLotEditorData') {
+                const decoded = verifyToken(rawToken);
+                if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
+
+                const articleId = String(body.id || body.articleId || '').trim();
+                if (!articleId) throw new Error('Не указан ID статьи');
+
+                const catalog = await fetchCatalogProducts();
+                const product = findCatalogProductById(catalog, articleId);
+                if (!product) throw new Error('Статья не найдена в каталоге');
+
+                const rawCustomDesc = String(product.custom_desc || product.customDesc || '');
+                const articlePayload = parseArticlePayload(rawCustomDesc);
+
+                responseData = {
+                    success: true,
+                    lot: {
+                        id: String(product.id || articleId),
+                        title: String(product.sample_no || product.sample || ''),
+                        previewHtml: articlePayload ? String(articlePayload.previewHtml || '') : rawCustomDesc,
+                        bodyHtml: articlePayload ? decryptArticleHtml(articlePayload.encryptedBody) : '',
+                        hasEncryptedBody: !!articlePayload
                     }
                 };
             }
