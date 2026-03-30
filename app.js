@@ -261,6 +261,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         // Вся логика типов товаров, веса, помола и описаний централизована здесь.
         // ============================================================================
         const ProductManager = {
+            getArticlePayload: function(product) {
+                if (!product) return null;
+                const raw = product.articlePayloadRaw || product.customDesc || product.custom_desc || '';
+                if (!raw || typeof raw !== 'string') return null;
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && parsed.kind === 'paid_article') return parsed;
+                } catch (e) {}
+                return null;
+            },
             // 1. Умный поиск товара в кэше по имени
             getProduct: function(sampleName) {
                 if (!sampleName) return null;
@@ -275,7 +285,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             // 2. Определение типа товара (Кофе, Дрип, Аксессуар и т.д.)
             getTypeInfo: function(productOrName) {
                 const p = typeof productOrName === 'string' ? this.getProduct(productOrName) : productOrName;
-                if (!p) return { isSpecial: false, isAroma: false, isCoffee: true, isDrip: false };
+                if (!p) return { isSpecial: false, isAccessory: false, isInfo: false, isArticle: false, isAroma: false, isCoffee: true, isDrip: false };
 
                 const cat = (p.category || '').toLowerCase();
                 const sName = (p.sample || '').toLowerCase();
@@ -283,12 +293,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const isAroma = cat.includes('ароматизац');
                 const isAcc = cat.includes('аксессуар');
                 const isInfo = cat.includes('информац');
+                const isArticle = isInfo && cat.includes('стат');
                 const isDrip = sName.includes('дрип');
 
                 return {
                     isSpecial: isAcc || isInfo || isDrip, // Всё, что не классический кофе
                     isAccessory: isAcc,
                     isInfo: isInfo,
+                    isArticle: isArticle,
                     isDrip: isDrip,
                     isAroma: isAroma,
                     isCoffee: !isAcc && !isInfo && !isDrip
@@ -309,6 +321,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (!product) return '-';
                 const type = this.getTypeInfo(product);
                 if (type.isSpecial) {
+                    const articlePayload = this.getArticlePayload(product);
+                    if (type.isArticle && articlePayload) return articlePayload.previewHtml || '-';
                     return product.customDesc || product.flavorDesc || '-';
                 }
                 let desc = product.flavorDesc ? formatFlavorDesc(product.flavorDesc) : '-';
@@ -487,7 +501,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     
                     // Исправлено: используем ProductManager
                     const typeInfo = ProductManager.getTypeInfo(r);
-                    const { isAroma, isInfo, isSpecial } = typeInfo;
+                    const { isAroma, isInfo, isSpecial, isArticle } = typeInfo;
 
                   
                     // Находим элементы интерфейса карточки товара
@@ -500,6 +514,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     const weightSelector = document.getElementById('weight-selector-block');
                     const subBtn = document.getElementById('btn-subscription');
                     const cartBtn = document.getElementById('btn-cart');
+                    const articleAccessPanel = document.getElementById('article-access-panel');
                     // ГЛОБАЛЬНАЯ ФУНКЦИЯ ДЛЯ УВЕЛИЧЕНИЯ ФОТО
                     if (!window.openFullscreenImage) {
                         window.openFullscreenImage = function(src) {
@@ -530,7 +545,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     let galleryHtml = buildGalleryHtml(r.imageUrl);
                     if (isSpecial) {
                         // 1. АКСЕССУАРЫ И ИНФО
-                        let descHtml = galleryHtml + `<div style="text-align: justify; line-height: 1.5; white-space: pre-wrap;">${r.customDesc || r.flavorDesc || ''}</div>`;
+                        const articlePayload = isArticle ? ProductManager.getArticlePayload(r) : null;
+                        const specialBodyHtml = isArticle
+                            ? (articlePayload?.previewHtml || r.flavorDesc || '')
+                            : `<div style="text-align: justify; line-height: 1.5; white-space: pre-wrap;">${r.customDesc || r.flavorDesc || ''}</div>`;
+                        let descHtml = galleryHtml + specialBodyHtml;
                         document.getElementById('p-simple-desc').innerHTML = descHtml;
 
                         document.getElementById('p-mini-stats').innerHTML = '';
@@ -549,6 +568,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             cartBtn.style.width = 'fit-content'; // Сжимаем до аккуратного размера по центру
                         }
                         
+                        if (articleAccessPanel) articleAccessPanel.style.display = isArticle ? 'block' : 'none';
+                        if (isArticle) this.renderArticleAccessPanel(r);
+                        else this.renderArticleReader(null, '');
+
                         const grid = document.getElementById('cupping-data');
                         if(grid) grid.innerHTML = ''; // Убираем таблицу каппинга
                         
@@ -603,6 +626,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             cartBtn.parentElement.style.justifyContent = 'center';
                             cartBtn.style.width = '100%'; // Возвращаем 50/50 ширину
                         }
+                    }
+
+                    if (!isArticle) {
+                        if (articleAccessPanel) articleAccessPanel.style.display = 'none';
+                        this.renderArticleReader(null, '');
                     }
 
                     // ЛОГИКА КНОПКИ ПОКУПКИ (Скрываем для раздела Инфо с ценой 0)
@@ -1626,11 +1654,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const isAroma = typeInfo.isAroma;
 
                 if (isSpecial) {
+                    const specialDesc = ProductManager.getDisplayDesc(r);
                     return `
                         <div class="cupping-grid">
                             <div class="cupping-item full-width">
                                 <span class="cupping-label">Текстовое описание</span>
-                                <span class="cupping-value" style="white-space: pre-wrap; font-size: 13px;">${r.customDesc || r.flavorDesc || 'Нет описания'}</span>
+                                <div class="cupping-value" style="white-space: pre-wrap; font-size: 13px;">${specialDesc || 'Нет описания'}</div>
                             </div>
                         </div>
                     `;
@@ -1775,10 +1804,165 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 `;
             },
 
-            getEditHtml: function(r) {
+            escapeEditorHtml: function(value) {
+                return String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+            },
+
+            renderArticleEditorPreview: function(id) {
+                const previewInput = document.getElementById(`cat-edit-article-preview-${id}`);
+                const bodyInput = document.getElementById(`cat-edit-article-body-${id}`);
+                const previewHost = document.getElementById(`cat-edit-article-preview-render-${id}`);
+                const bodyHost = document.getElementById(`cat-edit-article-body-render-${id}`);
+
+                if (previewHost) {
+                    previewHost.innerHTML = previewInput?.value?.trim() || '<div class="article-editor-placeholder">Превью пока пустое.</div>';
+                }
+                if (bodyHost) {
+                    bodyHost.innerHTML = bodyInput?.value?.trim() || '<div class="article-editor-placeholder">Полный текст пока пустой.</div>';
+                }
+            },
+
+            getArticleEditorInput: function(id, part) {
+                return document.getElementById(`cat-edit-article-${part}-${id}`);
+            },
+
+            getArticleEditorToolbarHtml: function(id, part) {
+                const tools = [
+                    { key: 'heading', label: 'H2', title: 'Подзаголовок' },
+                    { key: 'paragraph', label: 'P', title: 'Абзац' },
+                    { key: 'bold', label: 'B', title: 'Акцент' },
+                    { key: 'italic', label: 'I', title: 'Курсив' },
+                    { key: 'list', label: 'List', title: 'Маркированный список' },
+                    { key: 'quote', label: 'Quote', title: 'Цитата' },
+                    { key: 'link', label: 'Link', title: 'Ссылка' },
+                    { key: 'image', label: 'Image', title: 'Изображение' },
+                    { key: 'divider', label: 'HR', title: 'Разделитель' }
+                ];
+
+                return `
+                    <div class="article-editor-toolbar" role="toolbar" aria-label="Инструменты верстки статьи">
+                        ${tools.map(tool => `
+                            <button
+                                type="button"
+                                class="article-editor-tool"
+                                title="${tool.title}"
+                                onclick="CatalogSystem.applyArticleEditorTool('${id}', '${part}', '${tool.key}')"
+                            >${tool.label}</button>
+                        `).join('')}
+                    </div>
+                `;
+            },
+
+            replaceArticleEditorSelection: function(input, replacement, selectionStart = null, selectionEnd = null) {
+                if (!input) return;
+                const start = typeof input.selectionStart === 'number' ? input.selectionStart : input.value.length;
+                const end = typeof input.selectionEnd === 'number' ? input.selectionEnd : input.value.length;
+                const value = input.value || '';
+                input.value = `${value.slice(0, start)}${replacement}${value.slice(end)}`;
+
+                const nextStart = selectionStart === null ? start + replacement.length : start + selectionStart;
+                const nextEnd = selectionEnd === null ? nextStart : start + selectionEnd;
+                input.focus();
+                input.setSelectionRange(nextStart, nextEnd);
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            },
+
+            wrapArticleEditorSelection: function(id, part, before, after, placeholder = 'Текст') {
+                const input = this.getArticleEditorInput(id, part);
+                if (!input) return;
+
+                const start = typeof input.selectionStart === 'number' ? input.selectionStart : input.value.length;
+                const end = typeof input.selectionEnd === 'number' ? input.selectionEnd : input.value.length;
+                const selected = input.value.slice(start, end);
+                const content = selected || placeholder;
+                const replacement = `${before}${content}${after}`;
+                const selectionStart = before.length;
+                const selectionEnd = before.length + content.length;
+                this.replaceArticleEditorSelection(input, replacement, selectionStart, selectionEnd);
+            },
+
+            insertArticleEditorBlock: function(id, part, block, focusOffset = null) {
+                const input = this.getArticleEditorInput(id, part);
+                if (!input) return;
+                const start = typeof input.selectionStart === 'number' ? input.selectionStart : input.value.length;
+                const prefix = start > 0 && !/\n$/.test(input.value.slice(0, start)) ? '\n' : '';
+                const suffix = /\n$/.test(block) ? '' : '\n';
+                const replacement = `${prefix}${block}${suffix}`;
+                const cursor = typeof focusOffset === 'number' ? prefix.length + focusOffset : null;
+                this.replaceArticleEditorSelection(input, replacement, cursor, cursor);
+            },
+
+            applyArticleEditorTool: function(id, part, tool) {
+                switch (tool) {
+                    case 'heading':
+                        this.wrapArticleEditorSelection(id, part, '<h2>', '</h2>', 'Подзаголовок');
+                        break;
+                    case 'paragraph':
+                        this.wrapArticleEditorSelection(id, part, '<p>', '</p>', 'Абзац текста');
+                        break;
+                    case 'bold':
+                        this.wrapArticleEditorSelection(id, part, '<strong>', '</strong>', 'Акцент');
+                        break;
+                    case 'italic':
+                        this.wrapArticleEditorSelection(id, part, '<em>', '</em>', 'Курсив');
+                        break;
+                    case 'list':
+                        this.insertArticleEditorBlock(id, part, '<ul>\n  <li>Пункт 1</li>\n  <li>Пункт 2</li>\n</ul>', 11);
+                        break;
+                    case 'quote':
+                        this.insertArticleEditorBlock(id, part, '<blockquote>Цитата или важная мысль</blockquote>', 13);
+                        break;
+                    case 'link':
+                        this.insertArticleEditorBlock(id, part, '<p><a href="https://">Текст ссылки</a></p>', 18);
+                        break;
+                    case 'image':
+                        this.insertArticleEditorBlock(id, part, '<figure>\n  <img src="https://" alt="">\n  <figcaption>Подпись к изображению</figcaption>\n</figure>', 23);
+                        break;
+                    case 'divider':
+                        this.insertArticleEditorBlock(id, part, '<hr>');
+                        break;
+                }
+            },
+
+            initArticleEditor: function(id) {
+                ['preview', 'body'].forEach(part => {
+                    const input = document.getElementById(`cat-edit-article-${part}-${id}`);
+                    if (!input || input.dataset.previewReady === '1') return;
+                    input.addEventListener('input', () => this.renderArticleEditorPreview(id));
+                    input.dataset.previewReady = '1';
+                });
+                this.renderArticleEditorPreview(id);
+            },
+
+            loadArticleEditorData: async function(id) {
+                const token = localStorage.getItem('locus_token');
+                if (!token) throw new Error('Нет доступа администратора');
+
+                const response = await fetch(LOCUS_API_URL + '?action=getArticleLotEditorData', {
+                    method: 'POST',
+                    headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getArticleLotEditorData', id })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success || !result.lot) {
+                    throw new Error(result.error || 'Не удалось загрузить HTML статьи');
+                }
+                return result.lot;
+            },
+
+            getEditHtml: function(r, articleEditorData = null) {
                 // Исправлено: используем ProductManager
-                const isSpecial = ProductManager.getTypeInfo(r).isSpecial;
+                const typeInfo = ProductManager.getTypeInfo(r);
+                const isSpecial = typeInfo.isSpecial;
+                const isArticle = typeInfo.isArticle;
                 const extraStyle = isSpecial ? 'display: none;' : 'display: contents;';
+                const articlePayload = ProductManager.getArticlePayload(r);
+                const articlePreviewHtml = isArticle ? (articleEditorData?.previewHtml ?? articlePayload?.previewHtml ?? '') : '';
+                const articleBodyHtml = isArticle ? (articleEditorData?.bodyHtml ?? '') : '';
 
                 return `
                     <div class="cupping-grid">
@@ -1806,10 +1990,33 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             <div id="cat-upload-status-${r.id}" style="font-size:10px; color:gray; margin-top:4px;"></div>
                         </div>
 
+                        ${isArticle ? `
+                        <div class="cupping-item full-width">
+                            <span class="cupping-label">Превью статьи до покупки (HTML)</span>
+                            ${this.getArticleEditorToolbarHtml(r.id, 'preview')}
+                            <textarea id="cat-edit-article-preview-${r.id}" class="edit-textarea article-editor-textarea" style="height:180px;">${this.escapeEditorHtml(articlePreviewHtml)}</textarea>
+                            <div class="article-editor-note">Этот блок виден в карточке статьи до оплаты.</div>
+                        </div>
+                        <div class="cupping-item full-width">
+                            <span class="cupping-label">Полный текст статьи (HTML, платный доступ)</span>
+                            ${this.getArticleEditorToolbarHtml(r.id, 'body')}
+                            <textarea id="cat-edit-article-body-${r.id}" class="edit-textarea article-editor-textarea" style="height:320px;">${this.escapeEditorHtml(articleBodyHtml)}</textarea>
+                            <div class="article-editor-note">После сохранения полный текст шифруется и выдается покупателю по паролю на 1 месяц.</div>
+                        </div>
+                        <div class="cupping-item full-width">
+                            <span class="cupping-label">Превью в карточке</span>
+                            <div id="cat-edit-article-preview-render-${r.id}" class="article-editor-preview"></div>
+                        </div>
+                        <div class="cupping-item full-width">
+                            <span class="cupping-label">Полный материал после оплаты</span>
+                            <div id="cat-edit-article-body-render-${r.id}" class="article-editor-preview article-editor-preview-full"></div>
+                        </div>
+                        ` : `
                         <div class="cupping-item full-width">
                             <span class="cupping-label">Текстовое описание (HTML или обычный текст с абзацами)</span>
                             <textarea id="cat-edit-customDesc-${r.id}" class="edit-textarea" style="height:100px;">${r.customDesc || ''}</textarea>
                         </div>
+                        `}
                         
                         <div style="${extraStyle}">
                             <div class="cupping-item full-width" style="margin-top: 10px;">
@@ -2072,12 +2279,28 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 }
             },
 
-            openEditMode: function(id, event) {
+            openEditMode: async function(id, event) {
                 event.stopPropagation();
                 const item = document.getElementById(`cat-item-row-${id}`);
                 const contentDiv = document.getElementById(`cat-content-${id}`);
                 const product = this.ALL_PRODUCTS.find(p => p.id === id);
                 if (!item.classList.contains('open')) item.classList.add('open');
+                if (!product) return;
+
+                if (ProductManager.getTypeInfo(product).isArticle) {
+                    contentDiv.innerHTML = '<div class="empty-msg">Загрузка HTML статьи...</div>';
+                    try {
+                        const articleEditorData = await this.loadArticleEditorData(id);
+                        contentDiv.innerHTML = this.getEditHtml(product, articleEditorData);
+                        this.initArticleEditor(id);
+                    } catch (error) {
+                        contentDiv.innerHTML = this.getEditHtml(product, {});
+                        this.initArticleEditor(id);
+                        alert('Не удалось загрузить полный текст статьи: ' + error.message);
+                    }
+                    return;
+                }
+
                 contentDiv.innerHTML = this.getEditHtml(product);
             },
 
@@ -2090,13 +2313,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             saveEdit: async function(id) {
                 const btn = document.getElementById(`cat-btn-save-${id}`);
                 btn.disabled = true; btn.textContent = "Сохранение...";
+                const originalProduct = this.ALL_PRODUCTS.find(p => p.id === id);
+                const isArticle = !!originalProduct && ProductManager.getTypeInfo(originalProduct).isArticle;
                 const updatedData = {
                     id: id,
                     sample: document.getElementById(`cat-edit-sample-${id}`).value,
                     category: document.getElementById(`cat-edit-category-${id}`).value,
                     price: document.getElementById(`cat-edit-price-${id}`).value,
                     imageUrl: document.getElementById(`cat-edit-imageUrl-${id}`).value,
-                    customDesc: document.getElementById(`cat-edit-customDesc-${id}`).value,
+                    customDesc: isArticle ? '' : (document.getElementById(`cat-edit-customDesc-${id}`)?.value || ''),
                     category: document.getElementById(`cat-edit-category-${id}`).value, // НОВОЕ ПОЛЕ
                     price: document.getElementById(`cat-edit-price-${id}`).value, // НОВОЕ ПОЛЕ
                     cuppingDate: document.getElementById(`cat-edit-date-${id}`).value,
@@ -2119,19 +2344,35 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     bodyNotes: document.getElementById(`cat-edit-bodyNotes-${id}`).value,
                 };
                 try {
-                    const response = await fetch(YANDEX_FUNCTION_URL + "?type=catalog_edit", {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedData)
-                    });
+                    let response;
+                    if (isArticle) {
+                        const token = localStorage.getItem('locus_token');
+                        const previewHtml = document.getElementById(`cat-edit-article-preview-${id}`)?.value || '';
+                        const bodyHtml = document.getElementById(`cat-edit-article-body-${id}`)?.value || '';
+                        response = await fetch(LOCUS_API_URL + '?action=saveArticleLot', {
+                            method: 'POST',
+                            headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'saveArticleLot', updatedData, previewHtml, bodyHtml })
+                        });
+                    } else {
+                        response = await fetch(YANDEX_FUNCTION_URL + "?type=catalog_edit", {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedData)
+                        });
+                    }
                     const result = await response.json();
                     if (!result.success) throw new Error("Сервер вернул ошибку");
                     
-                    const pIndex = this.ALL_PRODUCTS.findIndex(p => p.id === id);
-                    this.ALL_PRODUCTS[pIndex] = { ...this.ALL_PRODUCTS[pIndex], ...updatedData };
-                    document.querySelector(`#cat-item-row-${id} .item-title span`).textContent = updatedData.sample;
-                    this.cancelEdit(id);
+                    if (isArticle) {
+                        await this.loadData();
+                    } else {
+                        const pIndex = this.ALL_PRODUCTS.findIndex(p => p.id === id);
+                        this.ALL_PRODUCTS[pIndex] = { ...this.ALL_PRODUCTS[pIndex], ...updatedData };
+                        document.querySelector(`#cat-item-row-${id} .item-title span`).textContent = updatedData.sample;
+                        this.cancelEdit(id);
+                    }
                     if (window.fetchExternalData) window.fetchExternalData(); // Обновляем витрину
                 } catch (error) {
-                    alert("Ошибка сети при сохранении изменений.");
+                    alert("Ошибка сети при сохранении изменений: " + error.message);
                     btn.disabled = false; btn.textContent = "Сохранить";
                 }
             },
@@ -2389,6 +2630,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             userDataLoaded: false,
             retailCountdownInterval: null,
             retailCountdownPendingUpdates: {},
+            articleUnlockCache: {},
+            articleUnlockRequestPending: false,
 
             init: function() {
                 const savedCart = localStorage.getItem('locus_cart');
@@ -2447,6 +2690,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     this.renderWholesaleTable();
                     this.toggleModal(true, 'wholesale');
                 });
+                safeListen('btn-unlock-article', () => this.unlockArticle());
                 safeListen('btn-close-lc', () => this.toggleModal(false));
                 safeListen('link-to-reg', () => this.switchView('register'));
                 safeListen('link-to-login', () => this.switchView('login'));
@@ -2928,6 +3172,237 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 }
             },
 
+            isSystemHistoryItem: function(item) {
+                return !!(item && item.isSystemMeta && item.systemType);
+            },
+
+            getVisibleHistoryItems: function(history = this.currentUser?.history || []) {
+                return (Array.isArray(history) ? history : []).filter(item => !this.isSystemHistoryItem(item));
+            },
+
+            getWelcomePopupDismissStorageKey: function(userId = this.uid) {
+                return userId ? `locus_welcome_popup_dismissed_${userId}` : '';
+            },
+
+            isArticleCartItem: function(item) {
+                const category = String(item?.category || '').toLowerCase();
+                return !!(item && (item.isArticle === true || (category.includes('информац') && category.includes('стат'))));
+            },
+
+            hasOnlyDigitalCartItems: function() {
+                return Array.isArray(this.localCart) && this.localCart.length > 0 && this.localCart.every(item => this.isArticleCartItem(item));
+            },
+
+            syncCartCheckoutMode: function() {
+                const digitalOnly = this.hasOnlyDigitalCartItems();
+                const deliveryTitle = document.getElementById('cart-delivery-title');
+                const cdekStatus = document.getElementById('cdek-status');
+                const cdekWidget = document.getElementById('custom-cdek-widget');
+                const pickupBlock = document.getElementById('self-pickup-block');
+                const pickupCheckbox = document.getElementById('self-pickup-checkbox');
+                const pickupCodeBlock = document.getElementById('self-pickup-code-block');
+
+                if (deliveryTitle) {
+                    deliveryTitle.textContent = digitalOnly ? 'Цифровой доступ' : 'Доставка (СДЭК)';
+                }
+
+                if (digitalOnly) {
+                    if (cdekStatus) {
+                        cdekStatus.innerHTML = '<span style="opacity:0.8">После оплаты пароль к статье придет на email, доступ откроется на 1 месяц.</span>';
+                    }
+                    if (cdekWidget) {
+                        cdekWidget.style.display = 'none';
+                        cdekWidget.style.opacity = '1';
+                        cdekWidget.style.pointerEvents = 'auto';
+                    }
+                    if (pickupBlock) pickupBlock.style.display = 'none';
+                    if (pickupCheckbox) pickupCheckbox.checked = false;
+                    if (pickupCodeBlock) pickupCodeBlock.style.display = 'none';
+                    this.cdekPrice = 0;
+                    return;
+                }
+
+                if (cdekStatus) {
+                    cdekStatus.innerHTML = '<span style="opacity:0.6">Стоимость доставки рассчитывается после выбора ПВЗ</span>';
+                }
+                if (cdekWidget) {
+                    cdekWidget.style.display = '';
+                    cdekWidget.style.opacity = pickupCheckbox?.checked ? '0.3' : '1';
+                    cdekWidget.style.pointerEvents = pickupCheckbox?.checked ? 'none' : 'auto';
+                }
+                if (pickupBlock) pickupBlock.style.display = '';
+            },
+
+            hasPendingWelcomePopup: function() {
+                if (!this.currentUser || !this.uid || this.currentUser.email === 'info@locus.coffee') return false;
+                const dismissKey = this.getWelcomePopupDismissStorageKey();
+                if (dismissKey && localStorage.getItem(dismissKey) === '1') return false;
+                return Array.isArray(this.currentUser.history) && this.currentUser.history.some(item => item && item.isSystemMeta && item.systemType === 'welcome_popup_pending');
+            },
+
+            dismissWelcomePopup: async function() {
+                if (!this.uid) return;
+                const token = localStorage.getItem('locus_token');
+                const dismissKey = this.getWelcomePopupDismissStorageKey();
+                if (dismissKey) localStorage.setItem(dismissKey, '1');
+                this.currentUser.history = (this.currentUser.history || []).filter(item => !(item && item.isSystemMeta && item.systemType === 'welcome_popup_pending'));
+                this.currentUser.history.push({ isSystemMeta: true, systemType: 'welcome_popup_dismissed', dismissedAt: new Date().toISOString() });
+                if (!token) return;
+                try {
+                    await fetch(LOCUS_API_URL + '?action=dismissWelcomePopup', {
+                        method: 'POST',
+                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'dismissWelcomePopup' })
+                    });
+                } catch (e) {}
+            },
+
+            showWelcomeRegistrationPopup: function() {
+                if (!this.hasPendingWelcomePopup()) return;
+                const overlay = document.getElementById('promo-popup');
+                const title = document.getElementById('promo-popup-title');
+                const msg = document.getElementById('promo-popup-msg');
+                const btn = document.getElementById('btn-promo-action');
+                const close = document.getElementById('btn-promo-close');
+                if (!overlay || !title || !msg || !btn || !close) return;
+
+                title.textContent = 'Спасибо за регистрацию!';
+                msg.textContent = 'Возьмите пожалуйста приветственную скидку 10%\nОна применится при первом заказе в вашей Корзине автоматически.';
+                btn.textContent = 'ОК';
+                close.style.display = 'none';
+                overlay.classList.add('active');
+
+                const handleClose = async () => {
+                    overlay.classList.remove('active');
+                    close.style.display = '';
+                    btn.onclick = null;
+                    close.onclick = null;
+                    await this.dismissWelcomePopup();
+                    this.renderDashboard();
+                    this.updateCartTotals();
+                };
+
+                btn.onclick = handleClose;
+                close.onclick = handleClose;
+            },
+
+            getActiveArticleAccess: function(productOrId) {
+                const articleId = String(typeof productOrId === 'object' ? (productOrId?.id || productOrId?.sample || '') : (productOrId || '')).trim();
+                if (!articleId) return null;
+                const now = Date.now();
+                let found = null;
+                this.getVisibleHistoryItems().forEach(entry => {
+                    if (!entry || !Array.isArray(entry.items)) return;
+                    entry.items.forEach(item => {
+                        const access = item?.articleAccess;
+                        if (!access) return;
+                        if (String(access.articleId || '').trim() !== articleId) return;
+                        const expiresAtMs = Date.parse(access.expiresAt || '');
+                        if (!expiresAtMs || expiresAtMs <= now) return;
+                        if (!found || expiresAtMs > Date.parse(found.expiresAt || '')) found = access;
+                    });
+                });
+                return found;
+            },
+
+            renderArticleReader: function(product, articleHtml = '') {
+                const block = document.getElementById('article-reader-block');
+                const content = document.getElementById('article-reader-content');
+                if (!block || !content) return;
+                if (!articleHtml) {
+                    block.style.display = 'none';
+                    content.innerHTML = '';
+                    return;
+                }
+                block.style.display = 'block';
+                content.innerHTML = articleHtml;
+                if (content.dataset.locked !== '1') {
+                    ['contextmenu', 'copy', 'cut', 'dragstart', 'selectstart'].forEach(eventName => {
+                        content.addEventListener(eventName, (event) => event.preventDefault());
+                    });
+                    content.addEventListener('keydown', (event) => {
+                        if ((event.ctrlKey || event.metaKey) && ['a', 'c', 'x', 's'].includes(String(event.key || '').toLowerCase())) {
+                            event.preventDefault();
+                        }
+                    });
+                    content.dataset.locked = '1';
+                }
+            },
+
+            renderArticleAccessPanel: function(product) {
+                const panel = document.getElementById('article-access-panel');
+                const status = document.getElementById('article-access-status');
+                const input = document.getElementById('article-access-password');
+                const button = document.getElementById('btn-unlock-article');
+                const readerBlock = document.getElementById('article-reader-block');
+                if (!panel || !status || !input || !button || !readerBlock) return;
+
+                const typeInfo = ProductManager.getTypeInfo(product);
+                const isArticle = typeInfo.isArticle;
+                if (!typeInfo.isArticle) {
+                    panel.style.display = 'none';
+                    this.renderArticleReader(null, '');
+                    return;
+                }
+
+                panel.style.display = 'block';
+                const access = this.getActiveArticleAccess(product);
+                const articleId = String(product.id || product.sample || '').trim();
+                const cachedHtml = this.articleUnlockCache[articleId] || '';
+                if (access) {
+                    status.textContent = `Доступ активен до ${new Date(access.expiresAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}. Для чтения введите пароль из письма.`;
+                    input.disabled = false;
+                    button.disabled = false;
+                    button.textContent = cachedHtml ? 'Открыть снова' : 'Открыть статью';
+                    if (cachedHtml) this.renderArticleReader(product, cachedHtml);
+                    else this.renderArticleReader(product, '');
+                } else {
+                    status.textContent = 'После оплаты статьи на почту придет пароль доступа сроком на 1 месяц.';
+                    input.value = '';
+                    input.disabled = true;
+                    button.disabled = true;
+                    button.textContent = 'Статья закрыта';
+                    this.renderArticleReader(product, '');
+                }
+            },
+
+            unlockArticle: async function() {
+                const product = currentActiveProduct;
+                if (!product) return;
+                const access = this.getActiveArticleAccess(product);
+                if (!access) return alert('Срок доступа к статье истек или статья еще не куплена.');
+                const input = document.getElementById('article-access-password');
+                const button = document.getElementById('btn-unlock-article');
+                const password = input ? input.value.trim() : '';
+                if (!password) return alert('Введите пароль из письма.');
+                if (this.articleUnlockRequestPending) return;
+                const token = localStorage.getItem('locus_token');
+                if (!token) return alert('Для чтения статьи нужно войти в аккаунт.');
+
+                this.articleUnlockRequestPending = true;
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = 'Открываем...';
+                }
+                try {
+                    const res = await fetch(LOCUS_API_URL + '?action=unlockArticle', {
+                        method: 'POST',
+                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'unlockArticle', articleId: String(product.id || product.sample || ''), password })
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.success || !data.article) throw new Error(data.error || data.errorMessage || 'Не удалось открыть статью');
+                    const articleId = String(data.article.id || product.id || product.sample || '');
+                    this.articleUnlockCache[articleId] = data.article.html || '';
+                    this.renderArticleAccessPanel({ ...product, id: articleId });
+                } catch (e) {
+                    alert('Ошибка доступа к статье: ' + e.message);
+                } finally {
+                    this.articleUnlockRequestPending = false;
+                    if (button) button.disabled = false;
+                }
+            },
+
             getWelcomeBonusStorageKey: function(userId = this.uid) {
                 return userId ? `locus_welcome_bonus_${userId}` : '';
             },
@@ -2937,20 +3412,27 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const key = this.getWelcomeBonusStorageKey();
                 if (!key) return;
 
-                const history = Array.isArray(this.currentUser.history) ? this.currentUser.history : [];
+                const fullHistory = Array.isArray(this.currentUser.history) ? this.currentUser.history : [];
+                const history = this.getVisibleHistoryItems(this.currentUser.history);
                 const hasPaidRetailOrder = history.some(item => item && item.isOrder && item.status !== 'pending_payment');
-                if (hasPaidRetailOrder) {
+                const hasServerWelcomeBonus = fullHistory.some(item => item && item.isSystemMeta && item.systemType === 'welcome_bonus_available');
+                if (hasServerWelcomeBonus && !hasPaidRetailOrder) {
+                    localStorage.setItem(key, '1');
+                } else if (hasPaidRetailOrder || !hasServerWelcomeBonus) {
                     localStorage.removeItem(key);
                 }
             },
 
             hasWelcomeFirstOrderBonus: function() {
                 if (!this.userDataLoaded || !this.currentUser || this.currentUser.email === 'info@locus.coffee') return false;
+                const fullHistory = Array.isArray(this.currentUser.history) ? this.currentUser.history : [];
+                const hasServerWelcomeBonus = fullHistory.some(item => item && item.isSystemMeta && item.systemType === 'welcome_bonus_available');
                 const key = this.getWelcomeBonusStorageKey();
-                if (!key || localStorage.getItem(key) !== '1') return false;
-
-                const history = Array.isArray(this.currentUser.history) ? this.currentUser.history : [];
-                return !history.some(item => item && item.isOrder && item.status !== 'pending_payment');
+                const history = this.getVisibleHistoryItems(this.currentUser.history);
+                const hasPaidRetailOrder = history.some(item => item && item.isOrder && item.status !== 'pending_payment');
+                if (hasPaidRetailOrder) return false;
+                if (hasServerWelcomeBonus) return true;
+                return !!(key && localStorage.getItem(key) === '1');
             },
 
             getRetailDiscountBreakdown: function(subtotal) {
@@ -3928,6 +4410,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             calculatePackage: function() {
                 let packages = [];
                 this.localCart.forEach(item => {
+                    if (this.isArticleCartItem(item)) return;
                     for(let i=0; i<item.qty; i++) {
                         if(item.weight === 1000) {
                             packages.push({ weight: 1020, length: 12, width: 10, height: 30 });
@@ -4190,6 +4673,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         this.currentUser.subscription = parseSafe(this.currentUser.subscription);
                         this.userDataLoaded = true;
                         this.syncWelcomeBonusFlag();
+                        this.showWelcomeRegistrationPopup();
 
                         const pendingPaymentOrderId = localStorage.getItem('locus_pending_payment_order_id');
                         const paidPendingOrder = pendingPaymentOrderId && this.currentUser.history.some(h => h && String(h.orderId || '') === String(pendingPaymentOrderId) && h.status !== 'pending_payment');
@@ -4270,6 +4754,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             this.currentUser = serverData;
                             this.userDataLoaded = true;
                             this.syncWelcomeBonusFlag();
+                            this.showWelcomeRegistrationPopup();
                             const pendingPaymentOrderId = localStorage.getItem('locus_pending_payment_order_id');
                             const paidPendingOrder = pendingPaymentOrderId && serverData.history.some(h => h && String(h.orderId || '') === String(pendingPaymentOrderId) && h.status !== 'pending_payment');
                             const pendingOrderState = !paidPendingOrder && pendingPaymentOrderId ? await this.getPendingOrderStatus(pendingPaymentOrderId) : null;
@@ -4473,7 +4958,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     let usersList = [];
 
                     data.users.forEach(u => {
-                        const history = u.history || [];
+                        const history = this.getVisibleHistoryItems(u.history || []);
                         const spent = u.totalSpent || 0;
                         totalRevenue += spent;
                         totalOrders += history.length;
@@ -5090,6 +5575,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 
                 // Исправлено: берем информацию о типе товара в одном общем месте
                 const typeInfo = ProductManager.getTypeInfo(product);
+                const isArticle = typeInfo.isArticle;
                 
                 // Убираем/заменяем помол для особых категорий
                 if (typeInfo.isSpecial) {
@@ -5112,9 +5598,29 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 if (truePrice === 0) return alert("Цена для этого лота еще не рассчитана (нет данных Extrinsic и не задана фиксированная цена в каталоге).");
 
-                const existing = this.localCart.find(i => i.item === item && i.weight == weight && i.grind === grind);
-                if(existing) existing.qty++;
-                else this.localCart.push({ item, price: truePrice, weight: weight, qty: 1, grind: grind });
+                const nextItem = {
+                    item,
+                    price: truePrice,
+                    weight: isArticle ? '' : weight,
+                    qty: 1,
+                    grind,
+                    lotId: String(product.id || item),
+                    category: product.category || '',
+                    isArticle
+                };
+
+                if (isArticle) {
+                    const existingArticle = this.localCart.find(i => this.isArticleCartItem(i) && String(i.lotId || i.item || '') === nextItem.lotId);
+                    if (existingArticle) {
+                        this.toggleModal(true, 'cart');
+                        return alert('Эта статья уже лежит в корзине.');
+                    }
+                    this.localCart.push(nextItem);
+                } else {
+                    const existing = this.localCart.find(i => i.item === item && i.weight == weight && i.grind === grind);
+                    if(existing) existing.qty++;
+                    else this.localCart.push(nextItem);
+                }
                 
                 this.saveCart(true);
                 this.updateCartBadge();
@@ -5154,26 +5660,34 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if(this.localCart.length === 0) {
                     list.style.flex = '0 0 auto';
                     list.innerHTML = '<div style="opacity:0.5; text-align:center; padding-bottom: 20px;">Корзина пуста</div>';
+                    this.syncCartCheckoutMode();
                     this.updateCartTotals(); return;
                 }
                 
                 this.localCart.forEach((p, idx) => {
                     const el = document.createElement('div');
                     el.className = 'cart-item-row';
+                    const isArticleItem = this.isArticleCartItem(p);
                     
                     // Исправлено: берем мета-данные через общий helper
                     const meta = ProductManager.getDisplayMeta(p.item, p.weight, p.grind);
                     const wDisplay = meta.weight ? ` ${meta.weight} г` : '';
                     const gDisplay = meta.grind ? ` <span style="font-size:10px; opacity:0.7; border:1px solid #ccc; padding:0 3px; border-radius:3px;">${meta.grind}</span>` : '';
+                    const metaText = isArticleItem ? `${p.price} ₽ • цифровой доступ на 1 месяц` : `${p.price} ₽`;
+                    const controlsHtml = isArticleItem
+                        ? `<div class="cart-controls"><span class="cart-article-badge">1 месяц</span><button class="qty-btn minus" aria-label="Удалить статью">×</button></div>`
+                        : `<div class="cart-controls"><button class="qty-btn minus">-</button><span class="cart-qty">${p.qty}</span><button class="qty-btn plus">+</button></div>`;
                     
                     el.innerHTML = `
-                        <div class="cart-item-info"><div class="cart-item-title">${p.item}${wDisplay}${gDisplay}</div><div class="cart-item-meta">${p.price} ₽</div></div>
-                        <div class="cart-controls"><button class="qty-btn minus">-</button><span class="cart-qty">${p.qty}</span><button class="qty-btn plus">+</button></div>
+                        <div class="cart-item-info"><div class="cart-item-title">${p.item}${wDisplay}${gDisplay}</div><div class="cart-item-meta">${metaText}</div></div>
+                        ${controlsHtml}
                     `;
                     el.querySelector('.minus').onclick = () => this.updateItemQty(idx, -1);
-                    el.querySelector('.plus').onclick = () => this.updateItemQty(idx, 1);
+                    const plusBtn = el.querySelector('.plus');
+                    if (plusBtn) plusBtn.onclick = () => this.updateItemQty(idx, 1);
                     list.appendChild(el);
                 });
+                this.syncCartCheckoutMode();
                 this.updateCartTotals();
                 // Автозаполнение Email, ФИО и Телефона из базы или памяти браузера (Задача 5)
                 const emailInput = document.getElementById('order-email');
@@ -5191,6 +5705,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             updateItemQty: function(idx, delta) {
+                if (!this.localCart[idx]) return;
+                if (this.isArticleCartItem(this.localCart[idx]) && delta > 0) return;
                 this.localCart[idx].qty += delta;
                 if(this.localCart[idx].qty <= 0) this.localCart.splice(idx, 1);
                 this.saveCart(true);
@@ -5201,6 +5717,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             updateCartTotals: function() {
+                const digitalOnly = this.hasOnlyDigitalCartItems();
+                this.syncCartCheckoutMode();
                 let subtotal = 0;
                 this.localCart.forEach(i => subtotal += (i.price * i.qty));
                 const breakdown = this.getRetailDiscountBreakdown(subtotal);
@@ -5259,7 +5777,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     }
                 }
 
-                if (totalAfterLoyalty >= 3000) {
+                if (digitalOnly) {
+                    this.cdekPrice = 0;
+                } else if (totalAfterLoyalty >= 3000) {
                     this.cdekPrice = 0;
                 }
 
@@ -5272,7 +5792,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     }
                 }
 
-                let finalTotal = totalAfterLoyalty - promoDiscountVal + (this.cdekPrice || 0);
+                let finalTotal = totalAfterLoyalty - promoDiscountVal + (digitalOnly ? 0 : (this.cdekPrice || 0));
                 if (finalTotal < 0) finalTotal = 1;
 
                 const setTxt = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
@@ -5282,7 +5802,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 
                 const shipValEl = document.getElementById('cart-shipping-val');
                 if(shipValEl) {
-                    if (this.cdekPrice === 0 && totalAfterLoyalty >= 3000) {
+                    if (digitalOnly) {
+                        shipValEl.textContent = 'Не требуется';
+                    } else if (this.cdekPrice === 0 && totalAfterLoyalty >= 3000) {
                         shipValEl.innerHTML = `<span style="color:#187a30; font-weight:bold;">Бесплатно</span>`;
                     } else if (this.cdekPrice > 0) {
                         shipValEl.textContent = this.cdekPrice + ' ₽';
@@ -5313,6 +5835,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const emailInput = document.getElementById('order-email');
                 const email = emailInput ? emailInput.value.trim() : this.currentUser.email;
                 const policy = document.getElementById('policy-check').checked;
+                const digitalOnly = this.hasOnlyDigitalCartItems();
                 
                 // СОХРАНЯЕМ ДАННЫЕ В БРАУЗЕРЕ (Задача 5)
                 localStorage.setItem('locus_saved_name', name);
@@ -5320,10 +5843,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 localStorage.setItem('locus_saved_email', email);
 
                 // ЖЕСТКАЯ ВАЛИДАЦИЯ
-                if(!name || !phone || !email) return alert('Заполните ФИО, телефон и e-mail');
-
-                // ЖЕСТКАЯ ВАЛИДАЦИЯ
-                if(!name || !phone || !email) return alert('Заполните ФИО, телефон и e-mail');
+                if(!name || !email || (!digitalOnly && !phone)) return alert(digitalOnly ? 'Заполните ФИО и e-mail' : 'Заполните ФИО, телефон и e-mail');
                 
                 const nameRegex = /^[\p{L}\s-]{2,100}$/u;
                 if(!nameRegex.test(name)) {
@@ -5331,19 +5851,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 }
 
                 const phoneDigits = phone.replace(/\D/g, '');
-                if(phoneDigits.length < 10 || phoneDigits.length > 15 || /(.)\1{5,}/.test(phoneDigits)) {
+                if((!digitalOnly || phone) && (phoneDigits.length < 10 || phoneDigits.length > 15 || /(.)\1{5,}/.test(phoneDigits))) {
                     return alert('Пожалуйста, введите корректный номер телефона.');
                 }
 
                 const isPickup = document.getElementById('self-pickup-checkbox')?.checked;
                 
                 // Проверяем: если не выбран самовывоз, значит должен быть СДЭК
-                if (!isPickup && !this.cdekInfo) {
+                if (!digitalOnly && !isPickup && !this.cdekInfo) {
                     return alert('Пожалуйста, выберите пункт выдачи СДЭК или Самовывоз.');
                 }
                 
                 // Оставляем проверку ручного ввода СДЭК (на случай если он используется)
-                if(!isPickup && this.cdekInfo && this.cdekInfo.type === 'MANUAL') {
+                if(!digitalOnly && !isPickup && this.cdekInfo && this.cdekInfo.type === 'MANUAL') {
                     const addr = this.cdekInfo.address;
                     if(addr.length < 10 || !/[\\p{L}\\p{N}]/u.test(addr) || /(.)\\1{4,}/.test(addr)) {
                         return alert('Пожалуйста, введите корректный и полный адрес доставки.');
@@ -5381,8 +5901,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const welcomeBonusPercent = breakdown.welcomeBonusPercent;
                 let total = breakdown.totalAfterStoreDiscounts;
 
-                let shippingCost = this.cdekPrice;
-                if (total >= 3000) shippingCost = 0;
+                let shippingCost = digitalOnly ? 0 : this.cdekPrice;
+                if (!digitalOnly && total >= 3000) shippingCost = 0;
 
                 if(this.activePromo) {
                     let promoD = 0;
@@ -5416,8 +5936,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         promo: this.activePromo ? this.activePromo.code : '',
                         status: 'pending_payment',
                         customer: { name, phone, email: email },
-                        delivery: isPickup ? { type: 'PICKUP', address: 'ТЦ Атолл, Октябрьская 27', code: this.pickupLockerCodeEnabled ? this.currentPickupCode : '', finalCost: 0 } : { ...this.cdekInfo, finalCost: shippingCost },
-                        items: this.localCart,
+                        delivery: digitalOnly
+                            ? { type: 'DIGITAL', address: '', finalCost: 0 }
+                            : (isPickup
+                                ? { type: 'PICKUP', address: 'ТЦ Атолл, Октябрьская 27', code: this.pickupLockerCodeEnabled ? this.currentPickupCode : '', finalCost: 0 }
+                                : { ...this.cdekInfo, finalCost: shippingCost }),
+                        items: JSON.parse(JSON.stringify(this.localCart)),
                         historyItems: [historyOrder] // Отправляем как заказ
                     };
 
@@ -5485,7 +6009,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         this.switchView('dashboard');
                         this.renderDashboard(); // ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА ЛК
                         
-                        alert('Регистрация прошла успешно!');
+                        if (!this.hasPendingWelcomePopup()) {
+                            alert('Регистрация прошла успешно!');
+                        }
                     } catch (e) { alert('Ошибка: ' + e.message); }
                 },
 
@@ -5852,7 +6378,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     const renderOrdersList = (container, itemsFilterFn, isWholesale) => {
                         if(!container) return;
                         container.innerHTML = '';
-                        const filteredItems = (u.history || []).filter(itemsFilterFn);
+                        const filteredItems = this.getVisibleHistoryItems(u.history || []).filter(itemsFilterFn);
                         
                         if(filteredItems.length === 0) {
                             container.innerHTML = '<div style="opacity:0.5; font-size:11px">Список пуст</div>';
@@ -6024,7 +6550,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if(!recContainer) return;
                 recContainer.innerHTML = '';
                 
-                const history = this.currentUser?.history || [];
+                const history = this.getVisibleHistoryItems(this.currentUser?.history || []);
                 if(history.length === 0) { recContainer.innerHTML = '<div style="font-size: 11px; opacity: 0.5;">\u0421\u043d\u0430\u0447\u0430\u043b\u0430 \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u043d\u0430\u0448 \u043a\u043e\u0444\u0435 \u0438 \u0434\u043e\u0431\u0430\u0432\u044c\u0442\u0435 \u043b\u044e\u0431\u0438\u043c\u044b\u0435 \u043b\u043e\u0442\u044b \u0432 \u0438\u0441\u0442\u043e\u0440\u0438\u044e \u043f\u043e\u043a\u0443\u043f\u043e\u043a. \u041f\u043e\u0441\u043b\u0435 \u044d\u0442\u043e\u0433\u043e \u0437\u0434\u0435\u0441\u044c \u043f\u043e\u044f\u0432\u044f\u0442\u0441\u044f \u043f\u0435\u0440\u0441\u043e\u043d\u0430\u043b\u044c\u043d\u044b\u0435 \u0440\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u0430\u0446\u0438\u0438.</div>'; return; }
 
                 let userDescriptors = new Set();
