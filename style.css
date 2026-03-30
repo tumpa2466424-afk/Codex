@@ -11,6 +11,7 @@
     --cell-active-glow: rgba(105, 58, 5, 0.3);
     --locus-error: #B66A58;
     --locus-success: #7A8F7C;
+    --locus-countdown: #9C7A74;
     --locus-font: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
@@ -391,6 +392,8 @@
         .cart-controls { display: flex; align-items: center; gap: 10px; }
         .qty-btn { width: 24px; height: 24px; background: transparent; border: 1px solid var(--locus-dark); color: var(--locus-dark); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px; border-radius: 4px; }
         .cart-qty { font-size: 12px; font-weight: 600; width: 15px; text-align: center; }
+        .retail-order-countdown { font-size: 11px; font-weight: 600; color: var(--locus-countdown); }
+        .retail-order-countdown.is-delivered { color: var(--locus-success); }
 
         .cart-summary {
             background: #F2EFE9; padding: 20px;
