@@ -588,6 +588,7 @@
         
         .cat-btn-icon { background: #fff; color: var(--locus-dark); border: 1px solid var(--locus-border); width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; transition: all 0.2s; padding: 0; flex-shrink: 0; }
         .cat-btn-icon:hover { background: var(--locus-bg); border-color: var(--locus-accent); }
+        .cat-btn-icon:disabled { opacity: 0.45; cursor: wait; pointer-events: none; }
         .cat-btn-icon.delete:hover { background: #B66A58; color: #fff; border-color: #B66A58; }
         
         .edit-input, .edit-textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--locus-border); border-radius: 6px; font-size: 13px; font-family: inherit; background: #fff; color: var(--locus-dark); margin-top: 4px; box-sizing: border-box; }
