@@ -3368,6 +3368,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     return;
                 }
 
+                const hasArticleAccess = !!this.getActiveArticleAccess(product);
                 updateInfo({ depth: 1, raw: product });
                 if (options.syncUrl === false) return;
 
@@ -3375,10 +3376,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 url.searchParams.set('lot', product.sample || '');
                 window.history.replaceState({}, '', url);
 
-                if (options.focusAccess) {
+                if (options.focusAccess || hasArticleAccess) {
                     setTimeout(() => {
                         const accessPanel = document.getElementById('article-access-panel');
                         const passwordInput = document.getElementById('article-access-password');
+                        if (ProductManager.getTypeInfo(product).isArticle) {
+                            this.renderArticleAccessPanel(product);
+                            if (accessPanel) accessPanel.style.display = 'block';
+                        }
                         accessPanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         passwordInput?.focus();
                     }, 420);
