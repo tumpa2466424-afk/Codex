@@ -460,6 +460,10 @@
         .admin-table { width: 100%; border-collapse: collapse; font-size: 11px; }
         .admin-table th { text-align: left; padding: 8px; border-bottom: 2px solid var(--locus-dark); opacity: 0.7; }
         .admin-table td { padding: 8px; border-bottom: 1px solid #eee; }
+        .admin-user-actions-cell { width: 42px; text-align: right; }
+        .admin-user-delete-btn { margin-left: auto; }
+        .admin-user-delete-btn[disabled] { opacity: 0.35; cursor: not-allowed; color: #B8A99A; border-color: #D8CFC4; }
+        .admin-user-delete-btn[disabled]:hover { background: #fff; color: #B8A99A; border-color: #D8CFC4; }
 
         /* Wholesale Styles */
         .wholesale-info-block { background: #fff; padding: 15px; border-radius: 8px; border: 1px solid var(--locus-border); margin-bottom: 20px; font-size: 12px; line-height: 1.5; }
@@ -599,6 +603,13 @@
             /* 4. Делаем таблицы чуть компактнее, чтобы текст меньше переносился на новые строки */
             .admin-table th, .admin-table td {
                 padding: 8px 4px !important;
+            }
+            .admin-user-actions-cell {
+                min-width: 32px;
+            }
+            .admin-user-delete-btn {
+                width: 24px;
+                height: 24px;
             }
             
             /* 5. Делаем шапку модалки (где крестик закрытия) более компактной */
