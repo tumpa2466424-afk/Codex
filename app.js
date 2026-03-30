@@ -2455,6 +2455,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 safeListen('btn-action-reset', () => this.submitPasswordReset());
                 safeListen('btn-gen-password', () => this.fillGeneratedPassword('reg-pass'));
                 safeListen('btn-gen-reset-password', () => this.fillGeneratedPassword('reset-pass', 'reset-pass-confirm'));
+                this.setupPasswordVisibilityToggles();
                 safeListen('btn-logout', () => this.logout());
                 safeListen('btn-checkout', () => this.placeOrder());
                 safeListen('btn-apply-promo', () => this.applyPromo());
@@ -2591,6 +2592,70 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (confirmInput) confirmInput.value = nextPassword;
                 primaryInput.focus();
                 primaryInput.select();
+            },
+
+            getPasswordToggleIcon: function(isVisible) {
+                if (isVisible) {
+                    return `
+                        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                            <path d="M3 3l18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                            <path d="M10.58 10.58a2 2 0 102.84 2.84" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M9.88 5.09A10.94 10.94 0 0112 4.91c5.05 0 9.27 3.27 10.5 7.09a10.96 10.96 0 01-4.04 5.27M6.1 6.11C4.13 7.39 2.63 9.31 1.5 12c.77 1.84 1.87 3.36 3.21 4.49A10.75 10.75 0 0012 19.09c1.13 0 2.21-.15 3.23-.43" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    `;
+                }
+
+                return `
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                        <path d="M1.5 12S5.5 4.91 12 4.91 22.5 12 22.5 12 18.5 19.09 12 19.09 1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                        <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+                    </svg>
+                `;
+            },
+
+            updatePasswordToggleState: function(input, button) {
+                if (!input || !button) return;
+                const isVisible = input.type === 'text';
+                button.innerHTML = this.getPasswordToggleIcon(isVisible);
+                button.setAttribute('aria-label', isVisible ? 'Скрыть пароль' : 'Показать пароль');
+                button.setAttribute('title', isVisible ? 'Скрыть пароль' : 'Показать пароль');
+                button.classList.toggle('is-visible', isVisible);
+            },
+
+            enhancePasswordField: function(input) {
+                if (!input || input.dataset.passwordToggleReady === '1') return;
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'lc-password-field';
+                input.parentNode.insertBefore(wrapper, input);
+                wrapper.appendChild(input);
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'password-visibility-toggle';
+                button.setAttribute('aria-pressed', 'false');
+                wrapper.appendChild(button);
+
+                button.addEventListener('click', () => {
+                    const shouldShow = input.type === 'password';
+                    input.type = shouldShow ? 'text' : 'password';
+                    button.setAttribute('aria-pressed', shouldShow ? 'true' : 'false');
+                    this.updatePasswordToggleState(input, button);
+                    input.focus({ preventScroll: true });
+                    const cursorPos = input.value.length;
+                    try {
+                        input.setSelectionRange(cursorPos, cursorPos);
+                    } catch (e) {}
+                });
+
+                input.dataset.passwordToggleReady = '1';
+                this.updatePasswordToggleState(input, button);
+            },
+
+            setupPasswordVisibilityToggles: function() {
+                ['login-pass', 'reg-pass', 'reset-pass', 'reset-pass-confirm']
+                    .map(id => document.getElementById(id))
+                    .forEach(input => this.enhancePasswordField(input));
             },
 
             storeCredentialWithPasswordManager: async function(email, password) {
