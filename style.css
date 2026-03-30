@@ -1078,13 +1078,11 @@
     letter-spacing: 0.6px;
 }
 
-.sb-label {
-    font-weight: 400 !important;
-    opacity: 0.72;
-}
-
+.sb-label,
 .sb-value {
     font-weight: 400 !important;
+    opacity: 1;
+    letter-spacing: 0.2px;
 }
 
 .sb-info {
