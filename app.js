@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, increment, addDoc, collection, deleteDoc, getDocs, query, orderBy, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // // --- ������������ FIREBASE ---
+        // // --- ИНИЦИАЛИЗАЦИЯ FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyDoqPrYFegCZRyTlrqbZe7VZoChdW_lS4g",
             authDomain: "locus-coffee.firebaseapp.com",
@@ -36,7 +36,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         };
         
         const SCA_CSV_MAP = {
-            // ��������� (Fruity)
+            // ФРУКТОВЫЕ (Fruity)
             'fruity': [225, 40, 59], 'фрукт': [225, 40, 59],
             'berry': [225, 40, 59], 'ягод': [225, 40, 59],
             'blackberry': [62, 3, 23], 'ежевик': [62, 3, 23],
@@ -85,7 +85,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             'herb': [104, 129, 62], 'трав': [104, 129, 62],
             'beany': [104, 150, 89], 'боб': [104, 150, 89],
 
-            // ������ (Other: ��������, ����������, ��������)
+            // ПРОЧЕЕ (Other: бумажный, землистый, животный)
             'papery': [162, 185, 200], 'бумаж': [162, 185, 200],
             'stale': [64, 100, 123], 'несвеж': [64, 100, 123],
             'cardboard': [144, 173, 188], 'картон': [144, 173, 188],
@@ -106,7 +106,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             'rubber': [198, 108, 68], 'резин': [198, 108, 68],
             'skunky': [14, 81, 109], 'скунс': [14, 81, 109],
 
-            // ���������� (Roasted / Cereal)
+            // ОБЖАРЕННОЕ (Roasted / Cereal)
             'roasted': [194, 112, 34], 'обжар': [194, 112, 34],
             'pipe tobacco': [181, 75, 51], 'трубочн': [181, 75, 51],
             'tobacco': [152, 93, 37], 'табак': [152, 93, 37],
@@ -127,7 +127,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             'cinnamon': [149, 45, 40], 'кориц': [149, 45, 40],
             'clove': [127, 45, 38], 'гвоздик': [127, 45, 38],
 
-            // �������� / ����� (Nutty/Cocoa)
+            // ОРЕХИ / КАКАО (Nutty/Cocoa)
             'nutty': [166, 123, 91], 'орех': [166, 123, 91],
             'peanuts': [154, 102, 66], 'арахис': [154, 102, 66],
             'hazelnut': [137, 94, 64], 'фундук': [137, 94, 64],
@@ -169,7 +169,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         const PALETTE_CONFIG = {
             greyRgb: [200, 200, 200], // Тот самый нейтральный светло-серый
             
-            // ��������� ��� ��������� (��������, ������ - ���������� ���� � �������)
+            // Настройки для КАТЕГОРИЙ (основа, фон - приглушаем цвет и пыльность)
             catWeight: 0.8, // 60% исходного яркого цвета
             catGrey:   0.2, // 40% серого
             
@@ -234,7 +234,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         function formatFlavorDesc(text) {
             if (!text) return '';
             
-            // 1. ��������� �� ';' � ����� ����������� ������ �������� (������ �������� ������� "; ������;")
+            // 1. Разбиваем по ';' и затем обрабатываем каждый блок отдельно (чтобы сохранить группы "; Группа;")
             const parts = text.split(';').map(p => p.trim()).filter(p => p.length > 0);
             
             // 2. Обрабатываем каждый элемент
@@ -257,7 +257,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         }
 
         // ============================================================================
-        // ������ ����� ���������� �������� (PRODUCT MANAGER)
+        // УМНЫЙ МЕНЕДЖЕР КАТАЛОГА (PRODUCT MANAGER)
         // Вся логика типов товаров, веса, помола и описаний централизована здесь.
         // ============================================================================
         const ProductManager = {
@@ -485,12 +485,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     document.getElementById('p-cat-desc').textContent = '';
                     
                     
-                    // �����������: ���������� ProductManager
+                    // Исправлено: используем ProductManager
                     const typeInfo = ProductManager.getTypeInfo(r);
                     const { isAroma, isInfo, isSpecial } = typeInfo;
 
                   
-                    // ���������� ���������� ���������� ������
+                    // Находим элементы интерфейса карточки товара
                     const toggleBtn = document.getElementById('btn-toggle-details');
                     const toggleExtBtn = document.getElementById('btn-toggle-extrinsic');
                     const toggleAiBtn = document.getElementById('btn-toggle-ai');
@@ -553,7 +553,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         if(grid) grid.innerHTML = ''; // Убираем таблицу каппинга
                         
                     } else if (isAroma) {
-                        // 2. ������������
+                        // 2. Ароматизация
                         let descHtml = galleryHtml + formatFlavorDesc(r.flavorDesc);
                         if (r.flavorNotes) descHtml += `<div style="margin-top: 8px; font-size: 12px; opacity: 0.8;"><b>Нюансы:</b> ${r.flavorNotes}</div>`;
                         document.getElementById('p-simple-desc').innerHTML = descHtml;
@@ -1632,7 +1632,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     `;
                 }
 
-                // --- ��������� ������� (���� � ������) ---
+                // --- ПОДТЯГИВАЕМ ПОЛНЫЕ ДАННЫЕ (CSV и каталог) ---
                 const fullProduct = (typeof ALL_PRODUCTS_CACHE !== 'undefined') ? ALL_PRODUCTS_CACHE.find(p => p.sample === r.sample) : null;
                 
                 let roastTextLabel, country, farm, notes;
@@ -1772,7 +1772,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             getEditHtml: function(r) {
-                // �����������: ���������� ProductManager
+                // Исправлено: используем ProductManager
                 const isSpecial = ProductManager.getTypeInfo(r).isSpecial;
                 const extraStyle = isSpecial ? 'display: none;' : 'display: contents;';
 
@@ -2352,7 +2352,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         alert(`Ой! Колесо остановилось на секторе "${winningSeg.raw.sample}".\nНа него скидку сделать нельзя :)\n\nВращайте еще раз!`);
                         window.wheelSpun = false;
                         window.fortuneMaxVelocity = 0;
-                        window.fortuneLocked = false; // ������������ ������ ��� ����� �������
+                        window.fortuneLocked = false; // Разблокируем колесо для новой попытки
                         return;
                     }
 
@@ -3019,7 +3019,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const opexPerKg = s.opexPerKg || 0;
                 const fullCost1kg = roastedRawCost + varPerKg + opexPerKg;
 
-                // 4. ����� ���� (Contribution Margin)
+                // 4. Целевая маржа (Contribution Margin)
                 // Допустим, мы хотим зарабатывать сверху 30% (умножаем на 1.3)
                 const marginMult = 1.3; 
 
@@ -3046,7 +3046,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 // 2. Полная себестоимость 1 кг (включая OPEX и переменные из CSV)
                 const fullCost1kg = roastedRawCost + (s.varPerKg || 0) + (s.opexPerKg || 0);
 
-                // 3. ��������� ������� (80% ������)
+                // 3. Розничная наценка (80% сверху)
                 // Можешь менять коэффициент 1.8 на нужный тебе
                 const retailMargin = 1.8; 
 
@@ -3178,7 +3178,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         const isBlend = i.sample.toLowerCase().includes('blend') || i.sample.toLowerCase().includes('смесь');
                         const blendLabel = isBlend ? `<span style="font-size:9px; border:1px solid #ccc; border-radius:3px; padding:0 2px; margin-right:5px; vertical-align:middle; display:inline-block; margin-bottom:4px;">BLEND</span>` : '';
                         
-                        // �����������: �������� ���������� �������� ����� ProductManager
+                        // Исправлено: берем описание товара через ProductManager
                         const displayDesc = ProductManager.getDisplayDesc(i);
                         
                         html += `<tr>
@@ -3262,7 +3262,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             submitWholesaleOrder: async function() {
-                // ������ �������� �����������. ������ ����� ����� ����� ������� ������� �����.
+                // Сначала собираем все позиции. Затем считаем сумму и создаем заявку.
                 
                 let items = [];
                 let totalCost = 0;
@@ -3422,7 +3422,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     const isBlend = p.sample.toLowerCase().includes('blend') || p.sample.toLowerCase().includes('смесь');
                     const prefixText = (isBlend ? '[BLEND] ' : '') + `[${typeText}] `;
                     
-                    // �����������: ���������� ProductManager (��� HTML-����� ��� PDF)
+                    // Исправлено: используем ProductManager (для HTML-таблицы и PDF)
                     const isSpecialItem = ProductManager.getTypeInfo(p).isSpecial;
                     const displayDesc = isSpecialItem ? (p.customDesc || p.flavorDesc || '-') : (p.flavorDesc || '-');
                     
@@ -3946,7 +3946,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (tabName === 'orders') this.loadRetailOrders();
             },
 
-            // --- ������: ������� - �������� ������������� �� YDB ---
+            // --- НАЧАЛО: АДМИНКА - ЗАГРУЗКА ПОЛЬЗОВАТЕЛЕЙ ИЗ YDB ---
             loadUsers: async function() {
                 const container = document.getElementById('admin-sec-users');
                 container.innerHTML = '<div class="loader" style="position:relative; top:0; color:var(--locus-dark);">Загрузка базы YDB...</div>';
@@ -4066,15 +4066,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     html += `</tbody></table></div>`;
                     container.innerHTML = html;
                     this.startRetailCountdownTicker();
-                    this.startRetailCountdownTicker();
 
                 } catch(e) {
                     console.error(e);
                     container.innerHTML = `<div style="color:#B66A58">Ошибка: ${e.message}</div>`;
                 }
             },
-            // --- �����: ������� - �������� ������������� �� YDB ---
-            // --- ������: ��������� YDB ---
+            // --- КОНЕЦ: АДМИНКА - ЗАГРУЗКА ПОЛЬЗОВАТЕЛЕЙ ИЗ YDB ---
+            // --- НАЧАЛО: ПРОМОКОДЫ YDB ---
             loadPromos: async function() {
                 const list = document.getElementById('admin-promo-list');
                 list.innerHTML = 'Загрузка...';
@@ -4185,7 +4184,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     } catch(e) { console.error(e); }
                 }
             },
-            // --- �����: ��������� YDB ---
+            // --- КОНЕЦ: ПРОМОКОДЫ YDB ---
 
             // --- НАЧАЛО: АДМИНКА - ОТОБРАЖЕНИЕ ПОДПИСОК YDB ---
             // --- НАЧАЛО: АДМИНКА - ОТОБРАЖЕНИЕ ПОДПИСОК С ГРУППИРОВКОЙ ---
@@ -4552,7 +4551,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const product = ALL_PRODUCTS_CACHE.find(p => (p.sample || p.sample_no || "").trim() === item.trim());
                 if(!product) return alert("Ошибка товара: лот не найден в каталоге.");
                 
-                // �����������: �������� ���������� � ���� ������ ����� ������ �����
+                // Исправлено: берем информацию о типе товара в одном общем месте
                 const typeInfo = ProductManager.getTypeInfo(product);
                 
                 // Убираем/заменяем помол для особых категорий
@@ -4625,7 +4624,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     const el = document.createElement('div');
                     el.className = 'cart-item-row';
                     
-                    // �����������: �������� ����-������ ����� ������ �����
+                    // Исправлено: берем мета-данные через общий helper
                     const meta = ProductManager.getDisplayMeta(p.item, p.weight, p.grind);
                     const wDisplay = meta.weight ? ` ${meta.weight} г` : '';
                     const gDisplay = meta.grind ? ` <span style="font-size:10px; opacity:0.7; border:1px solid #ccc; padding:0 3px; border-radius:3px;">${meta.grind}</span>` : '';
@@ -4767,7 +4766,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 }
             },
 
-            // --- ������: ��������� � ���������� ������ ---
+            // --- НАЧАЛО: ОПЛАТА И ОФОРМЛЕНИЕ ЗАКАЗА ---
             placeOrder: async function() {
                 if(this.localCart.length === 0) return alert('Корзина пуста');
                 if(!this.uid) return alert('Для оформления заказа нужно войти');
@@ -4910,9 +4909,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     if(btn) { btn.disabled = false; btn.textContent = 'Оформить и оплатить'; }
                 }
             },
-            // --- �����: ��������� � ���������� ������ ---
+            // --- КОНЕЦ: ОПЛАТА И ОФОРМЛЕНИЕ ЗАКАЗА ---
 
-            // --- ������: ����� ����������� ����� YDB ---
+            // --- НАЧАЛО: АВТОРИЗАЦИЯ ЧЕРЕЗ YDB ---
                 register: async function() {
                     const email = document.getElementById('reg-email')?.value; 
                     const pass = document.getElementById('reg-pass')?.value;
@@ -4938,7 +4937,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         this.switchView('dashboard');
                         this.renderDashboard(); // ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА ЛК
                         
-                        alert('Платеж успешно подтвержден!');
+                        alert('Регистрация прошла успешно!');
                     } catch (e) { alert('Ошибка: ' + e.message); }
                 },
 
@@ -4985,7 +4984,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     this.currentUser = null; this.uid = null; this.localCart = []; 
                     this.saveCart(false); this.updateCartBadge(); this.updateUIState(); this.switchView('login');
                 },
-                // --- �����: ����� ����������� ����� YDB ---
+                // --- КОНЕЦ: АВТОРИЗАЦИЯ ЧЕРЕЗ YDB ---
 
             updateUIState: function() {
                 const txt = document.getElementById('auth-status-text'); if(txt) txt.textContent = this.uid ? 'Кабинет' : 'Войти';
@@ -4999,7 +4998,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const product = ALL_PRODUCTS_CACHE.find(p => (p.sample || p.sample_no || "").trim() === itemName.trim());
                 if(!product) return alert("Ошибка товара: лот не найден в каталоге.");
 
-                // �����������: �������� ���������� � ���� ������ ����� ������ �����
+                // Исправлено: берем информацию о типе товара в одном общем месте
                 const typeInfo = ProductManager.getTypeInfo(product);
                 
                 // Убираем/заменяем помол для особых категорий
@@ -5259,7 +5258,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 el.style.cssText = 'border: 1px solid var(--locus-border); border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #fff; box-shadow: 0 4px 10px rgba(105,58,5,0.03);';
 
                                 let itemsHtml = hItem.items.map(i => {
-                                    // �����������: �������� ����-������ ����� ������ �����
+                                    // Исправлено: берем мета-данные через общий helper
                                     const meta = ProductManager.getDisplayMeta(i.item, i.weight, i.grind);
                                     const weightText = meta.weight ? ` (${meta.weight}г)` : '';
                                     const grindText = meta.grind ? ` <span style="font-size:9px; opacity:0.7; border:1px solid #ccc; padding:0 3px; border-radius:3px;">${meta.grind}</span>` : '';
@@ -5376,7 +5375,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 const el = document.createElement('div');
                                 el.className = 'product-list-item';
                                 
-                                // �����������: �������� ����-������ ����� ������ �����
+                                // Исправлено: берем мета-данные через общий helper
                                 const meta = ProductManager.getDisplayMeta(hItem.item, hItem.weight, hItem.grind);
                                 const wDisplay = meta.weight ? ` ${meta.weight} г` : '';
                                 const gDisplay = meta.grind ? ` <span style="font-size:10px; opacity:0.7; border:1px solid #ccc; padding:0 3px; border-radius:3px;">${meta.grind}</span>` : '';
@@ -5403,7 +5402,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     };
 
                     // Вызываем отрисовку для двух списков раздельно
-                    renderOrdersList(histCont, h => !h.isWholesaleOrder, false); // ���������
+                    renderOrdersList(histCont, h => !h.isWholesaleOrder, false); // Розница
                     renderOrdersList(wsHistCont, h => h.isWholesaleOrder, true); // Оптовые
                     this.startRetailCountdownTicker();
                     // -----------------------------------------------------------------
@@ -5599,7 +5598,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
 
-                    // ���������� ���������������� (1 �� �� ����� ��������)
+                    // Точное позиционирование подсказки (примерно 1 см от целевого элемента)
                     setTimeout(() => {
                         tooltip.style.top = 'auto'; tooltip.style.bottom = 'auto';
                         tooltip.style.left = 'auto'; tooltip.style.right = 'auto';
@@ -5708,7 +5707,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         
         async function fetchExternalData() {
             try {
-                // 1. ������ ��� ������� ����������� ��� ������������ �������� ��������
+                // 1. Загружаем каталог и внешние данные параллельно для быстрого старта
                 const [catRes, extRes] = await Promise.all([
                     fetch(YANDEX_FUNCTION_URL + "?type=catalog").then(r => r.json()),
                     fetch(LOCUS_API_URL + "?action=getExtrinsicData").then(r => r.json()).catch(() => ({success: false, data: []}))
