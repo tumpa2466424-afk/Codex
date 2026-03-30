@@ -168,16 +168,16 @@
             
             <div id="view-login" class="auth-form-container show-view">
                 <div class="lc-title">Вход</div>
-                <input type="email" id="login-email" class="lc-input" placeholder="Email">
-                <input type="password" id="login-pass" class="lc-input" placeholder="Пароль">
+                <input type="email" id="login-email" class="lc-input" placeholder="Email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="254">
+                <input type="password" id="login-pass" class="lc-input" placeholder="Пароль" autocomplete="current-password" maxlength="72">
                 <button class="lc-btn" id="btn-action-login">Войти</button>
                 <div class="lc-link" id="link-to-reg">Нет аккаунта? Зарегистрироваться</div>
             </div>
 
             <div id="view-register" class="auth-form-container">
                 <div class="lc-title">Регистрация</div>
-                <input type="email" id="reg-email" class="lc-input" placeholder="Email">
-                <input type="password" id="reg-pass" class="lc-input" placeholder="Придумайте пароль">
+                <input type="email" id="reg-email" class="lc-input" placeholder="Email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="254">
+                <input type="password" id="reg-pass" class="lc-input" placeholder="Придумайте пароль" autocomplete="new-password" minlength="8" maxlength="72">
                 <button class="lc-btn" id="btn-action-reg">Создать аккаунт</button>
                 <div class="lc-link" id="link-to-login">Уже есть аккаунт? Войти</div>
             </div>
