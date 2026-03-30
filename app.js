@@ -3345,9 +3345,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                             <div class="article-hub-card-price">${price} ₽</div>
                                         </div>
                                         <div class="article-hub-card-actions">
-                                            <button type="button" class="btn-locus btn-sub article-hub-btn" onclick="UserSystem.openProductById('${article.id}')">Открыть</button>
+                                            <button type="button" class="btn-locus btn-sub article-hub-btn" onclick="UserSystem.openProductById('${article.id}', ${access ? '{ focusAccess: true, autoPrompt: true }' : '{}'})">Открыть</button>
                                             ${access
-                                                ? `<button type="button" class="btn-locus btn-cart article-hub-btn" onclick="UserSystem.openProductById('${article.id}', { focusAccess: true })">Читать</button>`
+                                                ? `<button type="button" class="btn-locus btn-cart article-hub-btn" onclick="UserSystem.startArticleReadFlow('${article.id}')">Читать</button>`
                                                 : `<button type="button" class="btn-locus btn-cart article-hub-btn" ${inCart ? 'disabled' : ''} onclick="UserSystem.addArticleToCart('${article.id}')">${inCart ? 'В корзине' : 'Купить'}</button>`
                                             }
                                         </div>
@@ -3370,23 +3370,92 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 const hasArticleAccess = !!this.getActiveArticleAccess(product);
                 updateInfo({ depth: 1, raw: product });
-                if (options.syncUrl === false) return;
-
-                const url = new URL(window.location);
-                url.searchParams.set('lot', product.sample || '');
-                window.history.replaceState({}, '', url);
+                if (options.syncUrl !== false) {
+                    const url = new URL(window.location);
+                    url.searchParams.set('lot', product.sample || '');
+                    window.history.replaceState({}, '', url);
+                }
 
                 if (options.focusAccess || hasArticleAccess) {
                     setTimeout(() => {
-                        const accessPanel = document.getElementById('article-access-panel');
-                        const passwordInput = document.getElementById('article-access-password');
                         if (ProductManager.getTypeInfo(product).isArticle) {
                             this.renderArticleAccessPanel(product);
+                            const accessPanel = document.getElementById('article-access-panel');
+                            const passwordInput = document.getElementById('article-access-password');
                             if (accessPanel) accessPanel.style.display = 'block';
+                            accessPanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            passwordInput?.focus();
+                            const articleKey = String(product.id || product.sample || '').trim();
+                            const shouldPrompt = hasArticleAccess && !this.articleUnlockCache[articleKey] && options.autoPrompt !== false;
+                            if (shouldPrompt) {
+                                const password = window.prompt('Введите пароль из письма для доступа к статье:');
+                                if (password && password.trim()) {
+                                    this.unlockArticleWithPassword(product, password.trim());
+                                }
+                            }
                         }
-                        accessPanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        passwordInput?.focus();
                     }, 420);
+                }
+            },
+
+            startArticleReadFlow: async function(articleId) {
+                const product = (Array.isArray(ALL_PRODUCTS_CACHE) ? ALL_PRODUCTS_CACHE : []).find(item => String(item.id) === String(articleId));
+                if (!product) return alert('Статья не найдена.');
+
+                this.openProductById(articleId, { focusAccess: true, autoPrompt: true });
+                const articleKey = String(product.id || product.sample || '').trim();
+                if (articleKey && this.articleUnlockCache[articleKey]) {
+                    setTimeout(() => this.renderArticleAccessPanel(product), 450);
+                }
+            },
+
+            unlockArticleWithPassword: async function(product, password) {
+                if (!product) return false;
+                if (!password) {
+                    alert('Введите пароль из письма.');
+                    return false;
+                }
+                if (this.articleUnlockRequestPending) return false;
+
+                const access = this.getActiveArticleAccess(product);
+                if (!access) {
+                    alert('Срок доступа к статье истек или статья еще не куплена.');
+                    return false;
+                }
+
+                const token = localStorage.getItem('locus_token');
+                if (!token) {
+                    alert('Для чтения статьи нужно войти в аккаунт.');
+                    return false;
+                }
+
+                const button = document.getElementById('btn-unlock-article');
+                this.articleUnlockRequestPending = true;
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = 'Открываем...';
+                }
+
+                try {
+                    const res = await fetch(LOCUS_API_URL + '?action=unlockArticle', {
+                        method: 'POST',
+                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'unlockArticle', articleId: String(product.id || product.sample || ''), password })
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.success || !data.article) throw new Error(data.error || data.errorMessage || 'Не удалось открыть статью');
+
+                    const articleId = String(data.article.id || product.id || product.sample || '');
+                    this.articleUnlockCache[articleId] = data.article.html || '';
+                    this.renderArticleAccessPanel({ ...product, id: articleId });
+                    document.getElementById('article-reader-block')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    return true;
+                } catch (e) {
+                    alert('Ошибка доступа к статье: ' + e.message);
+                    return false;
+                } finally {
+                    this.articleUnlockRequestPending = false;
+                    if (button) button.disabled = false;
                 }
             },
 
@@ -3486,38 +3555,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             unlockArticle: async function() {
                 const product = currentActiveProduct;
                 if (!product) return;
-                const access = this.getActiveArticleAccess(product);
-                if (!access) return alert('Срок доступа к статье истек или статья еще не куплена.');
                 const input = document.getElementById('article-access-password');
-                const button = document.getElementById('btn-unlock-article');
                 const password = input ? input.value.trim() : '';
-                if (!password) return alert('Введите пароль из письма.');
-                if (this.articleUnlockRequestPending) return;
-                const token = localStorage.getItem('locus_token');
-                if (!token) return alert('Для чтения статьи нужно войти в аккаунт.');
-
-                this.articleUnlockRequestPending = true;
-                if (button) {
-                    button.disabled = true;
-                    button.textContent = 'Открываем...';
-                }
-                try {
-                    const res = await fetch(LOCUS_API_URL + '?action=unlockArticle', {
-                        method: 'POST',
-                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'unlockArticle', articleId: String(product.id || product.sample || ''), password })
-                    });
-                    const data = await res.json();
-                    if (!res.ok || !data.success || !data.article) throw new Error(data.error || data.errorMessage || 'Не удалось открыть статью');
-                    const articleId = String(data.article.id || product.id || product.sample || '');
-                    this.articleUnlockCache[articleId] = data.article.html || '';
-                    this.renderArticleAccessPanel({ ...product, id: articleId });
-                } catch (e) {
-                    alert('Ошибка доступа к статье: ' + e.message);
-                } finally {
-                    this.articleUnlockRequestPending = false;
-                    if (button) button.disabled = false;
-                }
+                await this.unlockArticleWithPassword(product, password);
             },
 
             getWelcomeBonusStorageKey: function(userId = this.uid) {
