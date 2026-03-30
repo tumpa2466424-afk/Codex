@@ -478,6 +478,14 @@
             -webkit-user-select: none;
             -webkit-touch-callout: none;
         }
+        .article-reader-title {
+            margin-bottom: 14px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--locus-accent);
+        }
         .article-reader-content img {
             max-width: 100%;
             height: auto;
