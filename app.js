@@ -3605,6 +3605,98 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 }
             },
 
+            renderArticleContentInFrame: function(host, articleHtml = '') {
+                if (!host) return;
+                host.innerHTML = '';
+                const frame = document.createElement('iframe');
+                frame.className = 'article-reader-frame';
+                frame.setAttribute('title', 'Текст статьи');
+                host.appendChild(frame);
+
+                const frameDoc = frame.contentDocument;
+                if (!frameDoc) return;
+
+                frameDoc.open();
+                frameDoc.write(`
+                    <!doctype html>
+                    <html lang="ru">
+                    <head>
+                        <meta charset="utf-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1">
+                        <link rel="preconnect" href="https://fonts.googleapis.com">
+                        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+                        <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&display=swap" rel="stylesheet">
+                        <style>
+                            html, body {
+                                margin: 0;
+                                padding: 0;
+                                background: transparent;
+                                color: #693a05;
+                                font-family: 'Cormorant Garamond', 'Times New Roman', serif !important;
+                                font-weight: 400 !important;
+                                font-synthesis: none;
+                                font-kerning: normal;
+                                font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+                                text-rendering: geometricPrecision;
+                                -webkit-font-smoothing: antialiased;
+                                -moz-osx-font-smoothing: grayscale;
+                                line-height: 1.75;
+                                overflow: hidden;
+                            }
+                            body, body * {
+                                font-family: 'Cormorant Garamond', 'Times New Roman', serif !important;
+                                font-weight: 400 !important;
+                                color: #693a05;
+                                box-sizing: border-box;
+                            }
+                            body {
+                                font-size: 20px;
+                                user-select: none;
+                                -webkit-user-select: none;
+                                -webkit-touch-callout: none;
+                            }
+                            img {
+                                max-width: 100%;
+                                height: auto;
+                                border-radius: 12px;
+                            }
+                            @media (max-width: 640px) {
+                                body { font-size: 18px; }
+                            }
+                        </style>
+                    </head>
+                    <body>${articleHtml}</body>
+                    </html>
+                `);
+                frameDoc.close();
+
+                const resizeFrame = () => {
+                    const root = frameDoc.documentElement;
+                    const body = frameDoc.body;
+                    const nextHeight = Math.max(
+                        root?.scrollHeight || 0,
+                        body?.scrollHeight || 0,
+                        root?.offsetHeight || 0,
+                        body?.offsetHeight || 0
+                    );
+                    frame.style.height = `${Math.max(nextHeight, 80)}px`;
+                };
+
+                ['contextmenu', 'copy', 'cut', 'dragstart', 'selectstart'].forEach(eventName => {
+                    frameDoc.addEventListener(eventName, (event) => event.preventDefault());
+                });
+                frameDoc.addEventListener('keydown', (event) => {
+                    if ((event.ctrlKey || event.metaKey) && ['a', 'c', 'x', 's', 'p'].includes(String(event.key || '').toLowerCase())) {
+                        event.preventDefault();
+                    }
+                });
+
+                frame.addEventListener('load', resizeFrame);
+                resizeFrame();
+                setTimeout(resizeFrame, 60);
+                setTimeout(resizeFrame, 240);
+            },
+
             openArticleReaderOverlay: async function(product, articleHtml = '', access = null) {
                 if (!String(articleHtml || '').trim()) return;
                 await this.ensureStickerFontLoaded();
@@ -3621,9 +3713,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     <h2 class="article-reader-overlay-title">${this.escapeHtmlText(product?.sample || 'Статья')}</h2>
                     <div class="article-reader-overlay-expiry">${expiresText ? `Доступ активен до ${expiresText}` : 'Доступ активен'}</div>
                 `;
-                body.innerHTML = articleHtml;
+                this.renderArticleContentInFrame(body, articleHtml);
                 this.applyStickerFontToArticleContent(meta);
-                this.applyStickerFontToArticleContent(body);
                 if (body.dataset.locked !== '1') {
                     ['contextmenu', 'copy', 'cut', 'dragstart', 'selectstart'].forEach(eventName => {
                         body.addEventListener(eventName, (event) => event.preventDefault());
@@ -3639,7 +3730,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 document.body.style.overflow = 'hidden';
                 requestAnimationFrame(() => {
                     this.applyStickerFontToArticleContent(meta);
-                    this.applyStickerFontToArticleContent(body);
                 });
             },
 
