@@ -515,7 +515,7 @@
             border-radius: 22px;
             box-shadow: 0 24px 70px rgba(41, 26, 10, 0.24);
             padding: 28px 24px 24px;
-            font-family: 'Montserrat', Arial, sans-serif;
+            font-family: 'Inter', Arial, sans-serif;
             font-weight: 400;
             font-synthesis: none;
             font-kerning: normal;
@@ -523,7 +523,7 @@
         }
         .article-reader-modal,
         .article-reader-modal * {
-            font-family: 'Montserrat', Arial, sans-serif !important;
+            font-family: 'Inter', Arial, sans-serif !important;
         }
         .article-reader-close {
             position: sticky;
@@ -561,7 +561,7 @@
             font-size: clamp(26px, 4vw, 38px);
             line-height: 1.08;
             color: var(--locus-dark);
-            font-family: 'Montserrat', Arial, sans-serif;
+            font-family: 'Inter', Arial, sans-serif;
             font-weight: 400;
         }
         .article-reader-overlay-expiry {
@@ -576,7 +576,7 @@
             padding: 22px 18px;
             line-height: 1.8;
             color: var(--locus-dark);
-            font-family: 'Montserrat', Arial, sans-serif;
+            font-family: 'Inter', Arial, sans-serif;
             font-size: 17px;
             font-weight: 400;
             font-synthesis: none;
@@ -588,7 +588,7 @@
         }
         .article-reader-overlay-body,
         .article-reader-overlay-body * {
-            font-family: 'Montserrat', Arial, sans-serif !important;
+            font-family: 'Inter', Arial, sans-serif !important;
             font-weight: 400 !important;
         }
         .article-reader-overlay.is-obscured .article-reader-modal {
