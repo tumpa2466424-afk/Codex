@@ -1313,8 +1313,10 @@
 
 .product-pack-descriptors {
     bottom: 6%;
-    left: 4%;
-    right: 4%;
+    left: 50%;
+    right: auto;
+    width: 92%;
+    transform: translateX(-50%);
     font-size: 0.47em;
     font-weight: 400;
     line-height: 1.18;
