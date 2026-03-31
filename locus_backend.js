@@ -897,16 +897,20 @@ module.exports.handler = async function (event, context) {
                 const articleId = String(body.articleId || '').trim();
                 const password = String(body.password || '');
                 if (!articleId) throw new Error('Не указан идентификатор статьи');
-                if (!password) throw new Error('Введите пароль из письма');
+                const isAdminArticleRead = String(decoded.email || '').toLowerCase() === 'info@locus.coffee';
+                let access = null;
+                if (!isAdminArticleRead) {
+                    if (!password) throw new Error('Введите пароль из письма');
 
-                const query = `DECLARE $id AS Utf8; SELECT history FROM users WHERE id = $id;`;
-                const { resultSets } = await session.executeQuery(query, { '$id': TypedValues.utf8(decoded.userId) });
-                if (!resultSets[0] || resultSets[0].rows.length === 0) throw new Error('Пользователь не найден');
+                    const query = `DECLARE $id AS Utf8; SELECT history FROM users WHERE id = $id;`;
+                    const { resultSets } = await session.executeQuery(query, { '$id': TypedValues.utf8(decoded.userId) });
+                    if (!resultSets[0] || resultSets[0].rows.length === 0) throw new Error('Пользователь не найден');
 
-                const user = rowToObj(resultSets[0].columns, resultSets[0].rows[0]);
-                const access = getActiveArticleAccessFromHistory(user.history, articleId);
-                if (!access) throw new Error('Доступ к статье не найден или уже истек');
-                if (!bcrypt.compareSync(password, access.passwordHash || '')) throw new Error('Неверный пароль для статьи');
+                    const user = rowToObj(resultSets[0].columns, resultSets[0].rows[0]);
+                    access = getActiveArticleAccessFromHistory(user.history, articleId);
+                    if (!access) throw new Error('Доступ к статье не найден или уже истек');
+                    if (!bcrypt.compareSync(password, access.passwordHash || '')) throw new Error('Неверный пароль для статьи');
+                }
 
                 const catalog = await fetchCatalogProducts();
                 const product = catalog.find(item => String(item.id || '').trim() === articleId || String(item.sample_no || item.sample || '').trim() === articleId);
@@ -919,9 +923,9 @@ module.exports.handler = async function (event, context) {
                     success: true,
                     article: {
                         id: String(product.id || articleId),
-                        title: String(product.sample_no || product.sample || access.title || ''),
+                        title: String(product.sample_no || product.sample || access?.title || ''),
                         html: decryptArticleHtml(articlePayload.encryptedBody),
-                        expiresAt: access.expiresAt
+                        expiresAt: isAdminArticleRead ? '2099-12-31T20:59:00.000Z' : access.expiresAt
                     }
                 };
             }
