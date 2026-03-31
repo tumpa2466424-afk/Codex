@@ -3586,7 +3586,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             ensureStickerFontLoaded: async function() {
-                const fontHref = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&display=swap';
+                const fontHref = 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap';
                 if (!document.getElementById('locus-sticker-font-link')) {
                     const link = document.createElement('link');
                     link.id = 'locus-sticker-font-link';
@@ -3597,9 +3597,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (document.fonts && typeof document.fonts.load === 'function') {
                     try {
                         await Promise.all([
-                            document.fonts.load("300 20px 'Cormorant Garamond'"),
-                            document.fonts.load("400 20px 'Cormorant Garamond'"),
-                            document.fonts.load("500 20px 'Cormorant Garamond'")
+                            document.fonts.load("400 20px 'Montserrat'"),
+                            document.fonts.load("500 20px 'Montserrat'"),
+                            document.fonts.load("600 20px 'Montserrat'")
                         ]);
                     } catch (e) {}
                 }
@@ -3625,26 +3625,25 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         <meta name="viewport" content="width=device-width, initial-scale=1">
                         <link rel="preconnect" href="https://fonts.googleapis.com">
                         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-                        <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&display=swap" rel="stylesheet">
+                        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
                         <style>
                             html, body {
                                 margin: 0;
                                 padding: 0;
                                 background: transparent;
                                 color: #693a05;
-                                font-family: 'Cormorant Garamond', 'Times New Roman', serif !important;
+                                font-family: 'Montserrat', Arial, sans-serif !important;
                                 font-weight: 400 !important;
                                 font-synthesis: none;
                                 font-kerning: normal;
-                                font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
-                                text-rendering: geometricPrecision;
+                                text-rendering: optimizeLegibility;
                                 -webkit-font-smoothing: antialiased;
                                 -moz-osx-font-smoothing: grayscale;
                                 line-height: 1.75;
                                 overflow: hidden;
                             }
                             body, body * {
-                                font-family: 'Cormorant Garamond', 'Times New Roman', serif !important;
+                                font-family: 'Montserrat', Arial, sans-serif !important;
                                 font-weight: 400 !important;
                                 color: #693a05;
                                 box-sizing: border-box;
@@ -3735,15 +3734,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
             applyStickerFontToArticleContent: function(root) {
                 if (!root) return;
-                const stickerFontFamily = "'Cormorant Garamond', 'Times New Roman', serif";
+                const stickerFontFamily = "'Montserrat', Arial, sans-serif";
                 const applyNodeStyle = (node) => {
                     if (!(node instanceof HTMLElement)) return;
                     node.style.setProperty('font-family', stickerFontFamily, 'important');
                     node.style.setProperty('font-weight', '400', 'important');
                     node.style.setProperty('font-synthesis', 'none', 'important');
                     node.style.setProperty('font-kerning', 'normal', 'important');
-                    node.style.setProperty('font-feature-settings', '"kern" 1, "liga" 1, "calt" 1', 'important');
-                    node.style.setProperty('text-rendering', 'geometricPrecision', 'important');
+                    node.style.setProperty('text-rendering', 'optimizeLegibility', 'important');
                     node.style.setProperty('-webkit-font-smoothing', 'antialiased', 'important');
                     node.style.setProperty('-moz-osx-font-smoothing', 'grayscale', 'important');
                 };
