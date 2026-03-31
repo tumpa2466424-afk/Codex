@@ -1659,6 +1659,37 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (inactiveCount === 0) containerInactive.innerHTML = '<div class="empty-msg">Нет сохраненных каппингов</div>';
             },
 
+            splitAromaStickerTitle: function(title) {
+                const normalized = String(title || '').replace(/\s+/g, ' ').trim();
+                if (!normalized) return { primary: '', secondary: '' };
+
+                const shouldSplit = normalized.length > 15 || ((normalized.includes('-') || normalized.includes('/')) && normalized.length > 13);
+                if (!shouldSplit) return { primary: normalized, secondary: '' };
+
+                const candidates = [];
+                for (let i = 0; i < normalized.length; i++) {
+                    const ch = normalized[i];
+                    if (ch === ' ' || ch === '-' || ch === '/' || ch === ',') candidates.push(i);
+                }
+                if (!candidates.length) return { primary: normalized, secondary: '' };
+
+                const target = normalized.length / 2;
+                let bestIndex = candidates[0];
+                let bestDistance = Math.abs(bestIndex - target);
+                candidates.forEach(idx => {
+                    const distance = Math.abs(idx - target);
+                    if (distance < bestDistance) {
+                        bestIndex = idx;
+                        bestDistance = distance;
+                    }
+                });
+
+                const primary = normalized.slice(0, bestIndex).trim().replace(/[-/,]+$/g, '').trim();
+                const secondary = normalized.slice(bestIndex + 1).trim().replace(/^[-/,]+/g, '').trim();
+                if (!primary || !secondary) return { primary: normalized, secondary: '' };
+                return { primary, secondary };
+            },
+
             getFrontStickerData: function(r) {
                 const typeInfo = ProductManager.getTypeInfo(r);
                 const fullProduct = (typeof ALL_PRODUCTS_CACHE !== 'undefined' && Array.isArray(ALL_PRODUCTS_CACHE))
@@ -1671,9 +1702,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 let notes;
 
                 if (typeInfo.isAroma) {
+                    const aromaLines = this.splitAromaStickerTitle(r.sample || 'НАЗВАНИЕ ЛОТА');
                     roastTextLabel = '\u0410\u0420\u041e\u041c\u0410\u0422\u0418\u0417\u0418\u0420\u041e\u0412\u0410\u041d\u041d\u042b\u0419';
-                    country = r.sample || '\u041d\u0410\u0417\u0412\u0410\u041d\u0418\u0415 \u041b\u041e\u0422\u0410';
-                    farm = '';
+                    country = aromaLines.primary || '\u041d\u0410\u0417\u0412\u0410\u041d\u0418\u0415 \u041b\u041e\u0422\u0410';
+                    farm = aromaLines.secondary || '';
                     notes = (fullProduct && fullProduct.flavorDesc) ? fullProduct.flavorDesc : (r.flavorDesc || '\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043e\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442');
                 } else {
                     country = (fullProduct && fullProduct.country) ? fullProduct.country : '\u0421\u0422\u0420\u0410\u041d\u0410 \u041d\u0415 \u0423\u041a\u0410\u0417\u0410\u041d\u0410';
@@ -1734,18 +1766,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (typeInfo.isAccessory || typeInfo.isInfo || typeInfo.isDrip) return null;
 
                 const stickerData = this.getFrontStickerData(r);
-                let packCountry = stickerData.country || '';
-                let packFarm = stickerData.farm || '';
-                if (typeInfo.isAroma) {
-                    const aromaLines = this.splitPackAromaTitle(stickerData.country || r.sample || '');
-                    packCountry = aromaLines.country;
-                    packFarm = aromaLines.farm;
-                }
                 return {
                     alt: this.escapeEditorHtml(r.sample || 'Locus Coffee'),
                     roastTextLabel: this.escapeEditorHtml(stickerData.roastTextLabel || ''),
-                    country: this.escapeEditorHtml(packCountry),
-                    farm: this.escapeEditorHtml(packFarm),
+                    country: this.escapeEditorHtml(stickerData.country || ''),
+                    farm: this.escapeEditorHtml(stickerData.farm || ''),
                     descriptors: this.escapeEditorHtml(stickerData.notes || '')
                 };
 
@@ -1952,7 +1977,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         <div style="background: #f4f1ea; padding: 20px; border-radius: 8px; border: 1px solid var(--locus-border); flex: 1; min-width: 320px; display: flex; flex-direction: column; align-items: center;">
                             <div style="text-align:center; font-size:12px; font-weight:bold; color:var(--locus-accent); margin-bottom:15px; text-transform:uppercase;">Лицо (80х80 мм)</div>
                             
-                            <div class="locus-sticker-canvas${isAroma ? ' sticker-front-aroma' : ''}" id="${frontStickerId}">
+                            <div class="locus-sticker-canvas${isAroma ? ` sticker-front-aroma ${frontStickerData.farm ? 'has-secondary-line' : 'is-single-line'}` : ''}" id="${frontStickerId}">
                                 <div class="s-roast-text">${roastTextLabel}</div>
                                 <div class="s-country">${country}</div>
                                 <div class="s-farm">${farm}</div>
