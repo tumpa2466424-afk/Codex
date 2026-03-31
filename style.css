@@ -1267,7 +1267,7 @@
     top: 52.9%;
     width: 29.5%;
     height: 28.8%;
-    transform: translate(-50%, -50%) perspective(700px) rotateY(-9.1deg) rotateX(1.2deg) rotateZ(5.5deg) skewY(-0.6deg) scale(0.8);
+    transform: translate(-50%, -50%) perspective(650px) rotateY(-10.1deg) rotateX(1.3deg) rotateZ(5.5deg) skewY(-0.9deg) scale(0.8);
     transform-origin: center center;
     color: #17110a;
     text-align: center;
