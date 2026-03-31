@@ -1241,6 +1241,96 @@
     }
 }
 /* --- ГЕНЕРАТОР НАКЛЕЕК НА ПАЧКУ (80х80 мм) --- */
+.product-pack-preview {
+    margin: 0 auto 18px;
+    max-width: 380px;
+}
+
+.product-pack-figure {
+    position: relative;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.product-pack-base {
+    display: block;
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.product-pack-label-overlay {
+    position: absolute;
+    left: 46.8%;
+    top: 56.2%;
+    width: 29.5%;
+    height: 28.8%;
+    transform: translate(-50%, -50%) perspective(900px) rotateY(-6deg) rotateZ(-0.8deg);
+    transform-origin: center center;
+    color: #17110a;
+    text-align: center;
+    text-transform: uppercase;
+    font-family: var(--locus-sticker-font), serif;
+    font-size: clamp(7px, 2vw, 10px);
+    line-height: 1;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+    text-wrap: balance;
+}
+
+.product-pack-roast,
+.product-pack-country,
+.product-pack-farm,
+.product-pack-descriptors {
+    position: absolute;
+    left: 0;
+    right: 0;
+    font-family: inherit;
+}
+
+.product-pack-roast {
+    top: 6%;
+    font-size: 0.72em;
+    font-weight: 400;
+    letter-spacing: 0.16em;
+}
+
+.product-pack-country {
+    top: 56%;
+    font-size: 1.86em;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+}
+
+.product-pack-farm {
+    top: 73%;
+    font-size: 1.2em;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+}
+
+.product-pack-descriptors {
+    bottom: 5%;
+    left: 6%;
+    right: 6%;
+    font-size: 0.64em;
+    font-weight: 400;
+    line-height: 1.18;
+    letter-spacing: 0.07em;
+}
+
+@media (max-width: 768px) {
+    .product-pack-preview {
+        max-width: min(100%, 340px);
+    }
+
+    .product-pack-label-overlay {
+        font-size: clamp(6.4px, 2.35vw, 8.8px);
+    }
+}
+
 .locus-sticker-canvas {
     position: relative; 
     width: 80mm;  
