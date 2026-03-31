@@ -1659,9 +1659,59 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (inactiveCount === 0) containerInactive.innerHTML = '<div class="empty-msg">Нет сохраненных каппингов</div>';
             },
 
+            getFrontStickerData: function(r) {
+                const typeInfo = ProductManager.getTypeInfo(r);
+                const fullProduct = (typeof ALL_PRODUCTS_CACHE !== 'undefined' && Array.isArray(ALL_PRODUCTS_CACHE))
+                    ? ALL_PRODUCTS_CACHE.find(p => p.sample === r.sample)
+                    : null;
+
+                let roastTextLabel;
+                let country;
+                let farm;
+                let notes;
+
+                if (typeInfo.isAroma) {
+                    roastTextLabel = '\u0410\u0420\u041e\u041c\u0410\u0422\u0418\u0417\u0418\u0420\u041e\u0412\u0410\u041d\u041d\u042b\u0419';
+                    country = r.sample || '\u041d\u0410\u0417\u0412\u0410\u041d\u0418\u0415 \u041b\u041e\u0422\u0410';
+                    farm = '';
+                    notes = (fullProduct && fullProduct.flavorDesc) ? fullProduct.flavorDesc : (r.flavorDesc || '\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043e\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442');
+                } else {
+                    country = (fullProduct && fullProduct.country) ? fullProduct.country : '\u0421\u0422\u0420\u0410\u041d\u0410 \u041d\u0415 \u0423\u041a\u0410\u0417\u0410\u041d\u0410';
+                    farm = (fullProduct && fullProduct.farm)
+                        ? fullProduct.farm
+                        : ((fullProduct && fullProduct.producer) ? fullProduct.producer : '\u0424\u0415\u0420\u041c\u0410 / \u041a\u041e\u041e\u041f\u0415\u0420\u0410\u0422\u0418\u0412');
+                    notes = (fullProduct && fullProduct.flavorNotes)
+                        ? fullProduct.flavorNotes
+                        : (r.flavorNotes || '\u0414\u0435\u0441\u043a\u0440\u0438\u043f\u0442\u043e\u0440\u044b \u043d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u044b');
+
+                    const catStr = String(r.category || '').toLowerCase();
+                    const roastVal = parseInt(r.roast, 10) || 0;
+                    roastTextLabel = (catStr.includes('\u044d\u0441\u043f\u0440\u0435\u0441\u0441\u043e') || (!catStr.includes('\u0444\u0438\u043b\u044c\u0442\u0440') && roastVal >= 10))
+                        ? '\u042d\u0421\u041f\u0420\u0415\u0421\u0421\u041e-\u041e\u0411\u0416\u0410\u0420\u041a\u0410'
+                        : '\u0424\u0418\u041b\u042c\u0422\u0420-\u041e\u0411\u0416\u0410\u0420\u041a\u0410';
+                }
+
+                let formattedNotes = String(notes || '').trim();
+                if (formattedNotes.includes(',')) {
+                    const parts = formattedNotes.split(',').map(s => s.trim()).filter(Boolean);
+                    formattedNotes = parts.slice(0, 3).join(', ');
+                }
+
+                return { roastTextLabel, country, farm, notes: formattedNotes, fullProduct };
+            },
+
             getPackPreviewData: function(r) {
                 const typeInfo = ProductManager.getTypeInfo(r);
-                if (typeInfo.isSpecial) return null;
+                if (typeInfo.isAccessory || typeInfo.isInfo || typeInfo.isDrip) return null;
+
+                const stickerData = this.getFrontStickerData(r);
+                return {
+                    alt: this.escapeEditorHtml(r.sample || 'Locus Coffee'),
+                    roastTextLabel: this.escapeEditorHtml(stickerData.roastTextLabel || ''),
+                    country: this.escapeEditorHtml(stickerData.country || ''),
+                    farm: this.escapeEditorHtml(stickerData.farm || ''),
+                    descriptors: this.escapeEditorHtml(stickerData.notes || '')
+                };
 
                 const fullProduct = (typeof ALL_PRODUCTS_CACHE !== 'undefined' && Array.isArray(ALL_PRODUCTS_CACHE))
                     ? ALL_PRODUCTS_CACHE.find(p => p.sample === r.sample)
@@ -1671,6 +1721,52 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 let country;
                 let farm;
                 let notes;
+
+                const fallbackText = {
+                    aroma: '\u0410\u0420\u041e\u041c\u0410\u0422\u0418\u0417\u0418\u0420\u041e\u0412\u0410\u041d\u041d\u042b\u0419',
+                    lotName: '\u041d\u0410\u0417\u0412\u0410\u041d\u0418\u0415 \u041b\u041e\u0422\u0410',
+                    emptyDesc: '\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043e\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u0435\u0442',
+                    country: '\u0421\u0422\u0420\u0410\u041d\u0410 \u041d\u0415 \u0423\u041a\u0410\u0417\u0410\u041d\u0410',
+                    farm: '\u0424\u0415\u0420\u041c\u0410 / \u041a\u041e\u041e\u041f\u0415\u0420\u0410\u0422\u0418\u0412',
+                    descriptors: '\u0414\u0435\u0441\u043a\u0440\u0438\u043f\u0442\u043e\u0440\u044b \u043d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u044b',
+                    espresso: '\u042d\u0421\u041f\u0420\u0415\u0421\u0421\u041e-\u041e\u0411\u0416\u0410\u0420\u041a\u0410',
+                    filter: '\u0424\u0418\u041b\u042c\u0422\u0420-\u041e\u0411\u0416\u0410\u0420\u041a\u0410'
+                };
+
+                if (typeInfo.isAroma) {
+                    roastTextLabel = fallbackText.aroma;
+                    country = r.sample || fallbackText.lotName;
+                    farm = '';
+                    notes = (fullProduct && fullProduct.flavorDesc) ? fullProduct.flavorDesc : (r.flavorDesc || fallbackText.emptyDesc);
+                } else {
+                    country = (fullProduct && fullProduct.country) ? fullProduct.country : fallbackText.country;
+                    farm = (fullProduct && fullProduct.farm)
+                        ? fullProduct.farm
+                        : ((fullProduct && fullProduct.producer) ? fullProduct.producer : fallbackText.farm);
+                    notes = (fullProduct && fullProduct.flavorNotes)
+                        ? fullProduct.flavorNotes
+                        : (r.flavorNotes || fallbackText.descriptors);
+
+                    const catStr = String(r.category || '').toLowerCase();
+                    const roastVal = parseInt(r.roast, 10) || 0;
+                    roastTextLabel = (catStr.includes('\u044d\u0441\u043f\u0440\u0435\u0441\u0441\u043e') || (!catStr.includes('\u0444\u0438\u043b\u044c\u0442\u0440') && roastVal >= 10))
+                        ? fallbackText.espresso
+                        : fallbackText.filter;
+                }
+
+                let normalizedNotes = String(notes || '').trim();
+                if (normalizedNotes.includes(',')) {
+                    const parts = normalizedNotes.split(',').map(s => s.trim()).filter(Boolean);
+                    normalizedNotes = parts.slice(0, 3).join(', ');
+                }
+
+                return {
+                    alt: this.escapeEditorHtml(r.sample || 'Locus Coffee'),
+                    roastTextLabel: this.escapeEditorHtml(roastTextLabel || ''),
+                    country: this.escapeEditorHtml(country || ''),
+                    farm: this.escapeEditorHtml(farm || ''),
+                    descriptors: this.escapeEditorHtml(normalizedNotes || '')
+                };
 
                 if (typeInfo.isAroma) {
                     roastTextLabel = 'РђР РћРњРђРўРР—РР РћР’РђРќРќР«Р™';
@@ -1781,6 +1877,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     let parts = formattedNotes.split(',').map(s => s.trim()).filter(Boolean);
                     formattedNotes = parts.slice(0, 3).join(', ');
                 }
+
+                const frontStickerData = this.getFrontStickerData(r);
+                roastTextLabel = frontStickerData.roastTextLabel;
+                country = frontStickerData.country;
+                farm = frontStickerData.farm;
+                formattedNotes = frontStickerData.notes;
 
                 const safeSampleId = r.sample ? r.sample.toString().replace(/[^a-zA-Z0-9]/g, '_') : Math.floor(Math.random() * 10000);
                 const frontStickerId = `front-${safeSampleId}`;
