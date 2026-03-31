@@ -515,6 +515,7 @@
             border-radius: 22px;
             box-shadow: 0 24px 70px rgba(41, 26, 10, 0.24);
             padding: 28px 24px 24px;
+            font-family: var(--locus-sticker-font);
         }
         .article-reader-close {
             position: sticky;
@@ -567,9 +568,31 @@
             padding: 22px 18px;
             line-height: 1.8;
             color: var(--locus-dark);
+            font-family: var(--locus-sticker-font);
+            font-size: 20px;
+            font-weight: 400;
             user-select: none;
             -webkit-user-select: none;
             -webkit-touch-callout: none;
+        }
+        .article-reader-overlay.is-obscured .article-reader-modal {
+            filter: blur(22px);
+            pointer-events: none;
+            user-select: none;
+        }
+        .article-reader-overlay.is-obscured::after {
+            content: 'Просмотр статьи приостановлен';
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 24px;
+            color: #fff;
+            font-size: 14px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
         }
         .article-reader-overlay-body img {
             max-width: 100%;
@@ -712,6 +735,24 @@
         }
 
         @media (max-width: 640px) {
+            .article-reader-overlay {
+                padding: 0;
+            }
+            .article-reader-modal {
+                width: 100%;
+                max-height: 100%;
+                border-radius: 0;
+                padding: 18px 14px 16px;
+            }
+            .article-reader-overlay-meta {
+                margin-top: 4px;
+                padding-right: 48px;
+            }
+            .article-reader-overlay-body {
+                border-radius: 16px;
+                padding: 18px 14px;
+                font-size: 18px;
+            }
             .article-hub-card-head {
                 flex-direction: column;
             }
@@ -721,6 +762,12 @@
             }
             .article-hub-btn {
                 width: 100%;
+            }
+        }
+
+        @media print {
+            .article-reader-overlay {
+                display: none !important;
             }
         }
 
