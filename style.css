@@ -1329,12 +1329,12 @@
 }
 
 .product-pack-label-overlay.is-aroma.has-secondary-line .product-pack-country {
-    top: 63.5%;
+    top: 59.8%;
     font-size: 1.7em;
 }
 
 .product-pack-label-overlay.is-aroma.has-secondary-line .product-pack-farm {
-    top: 79.5%;
+    top: 76.8%;
     font-size: 1.02em;
 }
 
@@ -1414,8 +1414,12 @@
     line-height: 1;
 }
 
-.locus-sticker-canvas.sticker-front-aroma .s-country {
+.locus-sticker-canvas.sticker-front-aroma.is-single-line .s-country {
     bottom: 17.5mm;
+}
+
+.locus-sticker-canvas.sticker-front-aroma.has-secondary-line .s-country {
+    bottom: 27.5mm;
 }
 
 /* ПУНКТ 2: Расстояние от Дескрипторов до Фермы 10мм */
