@@ -1834,6 +1834,30 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 }
             },
 
+            setArticleEditorStatus: function(id, message, tone = 'info') {
+                const statusEl = document.getElementById(`cat-upload-status-${id}`);
+                if (!statusEl) return;
+                statusEl.textContent = message || '';
+                statusEl.style.color = tone === 'success'
+                    ? '#187a30'
+                    : (tone === 'error' ? '#B66A58' : '#8B7E66');
+            },
+
+            uploadImageBlobToImgBB: async function(file) {
+                const formData = new FormData();
+                formData.append("image", file);
+                const IMGBB_API_KEY = "a82462eb247f9d0aee41ded68240ed02";
+                const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    throw new Error(data.error ? data.error.message : "Неизвестная ошибка");
+                }
+                return data.data.url;
+            },
+
             getArticleEditorInput: function(id, part) {
                 return document.getElementById(`cat-edit-article-${part}-${id}`);
             },
@@ -1904,6 +1928,26 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 this.replaceArticleEditorSelection(input, replacement, cursor, cursor);
             },
 
+            handleArticleEditorPaste: async function(id, part, event) {
+                const items = Array.from(event.clipboardData?.items || []);
+                const imageItem = items.find(item => String(item.type || '').startsWith('image/'));
+                if (!imageItem) return;
+
+                const file = imageItem.getAsFile();
+                if (!file) return;
+
+                event.preventDefault();
+                this.setArticleEditorStatus(id, 'Загружаем изображение из буфера обмена...', 'info');
+                try {
+                    const imageUrl = await this.uploadImageBlobToImgBB(file);
+                    const figureHtml = `<figure>\n  <img src="${imageUrl}" alt="">\n  <figcaption></figcaption>\n</figure>`;
+                    this.insertArticleEditorBlock(id, part, figureHtml, 23);
+                    this.setArticleEditorStatus(id, 'Изображение вставлено в текст статьи.', 'success');
+                } catch (error) {
+                    this.setArticleEditorStatus(id, 'Ошибка вставки изображения: ' + error.message, 'error');
+                }
+            },
+
             applyArticleEditorTool: function(id, part, tool) {
                 switch (tool) {
                     case 'heading':
@@ -1939,9 +1983,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             initArticleEditor: function(id) {
                 ['preview', 'body'].forEach(part => {
                     const input = document.getElementById(`cat-edit-article-${part}-${id}`);
-                    if (!input || input.dataset.previewReady === '1') return;
-                    input.addEventListener('input', () => this.renderArticleEditorPreview(id));
-                    input.dataset.previewReady = '1';
+                    if (!input) return;
+                    if (input.dataset.previewReady !== '1') {
+                        input.addEventListener('input', () => this.renderArticleEditorPreview(id));
+                        input.dataset.previewReady = '1';
+                    }
+                    if (input.dataset.pasteReady !== '1') {
+                        input.addEventListener('paste', (event) => this.handleArticleEditorPaste(id, part, event));
+                        input.dataset.pasteReady = '1';
+                    }
                 });
                 this.renderArticleEditorPreview(id);
             },
@@ -2003,13 +2053,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             <span class="cupping-label">Превью статьи до покупки (HTML)</span>
                             ${this.getArticleEditorToolbarHtml(r.id, 'preview')}
                             <textarea id="cat-edit-article-preview-${r.id}" class="edit-textarea article-editor-textarea" style="height:180px;">${this.escapeEditorHtml(articlePreviewHtml)}</textarea>
-                            <div class="article-editor-note">Этот блок виден в карточке статьи до оплаты.</div>
+                            <div class="article-editor-note">Этот блок виден в карточке статьи до оплаты. Изображения можно вставлять прямо из буфера обмена.</div>
                         </div>
                         <div class="cupping-item full-width">
                             <span class="cupping-label">Полный текст статьи (HTML, платный доступ)</span>
                             ${this.getArticleEditorToolbarHtml(r.id, 'body')}
                             <textarea id="cat-edit-article-body-${r.id}" class="edit-textarea article-editor-textarea" style="height:320px;">${this.escapeEditorHtml(articleBodyHtml)}</textarea>
-                            <div class="article-editor-note">После сохранения полный текст шифруется и выдается покупателю по паролю на 1 месяц.</div>
+                            <div class="article-editor-note">После сохранения полный текст шифруется и выдается покупателю по паролю на 1 месяц. Графики, таблицы и рисунки можно вставлять прямо в это поле через Paste.</div>
                         </div>
                         <div class="cupping-item full-width">
                             <span class="cupping-label">Превью в карточке</span>
@@ -2406,34 +2456,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const statusEl = document.getElementById(`cat-upload-status-${id}`);
                 const urlInput = document.getElementById(`cat-edit-imageUrl-${id}`);
                 
-                statusEl.textContent = "Загрузка изображения на ImgBB...";
-                statusEl.style.color = "#8B7E66";
-
-                const formData = new FormData();
-                formData.append("image", file);
-                
-                // ВАЖНО: Вставь сюда свой API ключ от ImgBB!
-                const IMGBB_API_KEY = "a82462eb247f9d0aee41ded68240ed02"; 
+                this.setArticleEditorStatus(id, "Загрузка изображения на ImgBB...", 'info');
                 
                 try {
-                    const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const data = await res.json();
-                    
-                    if (data.success) {
-                        const currentVal = urlInput.value.trim();
-                        urlInput.value = currentVal ? currentVal + ', ' + data.data.url : data.data.url;
-                        statusEl.textContent = "Фото успешно загружено!";
-                        statusEl.style.color = "#187a30";
-                    } else {
-                        throw new Error(data.error ? data.error.message : "Неизвестная ошибка");
-                    }
+                    const imageUrl = await this.uploadImageBlobToImgBB(file);
+                    const currentVal = urlInput.value.trim();
+                    urlInput.value = currentVal ? currentVal + ', ' + imageUrl : imageUrl;
+                    this.setArticleEditorStatus(id, "Фото успешно загружено!", 'success');
                 } catch (e) {
                     console.error(e);
-                    statusEl.textContent = "Ошибка загрузки: " + e.message;
-                    statusEl.style.color = "#B66A58";
+                    this.setArticleEditorStatus(id, "Ошибка загрузки: " + e.message, 'error');
                 }
             },
 
@@ -3259,6 +3291,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 return Array.isArray(this.currentUser.history) && this.currentUser.history.some(item => item && item.isSystemMeta && item.systemType === 'welcome_popup_pending');
             },
 
+            isAdminUser: function() {
+                return !!(this.currentUser && this.currentUser.email === 'info@locus.coffee');
+            },
+
             dismissWelcomePopup: async function() {
                 if (!this.uid) return;
                 const token = localStorage.getItem('locus_token');
@@ -3386,7 +3422,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             accessPanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                             passwordInput?.focus();
                             const articleKey = String(product.id || product.sample || '').trim();
-                            const shouldPrompt = hasArticleAccess && !this.articleUnlockCache[articleKey] && options.autoPrompt !== false;
+                            const shouldPrompt = hasArticleAccess && !this.isAdminUser() && !this.articleUnlockCache[articleKey] && options.autoPrompt !== false;
                             if (shouldPrompt) {
                                 const password = window.prompt('Введите пароль из письма для доступа к статье:');
                                 if (password && password.trim()) {
@@ -3409,12 +3445,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         this.renderArticleAccessPanel(product);
                         this.openArticleReaderOverlay(product, this.articleUnlockCache[articleKey], this.getActiveArticleAccess(product));
                     }, 450);
+                    return;
                 }
+                if (this.isAdminUser()) await this.unlockArticleWithPassword(product, '');
             },
 
             unlockArticleWithPassword: async function(product, password) {
                 if (!product) return false;
-                if (!password) {
+                if (!password && !this.isAdminUser()) {
                     alert('Введите пароль из письма.');
                     return false;
                 }
@@ -3483,6 +3521,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             getActiveArticleAccess: function(productOrId) {
                 const articleId = String(typeof productOrId === 'object' ? (productOrId?.id || productOrId?.sample || '') : (productOrId || '')).trim();
                 if (!articleId) return null;
+                if (this.isAdminUser()) {
+                    return {
+                        articleId,
+                        title: typeof productOrId === 'object' ? String(productOrId?.sample || '') : '',
+                        expiresAt: '2099-12-31T20:59:00.000Z',
+                        isAdmin: true
+                    };
+                }
                 const now = Date.now();
                 let found = null;
                 this.getVisibleHistoryItems().forEach(entry => {
@@ -3517,6 +3563,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     if (event.target === overlay) this.closeArticleReaderOverlay();
                 });
                 overlay.querySelector('.article-reader-close')?.addEventListener('click', () => this.closeArticleReaderOverlay());
+                if (!this.articleReaderGuardBound) {
+                    document.addEventListener('visibilitychange', () => this.setArticleReaderObscured(document.visibilityState !== 'visible'));
+                    window.addEventListener('blur', () => this.setArticleReaderObscured(true));
+                    window.addEventListener('focus', () => this.setArticleReaderObscured(false));
+                    this.articleReaderGuardBound = true;
+                }
                 document.body.appendChild(overlay);
                 return overlay;
             },
@@ -3556,7 +3608,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const overlay = document.getElementById('article-reader-overlay');
                 if (!overlay) return;
                 overlay.classList.remove('is-open');
+                overlay.classList.remove('is-obscured');
                 document.body.style.overflow = '';
+            },
+
+            setArticleReaderObscured: function(isObscured) {
+                const overlay = document.getElementById('article-reader-overlay');
+                if (!overlay || !overlay.classList.contains('is-open')) return;
+                overlay.classList.toggle('is-obscured', !!isObscured);
             },
 
             renderArticleReader: function(product, articleHtml = '') {
@@ -3613,10 +3672,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         : '';
                     status.textContent = cachedHtml
                         ? (expiresText ? `Статья открыта. Доступ активен до ${expiresText}.` : 'Статья открыта.')
-                        : `Доступ активен до ${expiresText}. Для чтения введите пароль из письма.`;
-                    input.disabled = false;
+                        : (this.isAdminUser()
+                            ? 'Как администратор, вы можете открыть статью без пароля.'
+                            : `Доступ активен до ${expiresText}. Для чтения введите пароль из письма.`);
+                    input.disabled = this.isAdminUser();
+                    input.placeholder = this.isAdminUser() ? 'Администратору пароль не нужен' : 'Пароль из письма';
                     button.disabled = false;
-                    button.textContent = cachedHtml ? 'Открыть снова' : 'Открыть статью';
+                    button.textContent = cachedHtml ? 'Открыть снова' : (this.isAdminUser() ? 'Открыть статью' : 'Открыть статью');
                     if (cachedHtml) this.renderArticleReader(product, cachedHtml);
                     else this.renderArticleReader(product, '');
                 } else {
@@ -3639,7 +3701,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     return;
                 }
                 const input = document.getElementById('article-access-password');
-                const password = input ? input.value.trim() : '';
+                const password = this.isAdminUser() ? '' : (input ? input.value.trim() : '');
                 await this.unlockArticleWithPassword(product, password);
             },
 
