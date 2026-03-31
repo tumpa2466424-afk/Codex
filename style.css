@@ -1315,8 +1315,9 @@
     bottom: 6%;
     left: 50%;
     right: auto;
-    width: 92%;
-    transform: translateX(-50%);
+    width: max-content;
+    max-width: 94%;
+    transform: translateX(-52%);
     font-size: 0.47em;
     font-weight: 400;
     line-height: 1.18;
