@@ -3405,7 +3405,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 this.openProductById(articleId, { focusAccess: true, autoPrompt: true });
                 const articleKey = String(product.id || product.sample || '').trim();
                 if (articleKey && this.articleUnlockCache[articleKey]) {
-                    setTimeout(() => this.renderArticleAccessPanel(product), 450);
+                    setTimeout(() => {
+                        this.renderArticleAccessPanel(product);
+                        this.openArticleReaderOverlay(product, this.articleUnlockCache[articleKey], this.getActiveArticleAccess(product));
+                    }, 450);
                 }
             },
 
@@ -3448,9 +3451,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     const articleId = String(data.article.id || product.id || product.sample || '');
                     const articleHtml = String(data.article.html || '');
                     if (!articleHtml.trim()) throw new Error('Полный текст статьи пока пустой');
+                    const resolvedProduct = { ...product, id: articleId };
                     this.articleUnlockCache[articleId] = articleHtml;
-                    this.renderArticleReader({ ...product, id: articleId }, articleHtml);
-                    this.renderArticleAccessPanel({ ...product, id: articleId });
+                    this.renderArticleReader(resolvedProduct, articleHtml);
+                    this.renderArticleAccessPanel(resolvedProduct);
+                    this.openArticleReaderOverlay(resolvedProduct, articleHtml, this.getActiveArticleAccess(resolvedProduct));
                     document.getElementById('article-reader-block')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     return true;
                 } catch (e) {
@@ -3492,6 +3497,66 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     });
                 });
                 return found;
+            },
+
+            ensureArticleReaderOverlay: function() {
+                let overlay = document.getElementById('article-reader-overlay');
+                if (overlay) return overlay;
+
+                overlay = document.createElement('div');
+                overlay.id = 'article-reader-overlay';
+                overlay.className = 'article-reader-overlay';
+                overlay.innerHTML = `
+                    <div class="article-reader-modal">
+                        <button type="button" class="article-reader-close" aria-label="Закрыть статью">×</button>
+                        <div id="article-reader-overlay-meta" class="article-reader-overlay-meta"></div>
+                        <div id="article-reader-overlay-body" class="article-reader-overlay-body"></div>
+                    </div>
+                `;
+                overlay.addEventListener('click', (event) => {
+                    if (event.target === overlay) this.closeArticleReaderOverlay();
+                });
+                overlay.querySelector('.article-reader-close')?.addEventListener('click', () => this.closeArticleReaderOverlay());
+                document.body.appendChild(overlay);
+                return overlay;
+            },
+
+            openArticleReaderOverlay: function(product, articleHtml = '', access = null) {
+                if (!String(articleHtml || '').trim()) return;
+                const overlay = this.ensureArticleReaderOverlay();
+                const meta = document.getElementById('article-reader-overlay-meta');
+                const body = document.getElementById('article-reader-overlay-body');
+                if (!meta || !body) return;
+
+                const expiresText = access?.expiresAt
+                    ? new Date(access.expiresAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : '';
+                meta.innerHTML = `
+                    <div class="article-reader-overlay-kicker">Материал открыт</div>
+                    <h2 class="article-reader-overlay-title">${this.escapeHtmlText(product?.sample || 'Статья')}</h2>
+                    <div class="article-reader-overlay-expiry">${expiresText ? `Доступ активен до ${expiresText}` : 'Доступ активен'}</div>
+                `;
+                body.innerHTML = articleHtml;
+                if (body.dataset.locked !== '1') {
+                    ['contextmenu', 'copy', 'cut', 'dragstart', 'selectstart'].forEach(eventName => {
+                        body.addEventListener(eventName, (event) => event.preventDefault());
+                    });
+                    body.addEventListener('keydown', (event) => {
+                        if ((event.ctrlKey || event.metaKey) && ['a', 'c', 'x', 's'].includes(String(event.key || '').toLowerCase())) {
+                            event.preventDefault();
+                        }
+                    });
+                    body.dataset.locked = '1';
+                }
+                overlay.classList.add('is-open');
+                document.body.style.overflow = 'hidden';
+            },
+
+            closeArticleReaderOverlay: function() {
+                const overlay = document.getElementById('article-reader-overlay');
+                if (!overlay) return;
+                overlay.classList.remove('is-open');
+                document.body.style.overflow = '';
             },
 
             renderArticleReader: function(product, articleHtml = '') {
@@ -3567,6 +3632,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             unlockArticle: async function() {
                 const product = currentActiveProduct;
                 if (!product) return;
+                const articleId = String(product.id || product.sample || '').trim();
+                const cachedHtml = this.articleUnlockCache[articleId] || '';
+                if (cachedHtml) {
+                    this.openArticleReaderOverlay(product, cachedHtml, this.getActiveArticleAccess(product));
+                    return;
+                }
                 const input = document.getElementById('article-access-password');
                 const password = input ? input.value.trim() : '';
                 await this.unlockArticleWithPassword(product, password);
