@@ -1501,7 +1501,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             // --- CATALOG SYSTEM (Управление каппингами) ---
         const CatalogSystem = {
             ALL_PRODUCTS: [],
-            PACK_PREVIEW_BASE_IMAGE: 'assets/pack-base-3q.png',
+            PACK_PREVIEW_BASE_IMAGE: 'https://i.ibb.co/tTrM8NG7/locus-pack.png',
 
             switchTab: function(tabName) {
                 document.querySelectorAll('.cat-tab-btn').forEach(btn => btn.classList.remove('active'));
