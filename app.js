@@ -6194,14 +6194,21 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     }
                     if (pendingState.found && pendingState.order) {
                         if (pendingState.order.status === 'pending_payment') {
-                            return alert('Предыдущая оплата еще подтверждается. Чтобы избежать двойной оплаты, дождитесь обновления истории покупок.');
+                            const retryPayment = confirm('Предыдущая попытка оплаты еще числится как не завершенная. Если вы отказались от оплаты или закрыли страницу Robokassa, нажмите ОК, чтобы начать новую попытку оплаты.');
+                            if (!retryPayment) {
+                                return alert('Предыдущая попытка оплаты пока остается в ожидании. Когда будете готовы, нажмите оплату снова и подтвердите новую попытку.');
+                            }
+                            localStorage.removeItem('locus_pending_payment_order_id');
+                            this.stopPendingOrderWatcher();
+                        } else {
+                            localStorage.removeItem('locus_pending_payment_order_id');
+                            await this.fetchUserData();
+                            return alert('Предыдущий заказ уже подтвержден. Новый платеж создавать не нужно.');
                         }
-                        localStorage.removeItem('locus_pending_payment_order_id');
-                        await this.fetchUserData();
-                        return alert('Предыдущий заказ уже подтвержден. Новый платеж создавать не нужно.');
                     }
                     if (pendingState.found === false) {
                         localStorage.removeItem('locus_pending_payment_order_id');
+                        this.stopPendingOrderWatcher();
                     }
                 }
 
