@@ -3601,6 +3601,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     <div class="article-reader-overlay-expiry">${expiresText ? `Доступ активен до ${expiresText}` : 'Доступ активен'}</div>
                 `;
                 body.innerHTML = articleHtml;
+                this.applyStickerFontToArticleContent(meta);
+                this.applyStickerFontToArticleContent(body);
                 if (body.dataset.locked !== '1') {
                     ['contextmenu', 'copy', 'cut', 'dragstart', 'selectstart'].forEach(eventName => {
                         body.addEventListener(eventName, (event) => event.preventDefault());
@@ -3614,6 +3616,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 }
                 overlay.classList.add('is-open');
                 document.body.style.overflow = 'hidden';
+            },
+
+            applyStickerFontToArticleContent: function(root) {
+                if (!root) return;
+                const applyNodeStyle = (node) => {
+                    if (!(node instanceof HTMLElement)) return;
+                    node.style.setProperty('font-family', "var(--locus-sticker-font)", 'important');
+                    node.style.setProperty('font-weight', '400', 'important');
+                    node.style.setProperty('font-synthesis', 'none', 'important');
+                    node.style.setProperty('font-kerning', 'normal', 'important');
+                    node.style.setProperty('text-rendering', 'geometricPrecision', 'important');
+                };
+                applyNodeStyle(root);
+                root.querySelectorAll('*').forEach(applyNodeStyle);
             },
 
             closeArticleReaderOverlay: function() {
@@ -3644,6 +3660,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (previewBody) previewBody.style.display = 'none';
                 block.style.display = 'block';
                 content.innerHTML = `<div class="article-reader-title">Полный текст статьи</div>${articleHtml}`;
+                this.applyStickerFontToArticleContent(content);
                 if (content.dataset.locked !== '1') {
                     ['contextmenu', 'copy', 'cut', 'dragstart', 'selectstart'].forEach(eventName => {
                         content.addEventListener(eventName, (event) => event.preventDefault());
