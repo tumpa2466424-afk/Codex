@@ -1866,6 +1866,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const tools = [
                     { key: 'heading', label: 'H2', title: 'Подзаголовок' },
                     { key: 'paragraph', label: 'P', title: 'Абзац' },
+                    { key: 'alignLeft', label: 'Left', title: 'По левому краю' },
+                    { key: 'alignRight', label: 'Right', title: 'По правому краю' },
+                    { key: 'alignJustify', label: 'Justify', title: 'По ширине' },
                     { key: 'bold', label: 'B', title: 'Акцент' },
                     { key: 'italic', label: 'I', title: 'Курсив' },
                     { key: 'list', label: 'List', title: 'Маркированный список' },
@@ -1955,6 +1958,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         break;
                     case 'paragraph':
                         this.wrapArticleEditorSelection(id, part, '<p>', '</p>', 'Абзац текста');
+                        break;
+                    case 'alignLeft':
+                        this.wrapArticleEditorSelection(id, part, '<div style="text-align:left;">', '</div>', 'Абзац текста');
+                        break;
+                    case 'alignRight':
+                        this.wrapArticleEditorSelection(id, part, '<div style="text-align:right;">', '</div>', 'Абзац текста');
+                        break;
+                    case 'alignJustify':
+                        this.wrapArticleEditorSelection(id, part, '<div style="text-align:justify;">', '</div>', 'Абзац текста');
                         break;
                     case 'bold':
                         this.wrapArticleEditorSelection(id, part, '<strong>', '</strong>', 'Акцент');
@@ -6749,9 +6761,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     </div>
                                     ${countdownHtml}
                                     ${pickupHtml}
-                                    <div style="display:flex; gap:10px; justify-content:flex-end;">
-                                        <button class="btn-small-reorder btn-repeat-order" style="padding:8px 15px; font-size:10px;">Повторить заказ</button>
-                                        <button class="btn-small-reorder btn-remove-sub" style="font-size:12px; padding:8px 12px;">&times; Удалить</button>
+                                    <div class="dashboard-order-actions" style="display:flex; gap:10px; justify-content:flex-end;">
+                                        <button class="btn-small-reorder btn-repeat-order">Повторить заказ</button>
+                                        <button class="btn-small-reorder btn-remove-sub">&times; Удалить</button>
                                     </div>
                                 `;
 
