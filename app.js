@@ -1808,11 +1808,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const preview = this.getPackPreviewData(r);
                 if (!preview) return '';
 
+                const isAroma = ProductManager.getTypeInfo(r).isAroma;
                 return `
                     <div class="product-pack-preview">
                         <div class="product-pack-figure">
                             <img class="product-pack-base" src="${this.PACK_PREVIEW_BASE_IMAGE}" alt="Пачка ${preview.alt}" loading="lazy">
-                            <div class="product-pack-label-overlay" aria-hidden="true">
+                            <div class="product-pack-label-overlay${isAroma ? ' is-aroma' : ''}" aria-hidden="true">
                                 <div class="product-pack-roast">${preview.roastTextLabel}</div>
                                 <div class="product-pack-country">${preview.country}</div>
                                 ${preview.farm ? `<div class="product-pack-farm">${preview.farm}</div>` : ''}
@@ -1910,7 +1911,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         <div style="background: #f4f1ea; padding: 20px; border-radius: 8px; border: 1px solid var(--locus-border); flex: 1; min-width: 320px; display: flex; flex-direction: column; align-items: center;">
                             <div style="text-align:center; font-size:12px; font-weight:bold; color:var(--locus-accent); margin-bottom:15px; text-transform:uppercase;">Лицо (80х80 мм)</div>
                             
-                            <div class="locus-sticker-canvas" id="${frontStickerId}">
+                            <div class="locus-sticker-canvas${isAroma ? ' sticker-front-aroma' : ''}" id="${frontStickerId}">
                                 <div class="s-roast-text">${roastTextLabel}</div>
                                 <div class="s-country">${country}</div>
                                 <div class="s-farm">${farm}</div>
