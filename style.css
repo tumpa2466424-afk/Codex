@@ -1302,10 +1302,12 @@
     font-size: 1.86em;
     font-weight: 500;
     letter-spacing: 0.04em;
+    white-space: nowrap;
+    text-align: center;
 }
 
-.product-pack-label-overlay.is-aroma .product-pack-country {
-    top: 68.5%;
+.product-pack-label-overlay.is-classic .product-pack-country {
+    top: 59.8%;
 }
 
 .product-pack-farm {
@@ -1313,6 +1315,27 @@
     font-size: 1.2em;
     font-weight: 400;
     letter-spacing: 0.08em;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.product-pack-label-overlay.is-classic .product-pack-farm {
+    top: 76.8%;
+}
+
+.product-pack-label-overlay.is-aroma.is-single-line .product-pack-country {
+    top: 68.5%;
+    font-size: 1.52em;
+}
+
+.product-pack-label-overlay.is-aroma.has-secondary-line .product-pack-country {
+    top: 63.5%;
+    font-size: 1.7em;
+}
+
+.product-pack-label-overlay.is-aroma.has-secondary-line .product-pack-farm {
+    top: 79.5%;
+    font-size: 1.02em;
 }
 
 .product-pack-descriptors {
