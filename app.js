@@ -584,7 +584,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         
                     } else if (isAroma) {
                         // 2. Ароматизация
-                        let descHtml = galleryHtml + formatFlavorDesc(r.flavorDesc);
+                        const packPreviewHtml = CatalogSystem.getPackPreviewHtml(r);
+                        let descHtml = packPreviewHtml + galleryHtml + formatFlavorDesc(r.flavorDesc);
                         if (r.flavorNotes) descHtml += `<div style="margin-top: 8px; font-size: 12px; opacity: 0.8;"><b>Нюансы:</b> ${r.flavorNotes}</div>`;
                         document.getElementById('p-simple-desc').innerHTML = descHtml;
                         document.getElementById('p-mini-stats').innerHTML = ''; 
@@ -605,7 +606,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                     } else {
                         // 3. ОБЫЧНЫЙ КОФЕ
-                        let descHtml = galleryHtml + formatFlavorDesc(r.flavorDesc);
+                        const packPreviewHtml = CatalogSystem.getPackPreviewHtml(r);
+                        let descHtml = packPreviewHtml + galleryHtml + formatFlavorDesc(r.flavorDesc);
                         if (r.flavorNotes) descHtml += `<div style="margin-top: 8px; font-size: 12px; opacity: 0.8;"><b>Нюансы:</b> ${r.flavorNotes}</div>`;
                         document.getElementById('p-simple-desc').innerHTML = descHtml;
 
@@ -1499,6 +1501,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             // --- CATALOG SYSTEM (Управление каппингами) ---
         const CatalogSystem = {
             ALL_PRODUCTS: [],
+            PACK_PREVIEW_BASE_IMAGE: 'assets/pack-base-3q.png',
 
             switchTab: function(tabName) {
                 document.querySelectorAll('.cat-tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -1654,6 +1657,74 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 if (activeCount === 0) containerActive.innerHTML = '<div class="empty-msg">Нет лотов в каталоге</div>';
                 if (inactiveCount === 0) containerInactive.innerHTML = '<div class="empty-msg">Нет сохраненных каппингов</div>';
+            },
+
+            getPackPreviewData: function(r) {
+                const typeInfo = ProductManager.getTypeInfo(r);
+                if (typeInfo.isSpecial) return null;
+
+                const fullProduct = (typeof ALL_PRODUCTS_CACHE !== 'undefined' && Array.isArray(ALL_PRODUCTS_CACHE))
+                    ? ALL_PRODUCTS_CACHE.find(p => p.sample === r.sample)
+                    : null;
+
+                let roastTextLabel;
+                let country;
+                let farm;
+                let notes;
+
+                if (typeInfo.isAroma) {
+                    roastTextLabel = 'РђР РћРњРђРўРР—РР РћР’РђРќРќР«Р™';
+                    country = r.sample || 'РќРђР—Р’РђРќРР• Р›РћРўРђ';
+                    farm = '';
+                    notes = (fullProduct && fullProduct.flavorDesc) ? fullProduct.flavorDesc : (r.flavorDesc || 'РћРїРёСЃР°РЅРёРµ РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚');
+                } else {
+                    country = (fullProduct && fullProduct.country) ? fullProduct.country : 'РЎРўР РђРќРђ РќР• РЈРљРђР—РђРќРђ';
+                    farm = (fullProduct && fullProduct.farm)
+                        ? fullProduct.farm
+                        : ((fullProduct && fullProduct.producer) ? fullProduct.producer : 'Р¤Р•Р РњРђ / РљРћРћРџР•Р РђРўРР’');
+                    notes = (fullProduct && fullProduct.flavorNotes)
+                        ? fullProduct.flavorNotes
+                        : (r.flavorNotes || 'Р”РµСЃРєСЂРёРїС‚РѕСЂС‹ РЅРµ СѓРєР°Р·Р°РЅС‹');
+
+                    const catStr = String(r.category || '').toLowerCase();
+                    const roastVal = parseInt(r.roast, 10) || 0;
+                    roastTextLabel = (catStr.includes('СЌСЃРїСЂРµСЃСЃРѕ') || (!catStr.includes('С„РёР»СЊС‚СЂ') && roastVal >= 10))
+                        ? 'Р­РЎРџР Р•РЎРЎРћ-РћР‘Р–РђР РљРђ'
+                        : 'Р¤РР›Р¬РўР -РћР‘Р–РђР РљРђ';
+                }
+
+                let formattedNotes = String(notes || '').trim();
+                if (formattedNotes.includes(',')) {
+                    const parts = formattedNotes.split(',').map(s => s.trim()).filter(Boolean);
+                    formattedNotes = parts.slice(0, 3).join(', ');
+                }
+
+                return {
+                    alt: this.escapeEditorHtml(r.sample || 'Locus Coffee'),
+                    roastTextLabel: this.escapeEditorHtml(roastTextLabel || ''),
+                    country: this.escapeEditorHtml(country || ''),
+                    farm: this.escapeEditorHtml(farm || ''),
+                    descriptors: this.escapeEditorHtml(formattedNotes || '')
+                };
+            },
+
+            getPackPreviewHtml: function(r) {
+                const preview = this.getPackPreviewData(r);
+                if (!preview) return '';
+
+                return `
+                    <div class="product-pack-preview">
+                        <div class="product-pack-figure">
+                            <img class="product-pack-base" src="${this.PACK_PREVIEW_BASE_IMAGE}" alt="Пачка ${preview.alt}" loading="lazy">
+                            <div class="product-pack-label-overlay" aria-hidden="true">
+                                <div class="product-pack-roast">${preview.roastTextLabel}</div>
+                                <div class="product-pack-country">${preview.country}</div>
+                                ${preview.farm ? `<div class="product-pack-farm">${preview.farm}</div>` : ''}
+                                <div class="product-pack-descriptors">${preview.descriptors}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
             },
 
             getViewHtml: function(r) {
