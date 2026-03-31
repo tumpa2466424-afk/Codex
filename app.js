@@ -3585,8 +3585,29 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 return overlay;
             },
 
-            openArticleReaderOverlay: function(product, articleHtml = '', access = null) {
+            ensureStickerFontLoaded: async function() {
+                const fontHref = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&display=swap';
+                if (!document.getElementById('locus-sticker-font-link')) {
+                    const link = document.createElement('link');
+                    link.id = 'locus-sticker-font-link';
+                    link.rel = 'stylesheet';
+                    link.href = fontHref;
+                    document.head.appendChild(link);
+                }
+                if (document.fonts && typeof document.fonts.load === 'function') {
+                    try {
+                        await Promise.all([
+                            document.fonts.load("300 20px 'Cormorant Garamond'"),
+                            document.fonts.load("400 20px 'Cormorant Garamond'"),
+                            document.fonts.load("500 20px 'Cormorant Garamond'")
+                        ]);
+                    } catch (e) {}
+                }
+            },
+
+            openArticleReaderOverlay: async function(product, articleHtml = '', access = null) {
                 if (!String(articleHtml || '').trim()) return;
+                await this.ensureStickerFontLoaded();
                 const overlay = this.ensureArticleReaderOverlay();
                 const meta = document.getElementById('article-reader-overlay-meta');
                 const body = document.getElementById('article-reader-overlay-body');
@@ -3616,6 +3637,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 }
                 overlay.classList.add('is-open');
                 document.body.style.overflow = 'hidden';
+                requestAnimationFrame(() => {
+                    this.applyStickerFontToArticleContent(meta);
+                    this.applyStickerFontToArticleContent(body);
+                });
             },
 
             applyStickerFontToArticleContent: function(root) {
@@ -3665,6 +3690,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 block.style.display = 'block';
                 content.innerHTML = `<div class="article-reader-title">Полный текст статьи</div>${articleHtml}`;
                 this.applyStickerFontToArticleContent(content);
+                this.ensureStickerFontLoaded().then(() => this.applyStickerFontToArticleContent(content));
                 if (content.dataset.locked !== '1') {
                     ['contextmenu', 'copy', 'cut', 'dragstart', 'selectstart'].forEach(eventName => {
                         content.addEventListener(eventName, (event) => event.preventDefault());
