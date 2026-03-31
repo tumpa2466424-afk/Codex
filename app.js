@@ -3620,13 +3620,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
             applyStickerFontToArticleContent: function(root) {
                 if (!root) return;
+                const stickerFontFamily = "'Cormorant Garamond', 'Times New Roman', serif";
                 const applyNodeStyle = (node) => {
                     if (!(node instanceof HTMLElement)) return;
-                    node.style.setProperty('font-family', "var(--locus-sticker-font)", 'important');
+                    node.style.setProperty('font-family', stickerFontFamily, 'important');
                     node.style.setProperty('font-weight', '400', 'important');
                     node.style.setProperty('font-synthesis', 'none', 'important');
                     node.style.setProperty('font-kerning', 'normal', 'important');
+                    node.style.setProperty('font-feature-settings', '"kern" 1, "liga" 1, "calt" 1', 'important');
                     node.style.setProperty('text-rendering', 'geometricPrecision', 'important');
+                    node.style.setProperty('-webkit-font-smoothing', 'antialiased', 'important');
+                    node.style.setProperty('-moz-osx-font-smoothing', 'grayscale', 'important');
                 };
                 applyNodeStyle(root);
                 root.querySelectorAll('*').forEach(applyNodeStyle);
