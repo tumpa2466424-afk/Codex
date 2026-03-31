@@ -617,6 +617,13 @@
             height: auto;
             border-radius: 12px;
         }
+        .article-reader-frame {
+            display: block;
+            width: 100%;
+            min-height: 80px;
+            border: none;
+            background: transparent;
+        }
         .article-hub-list {
             display: flex;
             flex-direction: column;
