@@ -1264,10 +1264,10 @@
 .product-pack-label-overlay {
     position: absolute;
     left: 46.8%;
-    top: 56.2%;
+    top: 55.2%;
     width: 29.5%;
     height: 28.8%;
-    transform: translate(-50%, -50%) perspective(900px) rotateY(-6deg) rotateZ(-0.8deg);
+    transform: translate(-50%, -50%) perspective(900px) rotateY(-6deg) rotateZ(6deg);
     transform-origin: center center;
     color: #17110a;
     text-align: center;
@@ -1291,10 +1291,10 @@
 }
 
 .product-pack-roast {
-    top: 6%;
-    font-size: 0.72em;
+    top: -3%;
+    font-size: 0.46em;
     font-weight: 400;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.12em;
 }
 
 .product-pack-country {
