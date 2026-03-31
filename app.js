@@ -1700,16 +1700,52 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 return { roastTextLabel, country, farm, notes: formattedNotes, fullProduct };
             },
 
+            splitPackAromaTitle: function(title) {
+                const normalized = String(title || '').replace(/\s+/g, ' ').trim();
+                if (!normalized) return { country: '', farm: '' };
+                if (normalized.length <= 16) return { country: normalized, farm: '' };
+
+                const candidates = [];
+                for (let i = 0; i < normalized.length; i++) {
+                    const ch = normalized[i];
+                    if (ch === ' ' || ch === '-' || ch === '/' || ch === ',') candidates.push(i);
+                }
+                if (!candidates.length) return { country: normalized, farm: '' };
+
+                const target = normalized.length / 2;
+                let bestIndex = candidates[0];
+                let bestDistance = Math.abs(bestIndex - target);
+                candidates.forEach(idx => {
+                    const distance = Math.abs(idx - target);
+                    if (distance < bestDistance) {
+                        bestIndex = idx;
+                        bestDistance = distance;
+                    }
+                });
+
+                const left = normalized.slice(0, bestIndex).trim().replace(/[-/,]+$/g, '').trim();
+                const right = normalized.slice(bestIndex + 1).trim().replace(/^[-/,]+/g, '').trim();
+                if (!left || !right) return { country: normalized, farm: '' };
+                return { country: left, farm: right };
+            },
+
             getPackPreviewData: function(r) {
                 const typeInfo = ProductManager.getTypeInfo(r);
                 if (typeInfo.isAccessory || typeInfo.isInfo || typeInfo.isDrip) return null;
 
                 const stickerData = this.getFrontStickerData(r);
+                let packCountry = stickerData.country || '';
+                let packFarm = stickerData.farm || '';
+                if (typeInfo.isAroma) {
+                    const aromaLines = this.splitPackAromaTitle(stickerData.country || r.sample || '');
+                    packCountry = aromaLines.country;
+                    packFarm = aromaLines.farm;
+                }
                 return {
                     alt: this.escapeEditorHtml(r.sample || 'Locus Coffee'),
                     roastTextLabel: this.escapeEditorHtml(stickerData.roastTextLabel || ''),
-                    country: this.escapeEditorHtml(stickerData.country || ''),
-                    farm: this.escapeEditorHtml(stickerData.farm || ''),
+                    country: this.escapeEditorHtml(packCountry),
+                    farm: this.escapeEditorHtml(packFarm),
                     descriptors: this.escapeEditorHtml(stickerData.notes || '')
                 };
 
@@ -1808,12 +1844,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const preview = this.getPackPreviewData(r);
                 if (!preview) return '';
 
-                const isAroma = ProductManager.getTypeInfo(r).isAroma;
+                const typeInfo = ProductManager.getTypeInfo(r);
+                const packClasses = [
+                    'product-pack-label-overlay',
+                    typeInfo.isAroma ? 'is-aroma' : 'is-classic',
+                    preview.farm ? 'has-secondary-line' : 'is-single-line'
+                ].join(' ');
                 return `
                     <div class="product-pack-preview">
                         <div class="product-pack-figure">
                             <img class="product-pack-base" src="${this.PACK_PREVIEW_BASE_IMAGE}" alt="Пачка ${preview.alt}" loading="lazy">
-                            <div class="product-pack-label-overlay${isAroma ? ' is-aroma' : ''}" aria-hidden="true">
+                            <div class="${packClasses}" aria-hidden="true">
                                 <div class="product-pack-roast">${preview.roastTextLabel}</div>
                                 <div class="product-pack-country">${preview.country}</div>
                                 ${preview.farm ? `<div class="product-pack-farm">${preview.farm}</div>` : ''}
