@@ -517,6 +517,10 @@
             padding: 28px 24px 24px;
             font-family: var(--locus-sticker-font);
         }
+        .article-reader-modal,
+        .article-reader-modal * {
+            font-family: var(--locus-sticker-font) !important;
+        }
         .article-reader-close {
             position: sticky;
             top: 0;
