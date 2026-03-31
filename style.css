@@ -515,16 +515,15 @@
             border-radius: 22px;
             box-shadow: 0 24px 70px rgba(41, 26, 10, 0.24);
             padding: 28px 24px 24px;
-            font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+            font-family: 'Montserrat', Arial, sans-serif;
             font-weight: 400;
             font-synthesis: none;
             font-kerning: normal;
-            font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
-            text-rendering: geometricPrecision;
+            text-rendering: optimizeLegibility;
         }
         .article-reader-modal,
         .article-reader-modal * {
-            font-family: 'Cormorant Garamond', 'Times New Roman', serif !important;
+            font-family: 'Montserrat', Arial, sans-serif !important;
         }
         .article-reader-close {
             position: sticky;
@@ -562,7 +561,7 @@
             font-size: clamp(26px, 4vw, 38px);
             line-height: 1.08;
             color: var(--locus-dark);
-            font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+            font-family: 'Montserrat', Arial, sans-serif;
             font-weight: 400;
         }
         .article-reader-overlay-expiry {
@@ -577,20 +576,19 @@
             padding: 22px 18px;
             line-height: 1.8;
             color: var(--locus-dark);
-            font-family: 'Cormorant Garamond', 'Times New Roman', serif;
-            font-size: 20px;
+            font-family: 'Montserrat', Arial, sans-serif;
+            font-size: 17px;
             font-weight: 400;
             font-synthesis: none;
             font-kerning: normal;
-            font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
-            text-rendering: geometricPrecision;
+            text-rendering: optimizeLegibility;
             user-select: none;
             -webkit-user-select: none;
             -webkit-touch-callout: none;
         }
         .article-reader-overlay-body,
         .article-reader-overlay-body * {
-            font-family: 'Cormorant Garamond', 'Times New Roman', serif !important;
+            font-family: 'Montserrat', Arial, sans-serif !important;
             font-weight: 400 !important;
         }
         .article-reader-overlay.is-obscured .article-reader-modal {
@@ -776,7 +774,7 @@
             .article-reader-overlay-body {
                 border-radius: 16px;
                 padding: 18px 14px;
-                font-size: 18px;
+                font-size: 16px;
             }
             .article-hub-card-head {
                 flex-direction: column;
