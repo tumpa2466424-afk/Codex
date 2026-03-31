@@ -3586,7 +3586,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             ensureStickerFontLoaded: async function() {
-                const fontHref = 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap';
+                const fontHref = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap';
                 if (!document.getElementById('locus-sticker-font-link')) {
                     const link = document.createElement('link');
                     link.id = 'locus-sticker-font-link';
@@ -3597,9 +3597,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (document.fonts && typeof document.fonts.load === 'function') {
                     try {
                         await Promise.all([
-                            document.fonts.load("400 20px 'Montserrat'"),
-                            document.fonts.load("500 20px 'Montserrat'"),
-                            document.fonts.load("600 20px 'Montserrat'")
+                            document.fonts.load("400 20px 'Inter'"),
+                            document.fonts.load("500 20px 'Inter'"),
+                            document.fonts.load("600 20px 'Inter'")
                         ]);
                     } catch (e) {}
                 }
@@ -3625,14 +3625,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         <meta name="viewport" content="width=device-width, initial-scale=1">
                         <link rel="preconnect" href="https://fonts.googleapis.com">
                         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-                        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+                        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
                         <style>
                             html, body {
                                 margin: 0;
                                 padding: 0;
                                 background: transparent;
                                 color: #693a05;
-                                font-family: 'Montserrat', Arial, sans-serif !important;
+                                font-family: 'Inter', Arial, sans-serif !important;
                                 font-weight: 400 !important;
                                 font-synthesis: none;
                                 font-kerning: normal;
@@ -3643,7 +3643,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 overflow: hidden;
                             }
                             body, body * {
-                                font-family: 'Montserrat', Arial, sans-serif !important;
+                                font-family: 'Inter', Arial, sans-serif !important;
                                 font-weight: 400 !important;
                                 color: #693a05;
                                 box-sizing: border-box;
@@ -3734,7 +3734,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
             applyStickerFontToArticleContent: function(root) {
                 if (!root) return;
-                const stickerFontFamily = "'Montserrat', Arial, sans-serif";
+                const stickerFontFamily = "'Inter', Arial, sans-serif";
                 const applyNodeStyle = (node) => {
                     if (!(node instanceof HTMLElement)) return;
                     node.style.setProperty('font-family', stickerFontFamily, 'important');
