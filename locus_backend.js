@@ -1046,7 +1046,8 @@ module.exports.handler = async function (event, context) {
                 const outSum = order.total.toString();
                 const invIdStr = order.invId.toString();
                 const sigVal = crypto.createHash('md5').update(`LocusCoffee:${outSum}:${invIdStr}:VB3Js1HjXRqp5ahHe4p7`).digest('hex');
-                const paymentUrl = `https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=LocusCoffee&OutSum=${outSum}&InvId=${invIdStr}&Description=CoffeeOrder&SignatureValue=${sigVal}&Email=${order.customer.email}`;
+                const paymentDescription = encodeURIComponent(`Оплата заказа Locus Coffee №${String(order.id || invIdStr).replace(/^ws_/, '')}`);
+                const paymentUrl = `https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=LocusCoffee&OutSum=${outSum}&InvId=${invIdStr}&Description=${paymentDescription}&SignatureValue=${sigVal}&Email=${order.customer.email}`;
 
                 responseData = { success: true, paymentUrl: paymentUrl };
             }
