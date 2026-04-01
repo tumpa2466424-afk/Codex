@@ -862,6 +862,15 @@
         .contract-admin-row { display: grid; grid-template-columns: 1fr 120px; gap: 14px; align-items: center; margin-bottom: 10px; }
         .contract-admin-row label { font-size: 12px; line-height: 1.4; color: var(--locus-dark); }
         .contract-admin-row .lc-input { margin: 0; text-align: right; }
+        .contract-admin-row .lc-input[readonly] { background: rgba(255,255,255,0.75); color: #7A6753; cursor: default; }
+        .contract-admin-hint { font-size: 11px; line-height: 1.5; opacity: 0.72; margin: -4px 0 10px 0; }
+        .contract-details-toggle { width: 100%; background: transparent; border: none; padding: 4px 0 10px 0; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; color: var(--locus-accent); cursor: pointer; }
+        .contract-cost-details { display: none; margin: 0 0 12px 0; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.7); border: 1px solid rgba(105, 58, 5, 0.08); }
+        .contract-cost-details.active { display: block; }
+        .contract-cost-row { display: grid; grid-template-columns: 1fr 88px; gap: 12px; align-items: center; margin-bottom: 8px; }
+        .contract-cost-row:last-child { margin-bottom: 0; }
+        .contract-cost-row span { font-size: 12px; line-height: 1.4; }
+        .contract-cost-row .lc-input { margin: 0; text-align: right; }
         .contract-admin-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
         .contract-admin-actions .lc-btn { margin: 0; flex: 1 1 180px; }
         .contract-admin-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; font-size: 12px; }
@@ -1030,6 +1039,13 @@
                 gap: 6px;
             }
             .contract-admin-row .lc-input {
+                text-align: left;
+            }
+            .contract-cost-row {
+                grid-template-columns: 1fr;
+                gap: 6px;
+            }
+            .contract-cost-row .lc-input {
                 text-align: left;
             }
             .contract-admin-meta {
