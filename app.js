@@ -4497,14 +4497,54 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             // --- PRICING LOGIC ---
+            fetchHistoricalUSDRate: async function(daysBack = 60) {
+                const date = new Date();
+                date.setDate(date.getDate() - daysBack);
+
+                for (let i = 0; i < 4; i++) {
+                    const yyyy = date.getFullYear();
+                    const mm = String(date.getMonth() + 1).padStart(2, '0');
+                    const dd = String(date.getDate()).padStart(2, '0');
+                    const url = `https://www.cbr-xml-daily.ru/archive/${yyyy}/${mm}/${dd}/daily_json.js`;
+
+                    try {
+                        const response = await fetch(url);
+                        if (response.ok) {
+                            const data = await response.json();
+                            return data?.Valute?.USD?.Value || 0;
+                        }
+                    } catch (e) {}
+
+                    date.setDate(date.getDate() - 1);
+                }
+
+                return 0;
+            },
+
             fetchUSDRate: async function() {
                 try {
                     const resp = await fetch('https://www.cbr-xml-daily.ru/daily_json.js');
                     const data = await resp.json();
                     if(data && data.Valute && data.Valute.USD) {
                         this.usdRate = data.Valute.USD.Value;
+                        this.usdPrevRate = data.Valute.USD.Previous || data.Valute.USD.Value;
+                    } else {
+                        this.usdRate = 90;
+                        this.usdPrevRate = 90;
                     }
-                } catch(e) { console.error('USD Fetch Error', e); this.usdRate = 90; } // Fallback
+                    this.usdHistRate = await this.fetchHistoricalUSDRate(60);
+                } catch(e) {
+                    console.error('USD Fetch Error', e);
+                    this.usdRate = 90;
+                    this.usdPrevRate = 90;
+                    this.usdHistRate = 90;
+                }
+                if (document.getElementById('admin-sec-contracts')) {
+                    this.updateContractAutoRisk(true);
+                    if (document.getElementById('admin-sec-contracts').dataset.ready === '1') {
+                        this.calculateContractB2B();
+                    }
+                }
             },
 
             // --- НАЧАЛО: ПАРСИНГ CSV И СОХРАНЕНИЕ ---
@@ -4663,22 +4703,153 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             // --- НАЧАЛО: НОВЫЙ РАСЧЕТ ОПТОВЫХ ЦЕН (НА БАЗЕ CSV) ---
             getContractB2BDefaults: function() {
                 const saved = (this.pricingSettings && this.pricingSettings.contractB2B) ? this.pricingSettings.contractB2B : {};
-                const fallbackUsd = parseFloat(this.pricingSettings?.manual_usd) || this.getWholesaleUsdRate();
-                const defaultRubleCost = Math.round(this.getWholesaleVariablePerKg() + this.getWholesalePackagingCost(1000));
+                const fallbackUsd = parseFloat(this.pricingSettings?.manual_usd) || this.usdRate || this.getWholesaleUsdRate();
+                const savedBreakdown = saved.costBreakdown || {};
+                const defaultBreakdown = {
+                    rent: 0,
+                    gas: this.wholesaleEconomics.utilitiesPerKg || 10,
+                    work: this.wholesaleEconomics.laborPerKg || 50,
+                    packing: this.wholesaleEconomics.packingLaborPerKg || 10,
+                    amort: this.wholesaleEconomics.amortizationPerKg || 5,
+                    bag: this.wholesaleEconomics.pack1000 || 22,
+                    label: this.wholesaleEconomics.stickerSet || 10,
+                    box: 0,
+                    pallet: 0,
+                    delivery: this.wholesaleEconomics.internalDeliveryPerKg || 5,
+                    ...savedBreakdown
+                };
+                const defaultRubleCost = Math.round(Object.values(defaultBreakdown).reduce((sum, value) => sum + (parseFloat(value) || 0), 0));
                 return {
                     volume: 100,
                     months: 3,
                     greenUsd: 15,
                     usdRate: fallbackUsd,
-                    bankSpread: 2,
-                    volatility: 1.5,
+                    bankSpread: saved.bankSpread || 2,
+                    volatility: saved.volatility || 1.5,
                     shrinkage: Math.round((this.wholesaleEconomics.roastLossEspresso || 0.20) * 100),
                     rubleCost: defaultRubleCost,
                     targetContribution: this.wholesaleEconomics.targetContributionPerKg || 200,
                     manualAdjust: 0,
                     corridor: 5,
+                    costBreakdown: defaultBreakdown,
                     ...saved
                 };
+            },
+
+            getContractB2BCostInputIds: function() {
+                return {
+                    rent: 'contract-cost-rent',
+                    gas: 'contract-cost-gas',
+                    work: 'contract-cost-work',
+                    packing: 'contract-cost-packing',
+                    amort: 'contract-cost-amort',
+                    bag: 'contract-cost-bag',
+                    label: 'contract-cost-label',
+                    box: 'contract-cost-box',
+                    pallet: 'contract-cost-pallet',
+                    delivery: 'contract-cost-delivery'
+                };
+            },
+
+            fillContractB2BCostInputs: function(force = false) {
+                const defaults = this.getContractB2BDefaults().costBreakdown || {};
+                const ids = this.getContractB2BCostInputIds();
+                Object.entries(ids).forEach(([key, id]) => {
+                    const input = document.getElementById(id);
+                    if (!input) return;
+                    if (force || input.value === '') input.value = defaults[key] ?? 0;
+                });
+            },
+
+            toggleContractCostDetails: function() {
+                const panel = document.getElementById('contract-cost-details');
+                const toggle = document.getElementById('contract-cost-toggle');
+                if (!panel || !toggle) return;
+                const isOpen = panel.classList.toggle('active');
+                toggle.textContent = isOpen ? 'Свернуть детализацию рублёвой базы ▲' : 'Развернуть детализацию рублёвой базы ▼';
+            },
+
+            updateContractRubleBaseFromDetails: function() {
+                const ids = this.getContractB2BCostInputIds();
+                let total = 0;
+                Object.values(ids).forEach(id => {
+                    const input = document.getElementById(id);
+                    total += parseFloat(input?.value || '0') || 0;
+                });
+                const totalInput = document.getElementById('contract-ruble-cost');
+                if (totalInput) totalInput.value = Math.round(total);
+                return total;
+            },
+
+            getContractAutoRiskSnapshot: function() {
+                const current = this.usdRate || 90;
+                const previous = this.usdPrevRate || current;
+                const historical = this.usdHistRate || current;
+                const diffPerc = previous ? (((current - previous) / previous) * 100) : 0;
+                const absDiff = Math.abs(diffPerc);
+                const trend60Days = historical ? (((current - historical) / historical) * 100) : 0;
+
+                let suggestedVolatility = 1.5;
+                let volatilityComment = 'Спокойный рынок, базовая волатильность.';
+                let suggestedSpread = 2.0;
+                let spreadComment = 'Базовый банковский спред.';
+
+                if (absDiff >= 0.7 && absDiff < 2.0) {
+                    suggestedVolatility = 3.0;
+                    suggestedSpread = 2.5;
+                    volatilityComment = 'Есть заметный дневной скачок курса.';
+                    spreadComment = 'Спред расширен из-за краткосрочной турбулентности.';
+                } else if (absDiff >= 2.0) {
+                    suggestedVolatility = 5.0;
+                    suggestedSpread = 3.0;
+                    volatilityComment = 'Высокая дневная турбулентность курса.';
+                    spreadComment = 'Спред расширен из-за резкого движения курса.';
+                }
+
+                if (trend60Days > 5.0 && suggestedVolatility < 3.0) {
+                    suggestedVolatility = 3.0;
+                    suggestedSpread = Math.max(suggestedSpread, 2.5);
+                    volatilityComment = 'Рубль слабеет в 60-дневном тренде.';
+                    spreadComment = 'Спред повышен на фоне ослабления рубля.';
+                }
+                if (trend60Days > 10.0) {
+                    suggestedSpread = Math.max(suggestedSpread, 3.0);
+                    spreadComment = 'Спред повышен из-за выраженного ослабления рубля.';
+                }
+
+                return {
+                    current,
+                    previous,
+                    historical,
+                    diffPerc,
+                    trend60Days,
+                    suggestedVolatility,
+                    suggestedSpread,
+                    volatilityComment,
+                    spreadComment
+                };
+            },
+
+            updateContractAutoRisk: function(force = false) {
+                const snapshot = this.getContractAutoRiskSnapshot();
+                const spreadInput = document.getElementById('contract-bank-spread');
+                const volatilityInput = document.getElementById('contract-volatility');
+                const spreadNote = document.getElementById('contract-spread-note');
+                const volatilityNote = document.getElementById('contract-volatility-note');
+
+                if (spreadInput && (force || spreadInput.value === '' || spreadInput.readOnly)) {
+                    spreadInput.value = snapshot.suggestedSpread.toFixed(1);
+                }
+                if (volatilityInput && (force || volatilityInput.value === '' || volatilityInput.readOnly)) {
+                    volatilityInput.value = snapshot.suggestedVolatility.toFixed(1);
+                }
+
+                if (spreadNote) {
+                    spreadNote.textContent = `${snapshot.spreadComment} День: ${snapshot.diffPerc >= 0 ? '+' : ''}${snapshot.diffPerc.toFixed(2)}%, тренд 60 дней: ${snapshot.trend60Days >= 0 ? '+' : ''}${snapshot.trend60Days.toFixed(1)}%.`;
+                }
+                if (volatilityNote) {
+                    volatilityNote.textContent = snapshot.volatilityComment;
+                }
             },
 
             fillContractB2BInputs: function(force = false) {
@@ -4688,8 +4859,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     months: 'contract-months',
                     greenUsd: 'contract-green-usd',
                     usdRate: 'contract-usd-rate',
-                    bankSpread: 'contract-bank-spread',
-                    volatility: 'contract-volatility',
                     shrinkage: 'contract-shrinkage',
                     rubleCost: 'contract-ruble-cost',
                     targetContribution: 'contract-target-contribution',
@@ -4736,7 +4905,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const formatRubKg = (value) => `${Math.ceil(value).toLocaleString('ru-RU')} ₽/кг`;
 
                 setText('contract-used-rate', `${results.rateBuy.toFixed(2)} ₽`);
-                setText('contract-risk-factor', `${(results.volRiskFactor * 100).toFixed(1)}%`);
+                setText('contract-risk-factor', `${(results.volRiskFactor * 100).toFixed(1)}% · ${results.bankSpread.toFixed(1)}% спред`);
                 setText('contract-price-prepay', formatRubKg(results.prepay));
                 setText('contract-price-half', formatRubKg(results.half));
                 setText('contract-price-delay', formatRubKg(results.delay));
@@ -4782,8 +4951,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         'contract-months',
                         'contract-green-usd',
                         'contract-usd-rate',
-                        'contract-bank-spread',
-                        'contract-volatility',
                         'contract-shrinkage',
                         'contract-ruble-cost',
                         'contract-target-contribution',
@@ -4793,10 +4960,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         const input = document.getElementById(id);
                         if (input) input.addEventListener('input', () => this.calculateContractB2B());
                     });
+                    Object.values(this.getContractB2BCostInputIds()).forEach(id => {
+                        const input = document.getElementById(id);
+                        if (input) input.addEventListener('input', () => {
+                            this.updateContractRubleBaseFromDetails();
+                            this.calculateContractB2B();
+                        });
+                    });
                     section.dataset.ready = '1';
                 }
 
                 this.fillContractB2BInputs(forceFill || section.dataset.filled !== '1');
+                this.fillContractB2BCostInputs(forceFill || section.dataset.filled !== '1');
+                this.updateContractRubleBaseFromDetails();
+                this.updateContractAutoRisk(forceFill || section.dataset.filled !== '1');
                 section.dataset.filled = '1';
                 this.calculateContractB2B();
             },
@@ -4811,7 +4988,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 const nextSettings = {
                     ...(this.pricingSettings || {}),
-                    contractB2B: this.readContractB2BInputs()
+                    contractB2B: {
+                        ...this.readContractB2BInputs(),
+                        costBreakdown: Object.fromEntries(
+                            Object.entries(this.getContractB2BCostInputIds()).map(([key, id]) => [key, parseFloat(document.getElementById(id)?.value || '0') || 0])
+                        )
+                    }
                 };
 
                 try {
@@ -4830,6 +5012,97 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 } finally {
                     if (btn) btn.textContent = originalText || 'Сохранить параметры';
                 }
+            },
+
+            downloadContractB2BTemplate: function() {
+                this.calculateContractB2B();
+                const params = this.readContractB2BInputs();
+                const usedRate = document.getElementById('contract-used-rate')?.textContent || `${params.usdRate.toFixed(2)} ₽`;
+                const p1 = document.getElementById('contract-price-prepay')?.textContent || '0 ₽/кг';
+                const p2 = document.getElementById('contract-price-half')?.textContent || '0 ₽/кг';
+                const p3 = document.getElementById('contract-price-delay')?.textContent || '0 ₽/кг';
+                const clause = document.getElementById('contract-clause-text')?.textContent || '';
+                const date = new Date().toLocaleDateString('ru-RU');
+
+                const contractContent = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'><title>Договор поставки</title></head>
+                <body style="font-family: Arial, sans-serif; line-height: 1.5; font-size: 11pt;">
+                    <h2 style="text-align:center;">ДОГОВОР ПОСТАВКИ № _____</h2>
+                    <p style="text-align:center;">г. Орёл, ${date}</p>
+                    <p><strong>ИП «Здесь ИП»</strong>, в дальнейшем именуемый «Продавец», с одной стороны, и <strong>ООО «Здесь ООО»</strong>, в дальнейшем именуемое «Покупатель», с другой стороны, заключили настоящий договор о нижеследующем.</p>
+
+                    <h3>1. Предмет договора</h3>
+                    <p>1.1. Продавец поставляет кофе в зернах по согласованным заявкам Покупателя, а Покупатель принимает и оплачивает товар на условиях настоящего договора.</p>
+                    <p>1.2. Ориентировочный объем партии: <strong>${Math.ceil(params.volume)} кг</strong>. Срок фиксации цены: <strong>${Math.ceil(params.months)} мес.</strong></p>
+                    <p>1.3. Расчет выполнен для стоимости зеленого кофе <strong>$${params.greenUsd.toFixed(2)}</strong> за кг и курса закупки <strong>${usedRate}</strong>.</p>
+
+                    <h3>2. Порядок расчетов</h3>
+                    <table border="1" cellpadding="6" cellspacing="0" style="width:100%; border-collapse:collapse; margin:15px 0;">
+                        <tr style="background:#f0f0f0;">
+                            <th>Вариант оплаты</th>
+                            <th>Условия</th>
+                            <th>Цена</th>
+                        </tr>
+                        <tr>
+                            <td><strong>100% предоплата</strong></td>
+                            <td>Оплата счета в течение 3 рабочих дней с даты выставления.</td>
+                            <td>${p1}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>50 / 50</strong></td>
+                            <td>50% до отгрузки, 50% в течение 30 дней после поставки.</td>
+                            <td>${p2}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Отсрочка 30 дней</strong></td>
+                            <td>100% постоплата в течение 30 дней после поставки.</td>
+                            <td>${p3}</td>
+                        </tr>
+                    </table>
+                    <p><strong>Валютная оговорка:</strong> ${clause}</p>
+
+                    <h3>3. Поставка и приемка</h3>
+                    <p>3.1. Сроки и график поставки согласовываются сторонами дополнительно по заявкам Покупателя.</p>
+                    <p>3.2. Приемка товара по количеству и видимым дефектам осуществляется в момент передачи товара Покупателю.</p>
+                    <p>3.3. Претензии по скрытым недостаткам качества принимаются в течение 10 рабочих дней с даты получения партии.</p>
+
+                    <h3>4. Ответственность сторон</h3>
+                    <p>4.1. За просрочку оплаты по схемам 50/50 и отсрочке Покупатель уплачивает Продавцу пеню в размере 0,1% от суммы задолженности за каждый день просрочки.</p>
+                    <p>4.2. При наличии просроченной задолженности Продавец вправе приостановить дальнейшие отгрузки до полного погашения долга.</p>
+                    <p>4.3. Право собственности на товар переходит к Покупателю после полной оплаты соответствующей партии.</p>
+
+                    <h3>5. Форс-мажор</h3>
+                    <p>5.1. Стороны освобождаются от ответственности за частичное или полное неисполнение обязательств вследствие обстоятельств непреодолимой силы.</p>
+
+                    <h3>6. Срок действия договора</h3>
+                    <p>6.1. Договор вступает в силу с момента подписания и действует до письменного прекращения одной из сторон.</p>
+
+                    <br><br>
+                    <table style="width:100%; margin-top:40px;">
+                        <tr>
+                            <td style="width:50%; vertical-align:top;">
+                                <strong>ПРОДАВЕЦ:</strong><br>
+                                ИП «Здесь ИП»<br><br>
+                                _________________ / ___________
+                            </td>
+                            <td style="width:50%; vertical-align:top;">
+                                <strong>ПОКУПАТЕЛЬ:</strong><br>
+                                ООО «Здесь ООО»<br><br>
+                                _________________ / ___________
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>`;
+
+                const blob = new Blob([contractContent], { type: 'application/msword' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'Типовой_договор_B2B_Locus.doc';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
             },
 
             getWholesaleUsdRate: function() {
