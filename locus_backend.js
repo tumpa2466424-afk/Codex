@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer'); // <-- Добавили nodemailer
+const { createRetailOrderCalendarEvent } = require('./calendar_sync');
 const JWT_SECRET = 'locus-coffee-super-secret-key-2026'; 
 const PASSWORD_RESET_PURPOSE = 'password_reset';
 const PUBLIC_WEB_URL = process.env.PUBLIC_WEB_URL || 'https://locus.coffee/';
@@ -623,7 +624,31 @@ async function finalizeRetailPayment(session, invId) {
             customerData = typeof rawCust === 'string' ? JSON.parse(rawCust) : (rawCust || {});
         } catch (e) {}
 
+        const pricingBreakdown = customerData && typeof customerData.pricingBreakdown === 'object' && customerData.pricingBreakdown
+            ? customerData.pricingBreakdown
+            : {};
         const customerEmail = customerData.email;
+        if (!hasOrderInHistory) {
+            try {
+                const calendarResult = await createRetailOrderCalendarEvent({
+                    orderId,
+                    createdAt: ord.createdat,
+                    customer: customerData,
+                    items: parsedItems,
+                    delivery: delData,
+                    deliveryCost,
+                    pricingBreakdown,
+                    total: Number(ord.total) || 0
+                });
+                if (calendarResult && calendarResult.success) {
+                    console.log(`Google Calendar: order ${orderId} synced as event ${calendarResult.eventId}`);
+                } else if (calendarResult && calendarResult.skipped) {
+                    console.log(`Google Calendar: order ${orderId} skipped (${calendarResult.reason})`);
+                }
+            } catch (calendarErr) {
+                console.error(`Google Calendar sync failed for order ${orderId}:`, calendarErr.message);
+            }
+        }
         if (!hasOrderInHistory && customerEmail && process.env.SMTP_PASSWORD) {
             let itemsHtmlList = '';
             parsedItems.forEach(i => {
@@ -638,9 +663,6 @@ async function finalizeRetailPayment(session, invId) {
             if (delData.type === 'PICKUP') deliveryText = `Самовывоз (ТЦ Атолл, код: <b>${delData.code || ''}</b>)`;
             else if (delData.city) deliveryText = `${delData.type === 'PVZ' ? 'СДЭК ПВЗ' : 'Курьер/Адрес'}: ${delData.city}${delData.address ? ', ' + delData.address : ''}`;
             else if (delData.type === 'DIGITAL') deliveryText = 'Цифровой доступ к статье';
-            const pricingBreakdown = customerData && typeof customerData.pricingBreakdown === 'object' && customerData.pricingBreakdown
-                ? customerData.pricingBreakdown
-                : {};
             const baseSubtotal = Number(pricingBreakdown.subtotal) || parsedItems.reduce((sum, item) => {
                 return sum + ((Number(item?.price) || 0) * (Number(item?.qty) || 0));
             }, 0);
