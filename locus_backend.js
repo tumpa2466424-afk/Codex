@@ -638,6 +638,45 @@ async function finalizeRetailPayment(session, invId) {
             if (delData.type === 'PICKUP') deliveryText = `Самовывоз (ТЦ Атолл, код: <b>${delData.code || ''}</b>)`;
             else if (delData.city) deliveryText = `${delData.type === 'PVZ' ? 'СДЭК ПВЗ' : 'Курьер/Адрес'}: ${delData.city}${delData.address ? ', ' + delData.address : ''}`;
             else if (delData.type === 'DIGITAL') deliveryText = 'Цифровой доступ к статье';
+            const pricingBreakdown = customerData && typeof customerData.pricingBreakdown === 'object' && customerData.pricingBreakdown
+                ? customerData.pricingBreakdown
+                : {};
+            const baseSubtotal = Number(pricingBreakdown.subtotal) || parsedItems.reduce((sum, item) => {
+                return sum + ((Number(item?.price) || 0) * (Number(item?.qty) || 0));
+            }, 0);
+            const loyaltyPercent = Number(pricingBreakdown.loyaltyPercent) || 0;
+            const loyaltyDiscountVal = Number(pricingBreakdown.loyaltyDiscountVal) || 0;
+            const welcomeBonusPercent = Number(pricingBreakdown.welcomeBonusPercent) || 0;
+            const welcomeDiscountVal = Number(pricingBreakdown.welcomeDiscountVal) || 0;
+            const fortuneDiscountPercent = Number(pricingBreakdown.fortuneDiscountPercent) || 0;
+            const fortuneDiscountVal = Number(pricingBreakdown.fortuneDiscountVal) || 0;
+            const promoCode = String(pricingBreakdown.promoCode || '').trim();
+            const promoType = String(pricingBreakdown.promoType || '').trim();
+            const promoValue = Number(pricingBreakdown.promoValue) || 0;
+            const promoDiscountVal = Number(pricingBreakdown.promoDiscountVal) || 0;
+            const totalDiscountVal = Number(pricingBreakdown.totalDiscountVal) || (loyaltyDiscountVal + welcomeDiscountVal + fortuneDiscountVal + promoDiscountVal);
+            const finalTotal = Number(pricingBreakdown.finalTotal) || Number(ord.total) || 0;
+            const pricingRows = [
+                `<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;"><span>Цена товаров без скидок</span><b>${baseSubtotal} ₽</b></div>`
+            ];
+            if (loyaltyDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#187a30;"><span>Скидка лояльности${loyaltyPercent > 0 ? ` (${loyaltyPercent}%)` : ''}</span><b>- ${loyaltyDiscountVal} ₽</b></div>`);
+            if (welcomeDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#187a30;"><span>Приветственная скидка${welcomeBonusPercent > 0 ? ` (${welcomeBonusPercent}%)` : ''}</span><b>- ${welcomeDiscountVal} ₽</b></div>`);
+            if (fortuneDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#B8860B;"><span>Скидка удачи${fortuneDiscountPercent > 0 ? ` (${fortuneDiscountPercent}%)` : ''}</span><b>- ${fortuneDiscountVal} ₽</b></div>`);
+            if (promoDiscountVal > 0) {
+                const promoLabel = promoCode
+                    ? `Промокод ${promoCode}${promoType === 'percent' && promoValue > 0 ? ` (${promoValue}%)` : promoType === 'fixed' && promoValue > 0 ? ` (${promoValue} ₽)` : ''}`
+                    : 'Промокод';
+                pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#187a30;"><span>${promoLabel}</span><b>- ${promoDiscountVal} ₽</b></div>`);
+            }
+            if (totalDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;"><span>Общая сумма скидок</span><b>- ${totalDiscountVal} ₽</b></div>`);
+            pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;"><span>Доставка</span><b>${deliveryCost} ₽</b></div>`);
+            pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-top:10px; padding-top:10px; border-top:1px dashed #ccc; font-size:18px;"><span>Итого оплачено</span><b>${finalTotal} ₽</b></div>`);
+            const pricingHtml = `
+                <div style="background: #fff; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                    <h4 style="margin-top: 0; color: #8B7E66;">Расшифровка цены:</h4>
+                    ${pricingRows.join('')}
+                </div>
+            `;
             const articleAccessHtml = articleAccessRecords.length ? `
                 <div style="background: #fff; padding: 15px; border-radius: 6px; margin: 20px 0;">
                     <h4 style="margin-top: 0; color: #8B7E66;">Доступ к статьям на 1 месяц:</h4>
@@ -666,6 +705,7 @@ async function finalizeRetailPayment(session, invId) {
                                 <p style="margin: 0;"><b>Доставка:</b> ${deliveryText} (${deliveryCost} ₽)</p>
                                 <p style="margin: 5px 0 0 0; font-size: 18px;"><b>Итого оплачено: ${ord.total} ₽</b></p>
                             </div>
+                            ${pricingHtml}
                             ${articleAccessHtml}
                         </div>
                     </div>`
