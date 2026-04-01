@@ -7368,6 +7368,35 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         items: JSON.parse(JSON.stringify(this.localCart)) // Копируем товары из корзины
                     };
 
+                    let promoDiscountVal = 0;
+                    if (this.activePromo) {
+                        if (this.activePromo.type === 'percent') {
+                            promoDiscountVal = Math.floor(breakdown.totalAfterStoreDiscounts * (this.activePromo.val / 100));
+                        } else {
+                            promoDiscountVal = this.activePromo.val;
+                        }
+                    }
+
+                    const pricingBreakdown = {
+                        subtotal,
+                        loyaltyPercent: breakdown.loyaltyPercent || 0,
+                        loyaltyDiscountVal: breakdown.loyaltyDiscountVal || 0,
+                        welcomeBonusPercent: breakdown.welcomeBonusPercent || 0,
+                        welcomeDiscountVal: breakdown.welcomeDiscountVal || 0,
+                        fortuneDiscountPercent: (breakdown.fortuneDiscountVal || 0) > 0 ? 10 : 0,
+                        fortuneDiscountVal: breakdown.fortuneDiscountVal || 0,
+                        promoCode: this.activePromo ? this.activePromo.code : '',
+                        promoType: this.activePromo ? this.activePromo.type : '',
+                        promoValue: this.activePromo ? (Number(this.activePromo.val) || 0) : 0,
+                        promoDiscountVal,
+                        totalDiscountVal: (breakdown.loyaltyDiscountVal || 0) + (breakdown.welcomeDiscountVal || 0) + (breakdown.fortuneDiscountVal || 0) + promoDiscountVal,
+                        shippingCost,
+                        deliveryMode: digitalOnly ? 'DIGITAL' : (isPickup ? 'PICKUP' : 'CDEK'),
+                        finalTotal: total
+                    };
+
+                    historyOrder.pricingBreakdown = pricingBreakdown;
+
                     const orderData = {
                         id: orderId,
                         invId: invId,
@@ -7375,7 +7404,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         discountPercent: discountPercent,
                         promo: this.activePromo ? this.activePromo.code : '',
                         status: 'pending_payment',
-                        customer: { name, phone, email: email },
+                        customer: { name, phone, email: email, pricingBreakdown },
                         delivery: digitalOnly
                             ? { type: 'DIGITAL', address: '', finalCost: 0 }
                             : (isPickup
