@@ -439,19 +439,34 @@
                                     </div>
                                     <div class="contract-admin-row">
                                         <label for="contract-bank-spread">Банковский спред, %</label>
-                                        <input type="number" id="contract-bank-spread" class="lc-input" min="0" step="0.1">
+                                        <input type="number" id="contract-bank-spread" class="lc-input" min="0" step="0.1" readonly>
                                     </div>
+                                    <div class="contract-admin-hint" id="contract-spread-note"></div>
                                     <div class="contract-admin-row">
                                         <label for="contract-volatility">Волатильность, %/мес</label>
-                                        <input type="number" id="contract-volatility" class="lc-input" min="0" step="0.1">
+                                        <input type="number" id="contract-volatility" class="lc-input" min="0" step="0.1" readonly>
                                     </div>
+                                    <div class="contract-admin-hint" id="contract-volatility-note"></div>
                                     <div class="contract-admin-row">
                                         <label for="contract-shrinkage">Ужарка, %</label>
                                         <input type="number" id="contract-shrinkage" class="lc-input" min="0" max="99" step="0.1">
                                     </div>
                                     <div class="contract-admin-row">
-                                        <label for="contract-ruble-cost">Рублевая база, ₽/кг</label>
-                                        <input type="number" id="contract-ruble-cost" class="lc-input" min="0" step="1">
+                                        <label for="contract-ruble-cost">Рублёвые затраты без зелёнки, ₽/кг</label>
+                                        <input type="number" id="contract-ruble-cost" class="lc-input" min="0" step="1" readonly>
+                                    </div>
+                                    <button class="contract-details-toggle" id="contract-cost-toggle" type="button" onclick="UserSystem.toggleContractCostDetails()">Развернуть детализацию рублёвой базы ▼</button>
+                                    <div class="contract-cost-details" id="contract-cost-details">
+                                        <div class="contract-cost-row"><span>Аренда</span><input type="number" id="contract-cost-rent" class="lc-input" min="0" step="1"></div>
+                                        <div class="contract-cost-row"><span>Газ / электроэнергия</span><input type="number" id="contract-cost-gas" class="lc-input" min="0" step="1"></div>
+                                        <div class="contract-cost-row"><span>Работа</span><input type="number" id="contract-cost-work" class="lc-input" min="0" step="1"></div>
+                                        <div class="contract-cost-row"><span>Фасовка</span><input type="number" id="contract-cost-packing" class="lc-input" min="0" step="1"></div>
+                                        <div class="contract-cost-row"><span>Амортизация</span><input type="number" id="contract-cost-amort" class="lc-input" min="0" step="1"></div>
+                                        <div class="contract-cost-row"><span>Пакет 1 кг</span><input type="number" id="contract-cost-bag" class="lc-input" min="0" step="1"></div>
+                                        <div class="contract-cost-row"><span>Наклейки</span><input type="number" id="contract-cost-label" class="lc-input" min="0" step="1"></div>
+                                        <div class="contract-cost-row"><span>Короб</span><input type="number" id="contract-cost-box" class="lc-input" min="0" step="1"></div>
+                                        <div class="contract-cost-row"><span>Паллет</span><input type="number" id="contract-cost-pallet" class="lc-input" min="0" step="1"></div>
+                                        <div class="contract-cost-row"><span>Локальная доставка</span><input type="number" id="contract-cost-delivery" class="lc-input" min="0" step="1"></div>
                                     </div>
                                     <div class="contract-admin-row">
                                         <label for="contract-target-contribution">Целевой вклад, ₽/кг</label>
@@ -500,6 +515,10 @@
                                     <div class="contract-admin-clause">
                                         <div class="contract-admin-subtitle" style="margin-bottom:8px;">Валютная оговорка</div>
                                         <div id="contract-clause-text"></div>
+                                    </div>
+
+                                    <div class="contract-admin-actions" style="margin-top:14px;">
+                                        <button class="lc-btn lc-btn-secondary" type="button" onclick="UserSystem.downloadContractB2BTemplate()">Скачать типовой договор</button>
                                     </div>
                                 </div>
                             </div>
