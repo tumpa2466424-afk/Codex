@@ -112,8 +112,35 @@ function getMoscowParts(dateInput) {
     };
 }
 
+function getTimestampMs(value) {
+    if (value === null || value === undefined || value === '') return 0;
+    if (value instanceof Date) return value.getTime();
+
+    if (typeof value === 'number') {
+        return !Number.isNaN(value) ? (value < 3000000000 ? value * 1000 : value) : 0;
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return 0;
+
+        const numeric = Number(trimmed);
+        if (!Number.isNaN(numeric)) return numeric < 3000000000 ? numeric * 1000 : numeric;
+
+        const parsed = new Date(trimmed).getTime();
+        return Number.isNaN(parsed) ? 0 : parsed;
+    }
+
+    if (typeof value === 'object' && value.value !== undefined) {
+        return getTimestampMs(value.value);
+    }
+
+    return 0;
+}
+
 function getCalendarEventWindow(createdAtValue) {
-    const sourceDate = createdAtValue ? new Date(createdAtValue) : new Date();
+    const createdAtMs = getTimestampMs(createdAtValue);
+    const sourceDate = createdAtMs ? new Date(createdAtMs) : new Date();
     const parts = getMoscowParts(sourceDate);
     const dayShift = parts.hour >= 18 ? 1 : 0;
     const startMs = Date.UTC(parts.year, parts.month - 1, parts.day + dayShift, 15, 0, 0);
@@ -196,7 +223,8 @@ function buildEventDescription(payload) {
     const items = Array.isArray(payload.items) ? payload.items : [];
     const delivery = payload.delivery || {};
     const pricingLines = buildPricingLines(payload.pricingBreakdown, payload.total, payload.deliveryCost);
-    const createdDate = payload.createdAt ? new Date(payload.createdAt) : new Date();
+    const createdAtMs = getTimestampMs(payload.createdAt);
+    const createdDate = createdAtMs ? new Date(createdAtMs) : new Date();
     const createdLabel = createdDate.toLocaleString('ru-RU', {
         timeZone: GOOGLE_TIMEZONE,
         day: '2-digit',
@@ -273,7 +301,11 @@ async function createRetailOrderCalendarEvent(payload) {
 
     return {
         success: true,
-        eventId: data.id || ''
+        eventId: data.id || '',
+        htmlLink: data.htmlLink || '',
+        calendarId,
+        startIso: window.startIso,
+        endIso: window.endIso
     };
 }
 
