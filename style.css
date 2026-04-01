@@ -854,6 +854,26 @@
         .admin-user-delete-btn { margin-left: auto; }
         .admin-user-delete-btn[disabled] { opacity: 0.35; cursor: not-allowed; color: #B8A99A; border-color: #D8CFC4; }
         .admin-user-delete-btn[disabled]:hover { background: #fff; color: #B8A99A; border-color: #D8CFC4; }
+        .contract-admin-card { padding: 20px; background: #fff; border-radius: 8px; border: 1px solid var(--locus-border); }
+        .contract-admin-note { font-size: 12px; line-height: 1.6; opacity: 0.78; margin-bottom: 18px; }
+        .contract-admin-grid { display: grid; grid-template-columns: minmax(280px, 420px) minmax(320px, 1fr); gap: 20px; align-items: start; }
+        .contract-admin-panel { background: var(--locus-bg); border: 1px solid rgba(105, 58, 5, 0.08); border-radius: 10px; padding: 16px; }
+        .contract-admin-subtitle { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 700; color: var(--locus-accent); margin-bottom: 14px; }
+        .contract-admin-row { display: grid; grid-template-columns: 1fr 120px; gap: 14px; align-items: center; margin-bottom: 10px; }
+        .contract-admin-row label { font-size: 12px; line-height: 1.4; color: var(--locus-dark); }
+        .contract-admin-row .lc-input { margin: 0; text-align: right; }
+        .contract-admin-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+        .contract-admin-actions .lc-btn { margin: 0; flex: 1 1 180px; }
+        .contract-admin-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; font-size: 12px; }
+        .contract-admin-meta > div { background: rgba(255,255,255,0.72); border: 1px solid rgba(105, 58, 5, 0.08); border-radius: 8px; padding: 10px 12px; }
+        .contract-result-card { border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; background: #fff; border-left: 5px solid #ccc; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        .contract-result-prepay { border-left-color: #4C7A58; }
+        .contract-result-half { border-left-color: #C79B35; }
+        .contract-result-delay { border-left-color: #B66A58; }
+        .contract-result-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.72; margin-bottom: 8px; }
+        .contract-result-price { font-size: 25px; line-height: 1; font-weight: 700; color: var(--locus-dark); margin-bottom: 6px; }
+        .contract-result-total { font-size: 12px; opacity: 0.75; }
+        .contract-admin-clause { margin-top: 16px; padding: 14px 16px; border-radius: 10px; background: rgba(255,255,255,0.72); border: 1px solid rgba(105, 58, 5, 0.08); font-size: 12px; line-height: 1.6; }
 
         /* Wholesale Styles */
         .wholesale-info-block { background: #fff; padding: 15px; border-radius: 8px; border: 1px solid var(--locus-border); margin-bottom: 20px; font-size: 12px; line-height: 1.5; }
@@ -1001,6 +1021,19 @@
             .admin-user-delete-btn {
                 width: 24px;
                 height: 24px;
+            }
+            .contract-admin-grid {
+                grid-template-columns: 1fr;
+            }
+            .contract-admin-row {
+                grid-template-columns: 1fr;
+                gap: 6px;
+            }
+            .contract-admin-row .lc-input {
+                text-align: left;
+            }
+            .contract-admin-meta {
+                grid-template-columns: 1fr;
             }
             
             /* 5. Делаем шапку модалки (где крестик закрытия) более компактной */
