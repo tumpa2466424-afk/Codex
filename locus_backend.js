@@ -15,8 +15,13 @@ const WELCOME_POPUP_PENDING_KEY = 'welcome_popup_pending';
 const WELCOME_POPUP_DISMISSED_KEY = 'welcome_popup_dismissed';
 const WELCOME_BONUS_AVAILABLE_KEY = 'welcome_bonus_available';
 const WELCOME_BONUS_USED_KEY = 'welcome_bonus_used';
+const DEBUG_LOGS_ENABLED = /^(1|true|yes|on)$/i.test(String(process.env.DEBUG_LOGS || '').trim());
 
 let driver;
+
+function logDebug(...args) {
+    if (DEBUG_LOGS_ENABLED) console.log(...args);
+}
 
 function normalizeEmailAddress(value) {
     return String(value || '').trim().toLowerCase();
@@ -552,7 +557,7 @@ async function finalizeRetailPayment(session, invId) {
         delData = typeof rawDel === 'string' ? JSON.parse(rawDel) : (rawDel || {});
         deliveryCost = Number(delData.finalCost) || 0;
     } catch (e) {
-        console.error('Ошибка парсинга delivery:', e.message);
+        logDebug('Ошибка парсинга delivery:', e.message);
     }
 
     const productTotal = Number(ord.total) - deliveryCost;
@@ -641,15 +646,9 @@ async function finalizeRetailPayment(session, invId) {
                     total: Number(ord.total) || 0
                 });
                 if (calendarResult && calendarResult.success) {
-                    console.log(
-                        `Google Calendar: order ${orderId} synced as event ${calendarResult.eventId}` +
-                        `, calendar ${calendarResult.calendarId || 'unknown'}` +
-                        `, start ${calendarResult.startIso || 'unknown'}` +
-                        `, end ${calendarResult.endIso || 'unknown'}` +
-                        `${calendarResult.htmlLink ? `, link ${calendarResult.htmlLink}` : ''}`
-                    );
+                    logDebug(`Google Calendar: order ${orderId} synced as event ${calendarResult.eventId}`);
                 } else if (calendarResult && calendarResult.skipped) {
-                    console.log(`Google Calendar: order ${orderId} skipped (${calendarResult.reason})`);
+                    logDebug(`Google Calendar: order ${orderId} skipped (${calendarResult.reason})`);
                 }
             } catch (calendarErr) {
                 console.error(`Google Calendar sync failed for order ${orderId}:`, calendarErr.message);
@@ -768,6 +767,7 @@ module.exports.handler = async function (event, context) {
                     body = Object.fromEntries(new URLSearchParams(bodyString).entries());
                 } catch (formError) {
                     console.error('Body parse error:', parseError.message);
+                    if (DEBUG_LOGS_ENABLED && parseError?.stack) console.error(parseError.stack);
                     throw parseError;
                 }
             }
@@ -1158,7 +1158,7 @@ module.exports.handler = async function (event, context) {
                     }
                 } catch (dbErr) {
                     console.error('КРИТИЧЕСКАЯ ОШИБКА БД:', dbErr.message);
-                    console.error(dbErr.stack);
+                    if (DEBUG_LOGS_ENABLED && dbErr?.stack) console.error(dbErr.stack);
                     responseData = isWebhook ? { _isWebhook: true, text: 'Temporary DB error' } : { success: false, error: 'Temporary DB error' };
                     return;
                 }
@@ -1860,7 +1860,7 @@ module.exports.handler = async function (event, context) {
                         const parsed = typeof rawAi === 'string' ? JSON.parse(rawAi) : rawAi;
                         if (parsed && typeof parsed === 'object') aiStories = parsed;
                     }
-                } catch(e) { console.error('Ошибка парсинга ai_stories', e); }
+                } catch(e) { logDebug('Ошибка парсинга ai_stories', e?.message || e); }
 
                 let extList = [];
                 if (resultSets && resultSets[0] && resultSets[0].rows.length > 0) {
@@ -1955,7 +1955,7 @@ RULES:
                     if (promptMakerData.choices && promptMakerData.choices[0]) {
                         dynamicImgPrompt = promptMakerData.choices[0].message.content.trim();
                     }
-                } catch(e) { console.error("Ошибка умного промпта:", e); }
+                } catch(e) { logDebug('Ошибка умного промпта:', e?.message || e); }
 
                 // 3. ГЕНЕРАЦИЯ УНИКАЛЬНОЙ КАРТИНКИ
                 let imageUrl = '';
@@ -2083,7 +2083,8 @@ RULES:
         return { statusCode: 200, headers, body: JSON.stringify(responseData) };
 
     } catch (error) {
-        console.error("Critical error:", error);
+        console.error('Critical error:', error?.message || error);
+        if (DEBUG_LOGS_ENABLED && error?.stack) console.error(error.stack);
         return { statusCode: 400, headers, body: JSON.stringify({ error: error.message }) };
     }
 };
