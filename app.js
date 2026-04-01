@@ -4661,6 +4661,177 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             // --- НАЧАЛО: НОВЫЙ РАСЧЕТ ОПТОВЫХ ЦЕН (НА БАЗЕ CSV) ---
+            getContractB2BDefaults: function() {
+                const saved = (this.pricingSettings && this.pricingSettings.contractB2B) ? this.pricingSettings.contractB2B : {};
+                const fallbackUsd = parseFloat(this.pricingSettings?.manual_usd) || this.getWholesaleUsdRate();
+                const defaultRubleCost = Math.round(this.getWholesaleVariablePerKg() + this.getWholesalePackagingCost(1000));
+                return {
+                    volume: 100,
+                    months: 3,
+                    greenUsd: 15,
+                    usdRate: fallbackUsd,
+                    bankSpread: 2,
+                    volatility: 1.5,
+                    shrinkage: Math.round((this.wholesaleEconomics.roastLossEspresso || 0.20) * 100),
+                    rubleCost: defaultRubleCost,
+                    targetContribution: this.wholesaleEconomics.targetContributionPerKg || 200,
+                    manualAdjust: 0,
+                    corridor: 5,
+                    ...saved
+                };
+            },
+
+            fillContractB2BInputs: function(force = false) {
+                const defaults = this.getContractB2BDefaults();
+                const ids = {
+                    volume: 'contract-volume',
+                    months: 'contract-months',
+                    greenUsd: 'contract-green-usd',
+                    usdRate: 'contract-usd-rate',
+                    bankSpread: 'contract-bank-spread',
+                    volatility: 'contract-volatility',
+                    shrinkage: 'contract-shrinkage',
+                    rubleCost: 'contract-ruble-cost',
+                    targetContribution: 'contract-target-contribution',
+                    manualAdjust: 'contract-manual-adjust',
+                    corridor: 'contract-corridor'
+                };
+
+                Object.entries(ids).forEach(([key, id]) => {
+                    const input = document.getElementById(id);
+                    if (!input) return;
+                    if (force || input.value === '') input.value = defaults[key];
+                });
+            },
+
+            readContractB2BInputs: function() {
+                const defaults = this.getContractB2BDefaults();
+                const readNum = (id, fallback) => {
+                    const el = document.getElementById(id);
+                    const parsed = parseFloat(el ? el.value : '');
+                    return Number.isFinite(parsed) ? parsed : fallback;
+                };
+
+                return {
+                    volume: Math.max(1, readNum('contract-volume', defaults.volume)),
+                    months: Math.max(1, readNum('contract-months', defaults.months)),
+                    greenUsd: Math.max(0, readNum('contract-green-usd', defaults.greenUsd)),
+                    usdRate: Math.max(0.01, readNum('contract-usd-rate', defaults.usdRate)),
+                    bankSpread: Math.max(0, readNum('contract-bank-spread', defaults.bankSpread)),
+                    volatility: Math.max(0, readNum('contract-volatility', defaults.volatility)),
+                    shrinkage: Math.min(99, Math.max(0, readNum('contract-shrinkage', defaults.shrinkage))),
+                    rubleCost: Math.max(0, readNum('contract-ruble-cost', defaults.rubleCost)),
+                    targetContribution: readNum('contract-target-contribution', defaults.targetContribution),
+                    manualAdjust: readNum('contract-manual-adjust', defaults.manualAdjust),
+                    corridor: Math.max(0, readNum('contract-corridor', defaults.corridor))
+                };
+            },
+
+            renderContractB2BResults: function(results) {
+                const setText = (id, text) => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = text;
+                };
+                const formatRub = (value) => `${Math.ceil(value).toLocaleString('ru-RU')} ₽`;
+                const formatRubKg = (value) => `${Math.ceil(value).toLocaleString('ru-RU')} ₽/кг`;
+
+                setText('contract-used-rate', `${results.rateBuy.toFixed(2)} ₽`);
+                setText('contract-risk-factor', `${(results.volRiskFactor * 100).toFixed(1)}%`);
+                setText('contract-price-prepay', formatRubKg(results.prepay));
+                setText('contract-price-half', formatRubKg(results.half));
+                setText('contract-price-delay', formatRubKg(results.delay));
+                setText('contract-total-prepay', `Партия: ${formatRub(results.prepay * results.volume)}`);
+                setText('contract-total-half', `Партия: ${formatRub(results.half * results.volume)}`);
+                setText('contract-total-delay', `Партия: ${formatRub(results.delay * results.volume)}`);
+                setText(
+                    'contract-clause-text',
+                    `Цена рассчитана исходя из курса закупки ${results.rateBuy.toFixed(2)} ₽ за USD и действует при отклонении курса не более ±${results.corridor.toFixed(1)}%. При выходе курса за пределы коридора неоплаченная часть партии пересчитывается пропорционально изменению долларовой составляющей сырья.`
+                );
+            },
+
+            calculateContractB2B: function() {
+                const params = this.readContractB2BInputs();
+                const usnRate = this.wholesaleEconomics.usnRate || 0.06;
+                const shrinkageRate = params.shrinkage / 100;
+                const rateBuy = params.usdRate * (1 + (params.bankSpread / 100));
+                const roastedGreenRubPerKg = (params.greenUsd * rateBuy) / Math.max(0.01, (1 - shrinkageRate));
+                const volRiskFactor = params.months > 1 ? ((params.volatility / 100) * Math.sqrt(params.months) * 0.9) : 0;
+                const rubleBasePerKg = params.rubleCost + params.targetContribution + params.manualAdjust;
+                const prepay = ((roastedGreenRubPerKg * (1 + (volRiskFactor * 0.35) + 0.005)) + rubleBasePerKg) / Math.max(0.01, (1 - usnRate));
+                const half = ((roastedGreenRubPerKg * (1 + (volRiskFactor * 0.65) + 0.01)) + rubleBasePerKg) / Math.max(0.01, (1 - usnRate));
+                const delay = ((roastedGreenRubPerKg * (1 + volRiskFactor + 0.02)) + rubleBasePerKg) / Math.max(0.01, (1 - usnRate));
+
+                this.renderContractB2BResults({
+                    ...params,
+                    rateBuy,
+                    roastedGreenRubPerKg,
+                    volRiskFactor,
+                    prepay,
+                    half,
+                    delay
+                });
+            },
+
+            initContractB2BAdmin: function(forceFill = false) {
+                const section = document.getElementById('admin-sec-contracts');
+                if (!section) return;
+
+                if (section.dataset.ready !== '1') {
+                    [
+                        'contract-volume',
+                        'contract-months',
+                        'contract-green-usd',
+                        'contract-usd-rate',
+                        'contract-bank-spread',
+                        'contract-volatility',
+                        'contract-shrinkage',
+                        'contract-ruble-cost',
+                        'contract-target-contribution',
+                        'contract-manual-adjust',
+                        'contract-corridor'
+                    ].forEach(id => {
+                        const input = document.getElementById(id);
+                        if (input) input.addEventListener('input', () => this.calculateContractB2B());
+                    });
+                    section.dataset.ready = '1';
+                }
+
+                this.fillContractB2BInputs(forceFill || section.dataset.filled !== '1');
+                section.dataset.filled = '1';
+                this.calculateContractB2B();
+            },
+
+            saveContractB2BSettings: async function() {
+                const token = localStorage.getItem('locus_token');
+                if (!token) return alert('Нет доступа');
+
+                const btn = document.getElementById('btn-save-contract-b2b');
+                const originalText = btn ? btn.textContent : '';
+                if (btn) btn.textContent = 'Сохранение...';
+
+                const nextSettings = {
+                    ...(this.pricingSettings || {}),
+                    contractB2B: this.readContractB2BInputs()
+                };
+
+                try {
+                    const res = await fetch(LOCUS_API_URL + '?action=savePricingSettings', {
+                        method: 'POST',
+                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'savePricingSettings', settings: nextSettings })
+                    });
+                    const data = await res.json();
+                    if (!data.success) throw new Error(data.error || 'Не удалось сохранить параметры');
+
+                    this.pricingSettings = nextSettings;
+                    alert('Параметры Контракт B2B сохранены.');
+                } catch (e) {
+                    alert('Ошибка сохранения: ' + e.message);
+                } finally {
+                    if (btn) btn.textContent = originalText || 'Сохранить параметры';
+                }
+            },
+
             getWholesaleUsdRate: function() {
                 const manualUsd = parseFloat(this.pricingSettings?.manual_usd) || 0;
                 return manualUsd > 0 ? manualUsd : (this.usdRate || 90);
@@ -5777,7 +5948,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
             
             switchAdminTab: function(tabName) {
-                ['catalog','users', 'promos', 'subs', 'costs', 'actions', 'messages', 'ws-orders', 'orders'].forEach(t => {
+                ['catalog','users', 'promos', 'subs', 'costs', 'contracts', 'actions', 'messages', 'ws-orders', 'orders'].forEach(t => {
                     const sec = document.getElementById(`admin-sec-${t}`);
                     if(sec) sec.classList.remove('active');
                 });
@@ -5797,6 +5968,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (tabName === 'ws-orders') this.loadWholesaleOrders();
                 if (tabName === 'catalog') CatalogSystem.loadData();
                 if (tabName === 'orders') this.loadRetailOrders();
+                if (tabName === 'contracts') this.initContractB2BAdmin();
             },
 
             // --- НАЧАЛО: АДМИНКА - ЗАГРУЗКА ПОЛЬЗОВАТЕЛЕЙ ИЗ YDB ---
