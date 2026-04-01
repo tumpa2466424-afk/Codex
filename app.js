@@ -2919,6 +2919,29 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             // WHOLESALE & PRICING
             pricingSettings: null,
             usdRate: 0,
+            wholesaleEconomics: {
+                minOrderKg: 5,
+                greenLogisticsPerKg: 50,
+                roastLossFilter: 0.16,
+                roastLossEspresso: 0.20,
+                roastLossAroma: 0.20,
+                pack250: 20,
+                pack1000: 22,
+                stickerSet: 10,
+                boxPer10Kg: 50,
+                paymentDocPerOrder: 50,
+                laborPerKg: 50,
+                utilitiesPerKg: 10,
+                packingLaborPerKg: 10,
+                amortizationPerKg: 5,
+                internalDeliveryPerKg: 5,
+                spoilageReservePerKg: 0,
+                fixedMonthly: 150000,
+                monthlyVolumeKg: 120,
+                usnRate: 0.06,
+                targetMarginRate: 0.30,
+                targetContributionPerKg: 200
+            },
             userDataLoaded: false,
             retailCountdownInterval: null,
             retailCountdownPendingUpdates: {},
@@ -4637,7 +4660,100 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             // --- НАЧАЛО: НОВЫЙ РАСЧЕТ ОПТОВЫХ ЦЕН (НА БАЗЕ CSV) ---
-            calculateWholesalePrice: function(rawPriceUSD) {
+            getWholesaleUsdRate: function() {
+                const manualUsd = parseFloat(this.pricingSettings?.manual_usd) || 0;
+                return manualUsd > 0 ? manualUsd : (this.usdRate || 90);
+            },
+
+            resolveWholesaleRoastLossRate: function(product) {
+                const e = this.wholesaleEconomics;
+                const typeInfo = window.ProductManager?.getTypeInfo(product) || {};
+                const catName = String(product?.category || '').toLowerCase();
+                if (typeInfo.isAroma) return e.roastLossAroma;
+                if (catName.includes('\u044d\u0441\u043f\u0440\u0435\u0441\u0441\u043e')) return e.roastLossEspresso;
+                return e.roastLossFilter;
+            },
+
+            getWholesaleRoastLossRate: function(product) {
+                const e = this.wholesaleEconomics;
+                const catName = String(product?.category || '').toLowerCase();
+                if (catName.includes('Р°СЂРѕРјР°С‚РёР·Р°С†')) return e.roastLossAroma;
+                if (catName.includes('СЌСЃРїСЂРµСЃСЃРѕ')) return e.roastLossEspresso;
+                return e.roastLossFilter;
+            },
+
+            getWholesalePackagingCost: function(weight) {
+                const e = this.wholesaleEconomics;
+                return weight === 1000 ? (e.pack1000 + e.stickerSet) : (e.pack250 + e.stickerSet);
+            },
+
+            getWholesaleVariablePerKg: function() {
+                const e = this.wholesaleEconomics;
+                return e.laborPerKg + e.utilitiesPerKg + e.packingLaborPerKg + e.amortizationPerKg + e.internalDeliveryPerKg + e.spoilageReservePerKg;
+            },
+
+            getWholesaleFixedPerKg: function() {
+                const e = this.wholesaleEconomics;
+                return e.monthlyVolumeKg > 0 ? (e.fixedMonthly / e.monthlyVolumeKg) : 0;
+            },
+
+            roundWholesalePrice: function(value) {
+                return Math.ceil((Number(value) || 0) / 10) * 10;
+            },
+
+            calculateWholesaleUnitPrice: function(rawPriceUSD, product, weight) {
+                const e = this.wholesaleEconomics;
+                const usd = this.getWholesaleUsdRate();
+                const lossRate = this.resolveWholesaleRoastLossRate(product);
+                const yieldFactor = 1 / Math.max(0.01, (1 - lossRate));
+                const landedGreenPerKg = (Number(rawPriceUSD) || 0) * usd + e.greenLogisticsPerKg;
+                const roastedGreenCostPerKg = landedGreenPerKg * yieldFactor;
+                const baseOperationalPerKg = roastedGreenCostPerKg + this.getWholesaleVariablePerKg() + this.getWholesaleFixedPerKg();
+                const unitWeightKg = (Number(weight) || 0) / 1000;
+                const unitCost = (baseOperationalPerKg * unitWeightKg) + this.getWholesalePackagingCost(weight);
+                const priceByMargin = unitCost / Math.max(0.01, (1 - e.targetMarginRate - e.usnRate));
+                const priceByAbsoluteProfit = (unitCost + (e.targetContributionPerKg * unitWeightKg)) / Math.max(0.01, (1 - e.usnRate));
+                const finalPrice = this.roundWholesalePrice(Math.max(priceByMargin, priceByAbsoluteProfit));
+
+                return {
+                    finalPrice,
+                    unitCost,
+                    baseOperationalPerKg,
+                    roastedGreenCostPerKg,
+                    lossRate,
+                    unitWeightKg
+                };
+            },
+
+            calculateWholesaleOrderExtras: function(totalWeightGrams) {
+                const e = this.wholesaleEconomics;
+                const totalWeightKg = (Number(totalWeightGrams) || 0) / 1000;
+                if (totalWeightKg <= 0) return { paymentDoc: 0, boxes: 0, total: 0 };
+
+                const paymentDoc = e.paymentDocPerOrder;
+                const boxes = totalWeightKg >= 10 ? Math.ceil(totalWeightKg / 10) * e.boxPer10Kg : 0;
+                return { paymentDoc, boxes, total: paymentDoc + boxes };
+            },
+
+            formatWholesaleBreakdown: function(subtotalCost, orderExtras) {
+                return [
+                    `\u0422\u043e\u0432\u0430\u0440: ${subtotalCost.toLocaleString('ru-RU')} \u20bd`,
+                    `\u041f\u043b\u0430\u0442\u0451\u0436\u043d\u044b\u0439 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442: ${orderExtras.paymentDoc.toLocaleString('ru-RU')} \u20bd`,
+                    `\u041a\u043e\u0440\u043e\u0431\u0430: ${orderExtras.boxes.toLocaleString('ru-RU')} \u20bd`
+                ].join(' \u2022 ');
+            },
+
+            calculateWholesalePrice: function(rawPriceUSD, product = null) {
+                if (Number(rawPriceUSD) > 0) {
+                    const p250 = this.calculateWholesaleUnitPrice(rawPriceUSD, product, 250);
+                    const p1000 = this.calculateWholesaleUnitPrice(rawPriceUSD, product, 1000);
+                    return {
+                        p250: p250.finalPrice,
+                        p1000: p1000.finalPrice,
+                        details250: p250,
+                        details1000: p1000
+                    };
+                }
                 if (!this.pricingSettings) return { p250: 0, p1000: 0 };
                 const s = this.pricingSettings;
                 
@@ -4704,7 +4820,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const usdEl = document.getElementById('ws-usd');
                 
                 if(dateEl) dateEl.textContent = new Date().toLocaleDateString();
-                if(usdEl) usdEl.textContent = this.usdRate.toFixed(4);
+                if(usdEl) usdEl.textContent = this.getWholesaleUsdRate().toFixed(4);
                 
                 let itemsList = [];
 
@@ -4721,7 +4837,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     let ws1000 = 0;
                     
                     if (rawGreen > 0) {
-                        const prices = this.calculateWholesalePrice(rawGreen);
+                        const prices = this.calculateWholesalePrice(rawGreen, p);
                         ws250 = prices.p250;
                         ws1000 = prices.p1000;
                     } else if (p.price && parseFloat(p.price) > 0) {
@@ -4859,7 +4975,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
             updateWholesaleTotal: function() {
                 let totalWeightGrams = 0;
-                let totalCost = 0;
+                let subtotalCost = 0;
                 
                 document.querySelectorAll('.ws-qty-input').forEach(input => {
                     const qty = parseInt(input.value) || 0;
@@ -4867,10 +4983,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         const w = parseInt(input.getAttribute('data-weight'));
                         const p = parseInt(input.getAttribute('data-price'));
                         totalWeightGrams += w * qty;
-                        totalCost += p * qty;
+                        subtotalCost += p * qty;
                     }
                 });
                 
+                const orderExtras = this.calculateWholesaleOrderExtras(totalWeightGrams);
+                let totalCost = subtotalCost + orderExtras.total;
+
                 const isUrgent = document.getElementById('ws-urgent-order') && document.getElementById('ws-urgent-order').checked;
                 if (isUrgent) {
                     totalCost = Math.ceil(totalCost * 1.2);
@@ -4879,11 +4998,32 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const weightKg = totalWeightGrams / 1000;
                 const weightEl = document.getElementById('ws-total-weight');
                 const costEl = document.getElementById('ws-total-cost');
+                let breakdownEl = document.getElementById('ws-cost-breakdown');
+                if (!breakdownEl) {
+                    const warnAnchor = document.getElementById('ws-warning');
+                    if (warnAnchor?.parentElement) {
+                        breakdownEl = document.createElement('div');
+                        breakdownEl.id = 'ws-cost-breakdown';
+                        breakdownEl.style.cssText = 'font-size:11px; opacity:0.75; margin-bottom:10px; text-align:center;';
+                        warnAnchor.parentElement.insertBefore(breakdownEl, warnAnchor);
+                    }
+                }
                 
                 // Пробелы теперь стоят прямо в HTML верстке, здесь передаем только чистые цифры
                 if (weightEl) weightEl.textContent = weightKg.toFixed(1);
                 if (costEl) costEl.textContent = totalCost.toLocaleString('ru-RU');
+                if (breakdownEl) {
+                    breakdownEl.textContent = totalWeightGrams > 0
+                        ? `Товар: ${subtotalCost.toLocaleString('ru-RU')} ₽ • Платёжный документ: ${orderExtras.paymentDoc.toLocaleString('ru-RU')} ₽ • Короба: ${orderExtras.boxes.toLocaleString('ru-RU')} ₽`
+                        : '';
+                }
                 
+                if (breakdownEl) {
+                    breakdownEl.textContent = totalWeightGrams > 0
+                        ? this.formatWholesaleBreakdown(subtotalCost, orderExtras)
+                        : '';
+                }
+
                 const btn = document.getElementById('ws-btn-order');
                 const warn = document.getElementById('ws-warning');
                 
@@ -4902,7 +5042,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 // Сначала собираем все позиции. Затем считаем сумму и создаем заявку.
                 
                 let items = [];
-                let totalCost = 0;
+                let subtotalCost = 0;
+                let totalWeightGrams = 0;
                 
                 document.querySelectorAll('.ws-qty-input').forEach(input => {
                     const qty = parseInt(input.value) || 0;
@@ -4911,14 +5052,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         const p = parseInt(input.getAttribute('data-price'));
                         const name = input.getAttribute('data-item');
                         items.push({ item: name, weight: w, grind: 'Зерно', price: p, qty: qty });
-                        totalCost += p * qty;
+                        subtotalCost += p * qty;
+                        totalWeightGrams += w * qty;
                     }
                 });
+
+                const orderExtras = this.calculateWholesaleOrderExtras(totalWeightGrams);
+                let totalCost = subtotalCost + orderExtras.total;
                 
                 const isUrgent = document.getElementById('ws-urgent-order') && document.getElementById('ws-urgent-order').checked;
                 if (isUrgent) {
                     totalCost = Math.ceil(totalCost * 1.2);
                 }
+                const urgentExtra = Math.max(0, totalCost - subtotalCost - orderExtras.total);
                 
                 const email = document.getElementById('ws-order-email').value.trim();
                 const phone = document.getElementById('ws-order-phone').value.trim();
@@ -4934,7 +5080,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const orderData = {
                     id: 'ws_' + Date.now(),
                     total: totalCost,
-                    customer: { email: email, phone: phone, isUrgent: isUrgent, requisites: reqs },
+                    customer: {
+                        email: email,
+                        phone: phone,
+                        isUrgent: isUrgent,
+                        requisites: reqs,
+                        pricingBreakdown: {
+                            subtotal: subtotalCost,
+                            paymentDocument: orderExtras.paymentDoc,
+                            boxes: orderExtras.boxes,
+                            urgentExtra: urgentExtra,
+                            totalWeightKg: totalWeightGrams / 1000,
+                            finalTotal: totalCost
+                        }
+                    },
                     items: items
                 };
 
@@ -4958,6 +5117,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             orderId: orderData.id,
                             date: new Date().toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' }),
                             total: totalCost,
+                            pricingBreakdown: orderData.customer.pricingBreakdown,
                             items: items
                         };
                         if(!this.currentUser.history) this.currentUser.history = [];
@@ -5035,7 +5195,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     let ws250 = 0, ws1000 = 0;
                     
                     if (rawGreen > 0) {
-                        const prices = this.calculateWholesalePrice(rawGreen);
+                        const prices = this.calculateWholesalePrice(rawGreen, p);
                         ws250 = prices.p250;
                         ws1000 = prices.p1000;
                     } else if (p.price && parseFloat(p.price) > 0) {
