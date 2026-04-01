@@ -2940,7 +2940,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 monthlyVolumeKg: 120,
                 usnRate: 0.06,
                 targetMarginRate: 0.30,
-                targetContributionPerKg: 200
+                targetContributionPerKg: 200,
+                commercialMarkupRate: 0.15
             },
             userDataLoaded: false,
             retailCountdownInterval: null,
@@ -4717,10 +4718,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const unitCashCost = (cashCostPerKg * unitWeightKg) + packagingCost;
                 const unitFullCost = (fullEconomicCostPerKg * unitWeightKg) + packagingCost;
                 const targetContribution = e.targetContributionPerKg * unitWeightKg;
-                const finalPrice = this.roundWholesalePrice((unitCashCost + targetContribution) / Math.max(0.01, (1 - e.usnRate)));
+                const baseCommercialPrice = (unitCashCost + targetContribution) / Math.max(0.01, (1 - e.usnRate));
+                const finalPrice = this.roundWholesalePrice(baseCommercialPrice * (1 + e.commercialMarkupRate));
 
                 return {
                     finalPrice,
+                    baseCommercialPrice,
                     unitCashCost,
                     unitFullCost,
                     cashCostPerKg,
