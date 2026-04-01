@@ -301,11 +301,7 @@ async function createRetailOrderCalendarEvent(payload) {
 
     return {
         success: true,
-        eventId: data.id || '',
-        htmlLink: data.htmlLink || '',
-        calendarId,
-        startIso: window.startIso,
-        endIso: window.endIso
+        eventId: data.id || ''
     };
 }
 
