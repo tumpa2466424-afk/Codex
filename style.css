@@ -440,6 +440,66 @@
         .suggestion-item { padding: 10px; font-size: 12px; cursor: pointer; border-bottom: 1px solid #eee; }
         .checkbox-row { display: flex; align-items: flex-start; gap: 10px; margin: 15px 0; font-size: 11px; line-height: 1.4; opacity: 0.8; }
         .checkbox-row input { margin-top: 2px; }
+        .pickup-option-label {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--locus-dark);
+            margin: 0;
+            line-height: 1.45;
+            user-select: none;
+        }
+        .pickup-option-input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .pickup-option-box {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            margin-top: 1px;
+            border: 1.5px solid rgba(105, 58, 5, 0.45);
+            border-radius: 6px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(244,241,234,0.96) 100%);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 6px rgba(105, 58, 5, 0.08);
+            transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+            position: relative;
+        }
+        .pickup-option-box::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 47%;
+            width: 5px;
+            height: 10px;
+            border: solid var(--locus-bg);
+            border-width: 0 2px 2px 0;
+            transform: translate(-50%, -50%) rotate(45deg) scale(0.7);
+            opacity: 0;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        .pickup-option-input:checked + .pickup-option-box {
+            background: linear-gradient(180deg, #7a4912 0%, var(--locus-dark) 100%);
+            border-color: var(--locus-dark);
+            box-shadow: 0 8px 18px rgba(105, 58, 5, 0.24);
+        }
+        .pickup-option-input:checked + .pickup-option-box::after {
+            opacity: 1;
+            transform: translate(-50%, -55%) rotate(45deg) scale(1);
+        }
+        .pickup-option-input:focus-visible + .pickup-option-box {
+            outline: 2px solid rgba(105, 58, 5, 0.25);
+            outline-offset: 3px;
+        }
+        .pickup-option-label:hover .pickup-option-box {
+            border-color: var(--locus-dark);
+            transform: translateY(-1px);
+        }
+        .pickup-option-copy { display: inline-block; }
 
         .cart-items-wrapper { overflow-y: visible; margin-bottom: 20px; }
         .cart-item-row { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid rgba(105, 58, 5, 0.1); }
