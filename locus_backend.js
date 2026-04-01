@@ -641,7 +641,13 @@ async function finalizeRetailPayment(session, invId) {
                     total: Number(ord.total) || 0
                 });
                 if (calendarResult && calendarResult.success) {
-                    console.log(`Google Calendar: order ${orderId} synced as event ${calendarResult.eventId}`);
+                    console.log(
+                        `Google Calendar: order ${orderId} synced as event ${calendarResult.eventId}` +
+                        `, calendar ${calendarResult.calendarId || 'unknown'}` +
+                        `, start ${calendarResult.startIso || 'unknown'}` +
+                        `, end ${calendarResult.endIso || 'unknown'}` +
+                        `${calendarResult.htmlLink ? `, link ${calendarResult.htmlLink}` : ''}`
+                    );
                 } else if (calendarResult && calendarResult.skipped) {
                     console.log(`Google Calendar: order ${orderId} skipped (${calendarResult.reason})`);
                 }
