@@ -278,6 +278,7 @@
                     <button class="admin-tab" onclick="UserSystem.switchAdminTab('messages')">Сообщения</button>
                     <button class="admin-tab" onclick="UserSystem.switchAdminTab('subs')">Подписки</button>
                     <button class="admin-tab" onclick="UserSystem.switchAdminTab('costs')">Расходы</button>
+                    <button class="admin-tab" onclick="UserSystem.switchAdminTab('contracts')">Контракт B2B</button>
                     <button class="admin-tab" onclick="UserSystem.switchAdminTab('orders')">Заказы</button>
                     <button class="admin-tab" onclick="UserSystem.switchAdminTab('ws-orders')">Оптовые заказы</button>
                 </div>
@@ -403,6 +404,102 @@
                                     <div style="margin-top:5px; color:var(--locus-dark); font-weight:bold;">
                                         OPEX на 1 кг: <span id="res-opex-kg">0</span> ₽<br>
                                         Производство на 1 кг: <span id="res-var-kg">0</span> ₽
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="admin-sec-contracts" class="admin-content-section">
+                        <div class="contract-admin-card">
+                            <div class="section-header" style="margin-top:0;">Контракт B2B</div>
+                            <p class="contract-admin-note">
+                                Отдельный калькулятор для крупных B2B-контрактов. Он не меняет публичный опт, а помогает быстро собрать коммерческую цену с учетом курса, способа оплаты и срока фиксации.
+                            </p>
+
+                            <div class="contract-admin-grid">
+                                <div class="contract-admin-panel">
+                                    <div class="contract-admin-subtitle">Параметры контракта</div>
+
+                                    <div class="contract-admin-row">
+                                        <label for="contract-volume">Объем партии, кг</label>
+                                        <input type="number" id="contract-volume" class="lc-input" min="1" step="1">
+                                    </div>
+                                    <div class="contract-admin-row">
+                                        <label for="contract-months">Срок фиксации, мес</label>
+                                        <input type="number" id="contract-months" class="lc-input" min="1" step="1">
+                                    </div>
+                                    <div class="contract-admin-row">
+                                        <label for="contract-green-usd">Зеленка, $/кг</label>
+                                        <input type="number" id="contract-green-usd" class="lc-input" min="0" step="0.1">
+                                    </div>
+                                    <div class="contract-admin-row">
+                                        <label for="contract-usd-rate">Курс USD, ₽</label>
+                                        <input type="number" id="contract-usd-rate" class="lc-input" min="0" step="0.01">
+                                    </div>
+                                    <div class="contract-admin-row">
+                                        <label for="contract-bank-spread">Банковский спред, %</label>
+                                        <input type="number" id="contract-bank-spread" class="lc-input" min="0" step="0.1">
+                                    </div>
+                                    <div class="contract-admin-row">
+                                        <label for="contract-volatility">Волатильность, %/мес</label>
+                                        <input type="number" id="contract-volatility" class="lc-input" min="0" step="0.1">
+                                    </div>
+                                    <div class="contract-admin-row">
+                                        <label for="contract-shrinkage">Ужарка, %</label>
+                                        <input type="number" id="contract-shrinkage" class="lc-input" min="0" max="99" step="0.1">
+                                    </div>
+                                    <div class="contract-admin-row">
+                                        <label for="contract-ruble-cost">Рублевая база, ₽/кг</label>
+                                        <input type="number" id="contract-ruble-cost" class="lc-input" min="0" step="1">
+                                    </div>
+                                    <div class="contract-admin-row">
+                                        <label for="contract-target-contribution">Целевой вклад, ₽/кг</label>
+                                        <input type="number" id="contract-target-contribution" class="lc-input" min="0" step="1">
+                                    </div>
+                                    <div class="contract-admin-row">
+                                        <label for="contract-manual-adjust">Ручная корректировка, ₽/кг</label>
+                                        <input type="number" id="contract-manual-adjust" class="lc-input" step="1">
+                                    </div>
+                                    <div class="contract-admin-row">
+                                        <label for="contract-corridor">Валютный коридор, %</label>
+                                        <input type="number" id="contract-corridor" class="lc-input" min="0" step="0.1">
+                                    </div>
+
+                                    <div class="contract-admin-actions">
+                                        <button class="lc-btn lc-btn-secondary" type="button" onclick="UserSystem.calculateContractB2B()">Пересчитать</button>
+                                        <button class="lc-btn" id="btn-save-contract-b2b" type="button" onclick="UserSystem.saveContractB2BSettings()">Сохранить параметры</button>
+                                    </div>
+                                </div>
+
+                                <div class="contract-admin-panel">
+                                    <div class="contract-admin-subtitle">Результат</div>
+                                    <div class="contract-admin-meta">
+                                        <div>Курс закупки: <b id="contract-used-rate">0.00 ₽</b></div>
+                                        <div>Риск по сроку: <b id="contract-risk-factor">0.0%</b></div>
+                                    </div>
+
+                                    <div class="contract-result-card contract-result-prepay">
+                                        <div class="contract-result-title">100% предоплата</div>
+                                        <div class="contract-result-price" id="contract-price-prepay">0 ₽/кг</div>
+                                        <div class="contract-result-total" id="contract-total-prepay">Партия: 0 ₽</div>
+                                    </div>
+
+                                    <div class="contract-result-card contract-result-half">
+                                        <div class="contract-result-title">50 / 50</div>
+                                        <div class="contract-result-price" id="contract-price-half">0 ₽/кг</div>
+                                        <div class="contract-result-total" id="contract-total-half">Партия: 0 ₽</div>
+                                    </div>
+
+                                    <div class="contract-result-card contract-result-delay">
+                                        <div class="contract-result-title">Отсрочка 30 дней</div>
+                                        <div class="contract-result-price" id="contract-price-delay">0 ₽/кг</div>
+                                        <div class="contract-result-total" id="contract-total-delay">Партия: 0 ₽</div>
+                                    </div>
+
+                                    <div class="contract-admin-clause">
+                                        <div class="contract-admin-subtitle" style="margin-bottom:8px;">Валютная оговорка</div>
+                                        <div id="contract-clause-text"></div>
                                     </div>
                                 </div>
                             </div>
