@@ -646,11 +646,10 @@
                         </div>
 
                         <div id="self-pickup-block" style="margin-bottom: 15px; padding: 15px; background: rgba(255,255,255,0.6); border: 1px solid var(--locus-border); border-radius: 8px;">
-                            <label class="pickup-option-label">
-                                <input type="checkbox" id="self-pickup-checkbox" class="pickup-option-input" onchange="UserSystem.toggleSelfPickup()">
-                                <span class="pickup-option-box" aria-hidden="true"></span>
-                                <span class="pickup-option-copy">Заберу заказ из пункта выдачи<br>(ТЦ "Атолл", Октябрьская 27)</span>
-                            </label>
+                            <div class="checkbox-row" style="margin: 0; font-size: 13px; line-height: 1.45; opacity: 1;">
+                                <input type="checkbox" id="self-pickup-checkbox" onchange="UserSystem.toggleSelfPickup()">
+                                <label for="self-pickup-checkbox" style="font-weight: 600; color: var(--locus-dark);">Заберу заказ из пункта выдачи<br>(ТЦ "Атолл", Октябрьская 27)</label>
+                            </div>
                             
                             <div id="self-pickup-code-block" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--locus-border);">
                                 <span style="font-size: 12px; color: gray;">Ваш код для открытия ячейки с заказом:</span>
