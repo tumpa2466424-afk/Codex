@@ -4708,18 +4708,28 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const yieldFactor = 1 / Math.max(0.01, (1 - lossRate));
                 const landedGreenPerKg = (Number(rawPriceUSD) || 0) * usd + e.greenLogisticsPerKg;
                 const roastedGreenCostPerKg = landedGreenPerKg * yieldFactor;
-                const baseOperationalPerKg = roastedGreenCostPerKg + this.getWholesaleVariablePerKg() + this.getWholesaleFixedPerKg();
+                const variablePerKg = this.getWholesaleVariablePerKg();
+                const fixedPerKg = this.getWholesaleFixedPerKg();
+                const cashCostPerKg = roastedGreenCostPerKg + variablePerKg;
+                const fullEconomicCostPerKg = cashCostPerKg + fixedPerKg;
                 const unitWeightKg = (Number(weight) || 0) / 1000;
-                const unitCost = (baseOperationalPerKg * unitWeightKg) + this.getWholesalePackagingCost(weight);
-                const priceByMargin = unitCost / Math.max(0.01, (1 - e.targetMarginRate - e.usnRate));
-                const priceByAbsoluteProfit = (unitCost + (e.targetContributionPerKg * unitWeightKg)) / Math.max(0.01, (1 - e.usnRate));
-                const finalPrice = this.roundWholesalePrice(Math.max(priceByMargin, priceByAbsoluteProfit));
+                const packagingCost = this.getWholesalePackagingCost(weight);
+                const unitCashCost = (cashCostPerKg * unitWeightKg) + packagingCost;
+                const unitFullCost = (fullEconomicCostPerKg * unitWeightKg) + packagingCost;
+                const targetContribution = e.targetContributionPerKg * unitWeightKg;
+                const finalPrice = this.roundWholesalePrice((unitCashCost + targetContribution) / Math.max(0.01, (1 - e.usnRate)));
 
                 return {
                     finalPrice,
-                    unitCost,
-                    baseOperationalPerKg,
+                    unitCashCost,
+                    unitFullCost,
+                    cashCostPerKg,
+                    fullEconomicCostPerKg,
                     roastedGreenCostPerKg,
+                    variablePerKg,
+                    fixedPerKg,
+                    packagingCost,
+                    targetContribution,
                     lossRate,
                     unitWeightKg
                 };
