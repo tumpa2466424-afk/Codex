@@ -1359,7 +1359,8 @@
 }
 
 .product-pack-label-overlay.is-classic.is-single-line .product-pack-country {
-    top: 68.5%;
+    top: 65.8%;
+    transform: translateX(4.2%);
 }
 
 .product-pack-farm {
