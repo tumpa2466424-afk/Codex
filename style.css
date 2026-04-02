@@ -1519,7 +1519,7 @@
 /* Шапка задника */
 .sb-top { text-align: center; margin-bottom: 3mm; }
 .sb-brand { font-size: 3.5mm; font-weight: 900; line-height: 1.1; letter-spacing: 0.5px; }
-.sb-sub { font-size: 2.2mm; font-weight: 700; line-height: 1; letter-spacing: 0.5px; }
+.sb-sub { font-size: 2.2mm; font-weight: 700; line-height: 1; letter-spacing: 0.5px; margin-top: 0.9mm; }
 
 /* Двухколоночная таблица характеристик */
 .sb-grid {
@@ -1542,6 +1542,24 @@
     text-align: center;
     font-size: 2.2mm;
     line-height: 1.35;
+    text-transform: none;
+}
+
+.sb-blend-head {
+    text-align: center;
+    margin-bottom: 2.6mm;
+}
+
+.sb-blend-type {
+    font-size: 2.2mm;
+    line-height: 1.1;
+    letter-spacing: 0.4px;
+}
+
+.sb-blend-name {
+    margin-top: 0.7mm;
+    font-size: 2.9mm;
+    line-height: 1.05;
     text-transform: none;
 }
 
