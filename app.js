@@ -1533,7 +1533,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             // --- CATALOG SYSTEM (Управление каппингами) ---
         const CatalogSystem = {
             ALL_PRODUCTS: [],
-            PACK_PREVIEW_BASE_IMAGE: 'https://disk.yandex.ru/i/fhVTU-KARFkeNQ',
+            PACK_PREVIEW_BASE_IMAGE: 'https://downloader.disk.yandex.ru/preview/c17feabef988b3a6bd34c5026911b76c5101dfabb6a081501767fb7689f7c2b9/69ceec9a/NUqxr5gOcwSTpOiktgskC5dCwv7FWUHYZsAUe2VcL_U-0JRcKZVzGi9vx48pnMdKBTjnHN-mkwsKzXs19os8mA%3D%3D?uid=0&filename=locus_pack.png&disposition=inline&hash=&limit=0&content_type=image%2Fpng&owner_uid=0&tknv=v3&size=2048x2048',
 
             switchTab: function(tabName) {
                 document.querySelectorAll('.cat-tab-btn').forEach(btn => btn.classList.remove('active'));
