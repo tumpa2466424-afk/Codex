@@ -1589,20 +1589,6 @@
     letter-spacing: 0.9px;
 }
 
-.s-blend-label {
-    position: absolute;
-    top: 9.8mm;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 0.5mm 1.4mm;
-    border: 0.25mm solid #000000;
-    border-radius: 1mm;
-    font-size: 2mm;
-    font-weight: 700;
-    letter-spacing: 0.7px;
-    line-height: 1;
-}
-
 .s-country {
     font-weight: 400 !important;
     letter-spacing: 0.2px;
