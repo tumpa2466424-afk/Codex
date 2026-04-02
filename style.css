@@ -1533,6 +1533,18 @@
 .sb-label { text-align: right; font-weight: 600; }
 .sb-value { text-align: left; font-weight: 900; }
 
+.sb-aroma-copy {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 19mm;
+    margin-bottom: 3mm;
+    text-align: center;
+    font-size: 2.2mm;
+    line-height: 1.35;
+    text-transform: none;
+}
+
 /* Информационный блок ниже */
 .sb-info {
     font-size: 1.6mm;
