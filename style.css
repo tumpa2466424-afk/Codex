@@ -1545,24 +1545,6 @@
     text-transform: none;
 }
 
-.sb-blend-head {
-    text-align: center;
-    margin-bottom: 2.6mm;
-}
-
-.sb-blend-type {
-    font-size: 2.2mm;
-    line-height: 1.1;
-    letter-spacing: 0.4px;
-}
-
-.sb-blend-name {
-    margin-top: 0.7mm;
-    font-size: 2.9mm;
-    line-height: 1.05;
-    text-transform: none;
-}
-
 /* Информационный блок ниже */
 .sb-info {
     font-size: 1.6mm;
@@ -1607,9 +1589,27 @@
     letter-spacing: 0.9px;
 }
 
+.s-blend-label {
+    position: absolute;
+    top: 9.8mm;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.5mm 1.4mm;
+    border: 0.25mm solid #000000;
+    border-radius: 1mm;
+    font-size: 2mm;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+    line-height: 1;
+}
+
 .s-country {
     font-weight: 400 !important;
     letter-spacing: 0.2px;
+}
+
+.locus-sticker-canvas.sticker-front-single-line .s-country {
+    bottom: 21.5mm;
 }
 
 .s-farm {
