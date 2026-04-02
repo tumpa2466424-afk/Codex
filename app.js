@@ -1724,7 +1724,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                     if (this.isCountryBlendValue(country)) {
                         country = String(r.sample || '').trim() || '\u041d\u0410\u0417\u0412\u0410\u041d\u0418\u0415 \u0421\u041c\u0415\u0421\u0418';
-                        farm = (fullProduct && fullProduct.country) ? fullProduct.country : farm;
+                        farm = '';
                     }
                 }
 
@@ -1982,6 +1982,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 country = frontStickerData.country;
                 farm = frontStickerData.farm;
                 formattedNotes = frontStickerData.notes;
+                const frontHasSecondaryLine = !!String(farm || '').trim();
+                const frontBlendLabelHtml = isCountryBlend ? '<div class="s-blend-label">BLEND</div>' : '';
 
                 const safeSampleId = r.sample ? r.sample.toString().replace(/[^a-zA-Z0-9]/g, '_') : Math.floor(Math.random() * 10000);
                 const frontStickerId = `front-${safeSampleId}`;
@@ -2023,6 +2025,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     <div class="sb-label">Обжарено:</div><div class="sb-value"></div>
                                 </div>
                     `;
+                const resolvedBackStickerMetaBlock = isCountryBlend && !isAroma
+                    ? `
+                                <div class="sb-grid">
+                                    <div class="sb-label">\u0421\u0442\u0440\u0430\u043d\u044b:</div><div class="sb-value">${backCountryHtml}</div>
+                                    <div class="sb-label">\u0420\u0435\u0433\u0438\u043e\u043d:</div><div class="sb-value">${backRegionHtml}</div>
+                                    <div class="sb-label">\u0424\u0435\u0440\u043c\u0430:</div><div class="sb-value">${backFarmHtml}</div>
+                                    <div class="sb-label">\u0412\u0438\u0434/\u0420\u0430\u0437\u043d\u043e\u0432\u0438\u0434\u043d\u043e\u0441\u0442\u044c:</div><div class="sb-value">${backVarietyHtml}</div>
+                                    <div class="sb-label">\u0413\u043e\u0434 \u0443\u0440\u043e\u0436\u0430\u044f:</div><div class="sb-value">${backHarvestHtml}</div>
+                                    <div class="sb-label">\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0438:</div><div class="sb-value">${backProcessingHtml}</div>
+                                    <div class="sb-label">\u041e\u0431\u0436\u0430\u0440\u0435\u043d\u043e:</div><div class="sb-value"></div>
+                                </div>
+                    `
+                    : backStickerMetaBlock;
                 const backStickerComposition = isAroma
                     ? 'арабика'
                     : (isCountryBlend
@@ -2036,8 +2051,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         <div style="background: #f4f1ea; padding: 20px; border-radius: 8px; border: 1px solid var(--locus-border); flex: 1; min-width: 320px; display: flex; flex-direction: column; align-items: center;">
                             <div style="text-align:center; font-size:12px; font-weight:bold; color:var(--locus-accent); margin-bottom:15px; text-transform:uppercase;">Лицо (80х80 мм)</div>
                             
-                            <div class="locus-sticker-canvas${isAroma ? ` sticker-front-aroma ${frontStickerData.farm ? 'has-secondary-line' : 'is-single-line'}` : ''}" id="${frontStickerId}">
+                            <div class="locus-sticker-canvas${isAroma ? ` sticker-front-aroma ${frontHasSecondaryLine ? 'has-secondary-line' : 'is-single-line'}` : ''}${!isAroma && !frontHasSecondaryLine ? ' sticker-front-single-line' : ''}${isCountryBlend ? ' is-blend-front' : ''}" id="${frontStickerId}">
                                 <div class="s-roast-text">${roastTextLabel}</div>
+                                ${frontBlendLabelHtml}
                                 <div class="s-country">${country}</div>
                                 <div class="s-farm">${farm}</div>
                                 <div class="s-descriptors">${formattedNotes}</div>
@@ -2055,7 +2071,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     <div class="sb-sub">Свежеобжаренный кофе</div>
                                 </div>
                                 
-                                ${backStickerMetaBlock}
+                                ${resolvedBackStickerMetaBlock}
 
                                 <div class="sb-info">
                                     Состав: ${backStickerComposition}<br>
