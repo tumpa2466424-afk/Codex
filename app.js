@@ -1966,9 +1966,28 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const firstVarietyWord = firstVarietyToken
                     ? firstVarietyToken.replace(/^[,.;:!?()"'\u00AB\u00BB]+|[,.;:!?()"'\u00AB\u00BB]+$/g, '')
                     : '';
-                const backStickerComposition = isCountryBlend
-                    ? (normalizedVariety && normalizedVariety !== '-' ? normalizedVariety : 'Кофе')
-                    : (firstVarietyWord ? `Кофе ${firstVarietyWord}` : 'Кофе');
+                const aromaName = this.escapeEditorHtml(String(r.sample || 'Название ароматизатора').trim() || 'Название ароматизатора');
+                const backStickerDescription = isAroma
+                    ? `Кофе на основе Бразилии текущего ассортимента с кондитерским ароматизатором "${aromaName}".`
+                    : '';
+                const backStickerMetaBlock = isAroma
+                    ? `<div class="sb-aroma-copy">${backStickerDescription}</div>`
+                    : `
+                                <div class="sb-grid">
+                                    <div class="sb-label">Страна:</div><div class="sb-value">${country}</div>
+                                    <div class="sb-label">Регион:</div><div class="sb-value">${region}</div>
+                                    <div class="sb-label">Ферма:</div><div class="sb-value">${farm}</div>
+                                    <div class="sb-label">Вид/Разновидность:</div><div class="sb-value">${variety}</div>
+                                    <div class="sb-label">Год урожая:</div><div class="sb-value">${harvest}</div>
+                                    <div class="sb-label">Описание обработки:</div><div class="sb-value">${processing}</div>
+                                    <div class="sb-label">Обжарено:</div><div class="sb-value"></div>
+                                </div>
+                    `;
+                const backStickerComposition = isAroma
+                    ? 'арабика'
+                    : (isCountryBlend
+                        ? (normalizedVariety && normalizedVariety !== '-' ? normalizedVariety : 'Кофе')
+                        : (firstVarietyWord ? `Кофе ${firstVarietyWord}` : 'Кофе'));
 
                 // Выводим обе наклейки рядом (flex-контейнер)
                 const stickerPreview = `
@@ -1990,21 +2009,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         <div style="background: #f4f1ea; padding: 20px; border-radius: 8px; border: 1px solid var(--locus-border); flex: 1; min-width: 320px; display: flex; flex-direction: column; align-items: center;">
                             <div style="text-align:center; font-size:12px; font-weight:bold; color:var(--locus-accent); margin-bottom:15px; text-transform:uppercase;">Задник (60х60 мм)</div>
                             
-                            <div class="locus-back-sticker-canvas" id="${backStickerId}">
+                            <div class="locus-back-sticker-canvas${isAroma ? ' is-aroma-back' : ''}" id="${backStickerId}">
                                 <div class="sb-top">
                                     <div class="sb-brand">Locus Coffee</div>
                                     <div class="sb-sub">Свежеобжаренный кофе</div>
                                 </div>
                                 
-                                <div class="sb-grid">
-                                    <div class="sb-label">Страна:</div><div class="sb-value">${country}</div>
-                                    <div class="sb-label">Регион:</div><div class="sb-value">${region}</div>
-                                    <div class="sb-label">Ферма:</div><div class="sb-value">${farm}</div>
-                                    <div class="sb-label">Вид/Разновидность:</div><div class="sb-value">${variety}</div>
-                                    <div class="sb-label">Год урожая:</div><div class="sb-value">${harvest}</div>
-                                    <div class="sb-label">Описание обработки:</div><div class="sb-value">${processing}</div>
-                                    <div class="sb-label">Обжарено:</div><div class="sb-value"></div>
-                                </div>
+                                ${backStickerMetaBlock}
 
                                 <div class="sb-info">
                                     Состав: ${backStickerComposition}<br>
