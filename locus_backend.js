@@ -2039,47 +2039,33 @@ module.exports.handler = async function (event, context) {
                     throw new Error(textData.error?.message || "Ошибка API Qwen");
                 }
 
-                // 2. УМНАЯ ГЕНЕРАЦИЯ ПРОМПТА ДЛЯ КАРТИНКИ (Географическая точность)
-                // Убрали базовые "зеленые холмы", чтобы не сбивать нейросеть
-                let dynamicImgPrompt = `Photorealistic wide landscape of a coffee farm in ${country || 'the region'}, distinctive local geography, natural lighting.`; 
-                try {
-                    const promptMakerReq = await fetch('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${qwenKey}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            model: 'qwen-turbo', 
-                            messages: [{ 
-                                role: 'user', 
-                                content: `You are an expert National Geographic location scout and AI image prompt engineer. Write a highly detailed, comma-separated English prompt for an AI to generate a photorealistic coffee farm in ${country || 'this region'}. 
-
-CRITICAL INSTRUCTIONS TO ENSURE GEOGRAPHIC UNIQUENESS:
-- Break the stereotype of "generic green hills". Focus on the EXACT topography of ${country}.
-- If Africa (Ethiopia, Kenya, Rwanda): Emphasize high-altitude wild forests, Great Rift Valley landscapes, native acacia trees, wild undergrowth.
-- If Brazil: Emphasize expansive flat plateaus (Cerrado), gentle rolling plains, savanna-like vegetation, lower altitudes, wide open skies.
-- If Caribbean/Island (Cuba, Indonesia): Emphasize tropical island climate, palm trees, ocean humidity, volcanic soil, or dense jungle.
-- If Central/South America (Colombia, Peru, Guatemala): Emphasize steep dramatic Andean mountain slopes, high-altitude cloud forests, misty valleys, and shade-grown canopy trees (like banana or pine).
-
-RULES:
-1. Base the geography on this story: ${generatedText}
-2. Format as a dense, comma-separated list of visual descriptors.
-3. Keep colors natural and realistic. Do not exaggerate soil color.
-4. NO people, NO text, NO UI elements.
-5. Return ONLY the English prompt string.` 
-                            }] 
-                        })
-                    });
-                    const promptMakerData = await promptMakerReq.json();
-                    if (promptMakerData.choices && promptMakerData.choices[0]) {
-                        dynamicImgPrompt = promptMakerData.choices[0].message.content.trim();
-                    }
-                } catch(e) { logDebug('Ошибка умного промпта:', e?.message || e); }
+                // 2. ПРОСТОЙ И ЖЕСТКИЙ ПРОМПТ ДЛЯ КАРТИНКИ БЕЗ ФАНТАЗИЙ
+                const normalizedCountryValue = String(country || '').trim();
+                const countryParts = normalizedCountryValue
+                    .split(',')
+                    .map(part => part.trim())
+                    .filter(Boolean)
+                    .slice(0, 2);
+                const singleCountryPrompt = (countryName) => (
+                    `Создай фотореалистичное изображение дикой природы ${countryName} с кофейными деревьями. ` +
+                    `Без животных, без людей, без зданий, без текста, без надписей, без фантастических элементов. ` +
+                    `Естественные цвета, реалистичный свет, реалистичный пейзаж, акцент на природе и кофейных деревьях.`
+                );
+                const dynamicImgPrompt = countryParts.length >= 2
+                    ? (
+                        `Создай фотореалистичное изображение, разделенное по диагонали на две равные части. ` +
+                        `В одной половине покажи дикую природу ${countryParts[0]} с кофейными деревьями. ` +
+                        `В другой половине покажи дикую природу ${countryParts[1]} с кофейными деревьями. ` +
+                        `Без животных, без людей, без зданий, без текста, без надписей, без фантастических элементов. ` +
+                        `Естественные цвета, реалистичный свет, реалистичные природные ландшафты обеих стран.`
+                    )
+                    : singleCountryPrompt(countryParts[0] || 'страны происхождения кофе');
 
                 // 3. ГЕНЕРАЦИЯ УНИКАЛЬНОЙ КАРТИНКИ
                 let imageUrl = '';
                 try {
                     const randomSeed = Math.floor(Math.random() * 2147483647);
-                    // Добавляем технические стили для фотореализма National Geographic
-                    const finalImgPrompt = dynamicImgPrompt + ", National Geographic nature photography, highly detailed landscape, realistic balanced colors, masterpiece, shot on 35mm lens.";
+                    const finalImgPrompt = `${dynamicImgPrompt} Фотореализм, высокая детализация, натуральная природная сцена, без сюрреализма.`;
                     
                     const imgReq = await fetch('https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/image-generation/generation', {
                         method: 'POST',
