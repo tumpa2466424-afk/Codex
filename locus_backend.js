@@ -16,6 +16,7 @@ const WELCOME_POPUP_DISMISSED_KEY = 'welcome_popup_dismissed';
 const WELCOME_BONUS_AVAILABLE_KEY = 'welcome_bonus_available';
 const WELCOME_BONUS_USED_KEY = 'welcome_bonus_used';
 const DEBUG_LOGS_ENABLED = /^(1|true|yes|on)$/i.test(String(process.env.DEBUG_LOGS || '').trim());
+const CBR_USD_VALUTE_ID = 'R01235';
 
 let driver;
 
@@ -385,6 +386,7 @@ const RETRYABLE_SESSION_ACTIONS = new Set([
     'getUserMessages',
     'getAdminSubs',
     'getPricingSettings',
+    'getUsdAnalytics',
     'getAdminOrders',
     'getAdminWholesaleOrders',
     'getExtrinsicData',
@@ -492,6 +494,115 @@ function getPvzDeadlineMs(createdAtValue) {
     const daysToAdd = hour < 18 ? 1 : 2;
 
     return Date.UTC(year, month - 1, day + daysToAdd, 15, 0, 0);
+}
+
+function createUtcDate(year, month, day) {
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+}
+
+function formatCbrRequestDate(date) {
+    const value = date instanceof Date ? date : new Date(date);
+    const day = String(value.getUTCDate()).padStart(2, '0');
+    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const year = value.getUTCFullYear();
+    return `${day}/${month}/${year}`;
+}
+
+function parseCbrRecordDate(value) {
+    const match = String(value || '').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (!match) return null;
+    return createUtcDate(Number(match[3]), Number(match[2]), Number(match[1]));
+}
+
+function formatRuDisplayDate(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('ru-RU', {
+        timeZone: 'UTC',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+}
+
+function parseCbrDynamicXml(xmlText) {
+    const source = String(xmlText || '');
+    const records = [];
+    const regex = /<Record\b[^>]*Date="([^"]+)"[^>]*>[\s\S]*?<Value>([^<]+)<\/Value>[\s\S]*?<\/Record>/gi;
+    let match;
+
+    while ((match = regex.exec(source))) {
+        const date = parseCbrRecordDate(match[1]);
+        const value = Number(String(match[2] || '').replace(',', '.').trim());
+        if (!date || !Number.isFinite(value)) continue;
+        records.push({
+            date,
+            dateText: formatRuDisplayDate(date),
+            value
+        });
+    }
+
+    records.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return records;
+}
+
+function findHistoricalCbrRecord(records, targetDate) {
+    if (!Array.isArray(records) || !records.length || !(targetDate instanceof Date) || Number.isNaN(targetDate.getTime())) {
+        return null;
+    }
+
+    const targetMs = targetDate.getTime();
+    let bestPast = null;
+    let bestFuture = null;
+
+    records.forEach(record => {
+        const recordMs = record.date.getTime();
+        if (recordMs <= targetMs) {
+            if (!bestPast || recordMs > bestPast.date.getTime()) bestPast = record;
+        } else if (!bestFuture || recordMs < bestFuture.date.getTime()) {
+            bestFuture = record;
+        }
+    });
+
+    return bestPast || bestFuture || null;
+}
+
+async function fetchUsdAnalytics(daysBack = 60) {
+    const normalizedDaysBack = Math.max(1, Math.min(366, parseInt(daysBack, 10) || 60));
+    const today = new Date();
+    const endDate = createUtcDate(today.getUTCFullYear(), today.getUTCMonth() + 1, today.getUTCDate());
+    const targetDate = new Date(endDate.getTime() - (normalizedDaysBack * 24 * 60 * 60 * 1000));
+    const startDate = new Date(targetDate.getTime() - (10 * 24 * 60 * 60 * 1000));
+    const requestUrl = `https://www.cbr.ru/scripts/XML_dynamic.asp?date_req1=${formatCbrRequestDate(startDate)}&date_req2=${formatCbrRequestDate(endDate)}&VAL_NM_RQ=${CBR_USD_VALUTE_ID}`;
+
+    const response = await fetch(requestUrl, {
+        headers: { 'Accept': 'application/xml, text/xml;q=0.9, */*;q=0.1' }
+    });
+    if (!response.ok) throw new Error(`Не удалось получить динамику USD от ЦБ (${response.status})`);
+
+    const xmlText = await response.text();
+    const records = parseCbrDynamicXml(xmlText);
+    if (!records.length) throw new Error('ЦБ не вернул данные по динамике USD');
+
+    const currentRecord = records[records.length - 1];
+    const previousRecord = records.length > 1 ? records[records.length - 2] : currentRecord;
+    const historicalRecord = findHistoricalCbrRecord(records, targetDate) || currentRecord;
+    const daySpan = Math.round((currentRecord.date.getTime() - historicalRecord.date.getTime()) / (24 * 60 * 60 * 1000));
+    const trendPercent = historicalRecord.value
+        ? (((currentRecord.value - historicalRecord.value) / historicalRecord.value) * 100)
+        : 0;
+
+    return {
+        currentRate: currentRecord.value,
+        currentDate: currentRecord.dateText,
+        previousRate: previousRecord.value,
+        previousDate: previousRecord.dateText,
+        historicalRate: historicalRecord.value,
+        historicalDate: historicalRecord.dateText,
+        historicalDaysBackActual: daySpan,
+        requestedDaysBack: normalizedDaysBack,
+        trendPercent,
+        source: 'cbr.ru/XML_dynamic'
+    };
 }
 
 async function syncRetailHistoryStatus(session, userId, orderId, patch) {
@@ -1591,6 +1702,12 @@ module.exports.handler = async function (event, context) {
                     }
                 }
                 responseData = { success: true, settings: config };
+            }
+            
+            else if (action === 'getUsdAnalytics') {
+                const requestedDaysBack = event.queryStringParameters?.daysBack || body.daysBack;
+                const analytics = await fetchUsdAnalytics(requestedDaysBack);
+                responseData = { success: true, ...analytics };
             }
             
             else if (action === 'savePricingSettings') {
