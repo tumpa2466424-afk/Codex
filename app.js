@@ -322,6 +322,33 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             // 4. Получение правильного текстового описания
+            isCountryBlendValue: function(value) {
+                const parts = String(value || '').split(',').map(part => part.trim()).filter(Boolean);
+                return parts.length > 1;
+            },
+
+            getBlendCountryValue: function(product) {
+                const directCountry = String(product?.country || '').trim();
+                if (directCountry) return directCountry;
+
+                const sampleKey = String(product?.sample || product?.sample_no || '').trim();
+                if (!sampleKey || !Array.isArray(ALL_PRODUCTS_CACHE)) return '';
+
+                const fullProduct = ALL_PRODUCTS_CACHE.find(p =>
+                    String(p?.sample || p?.sample_no || '').trim() === sampleKey
+                );
+                return String(fullProduct?.country || '').trim();
+            },
+
+            getLotDisplayName: function(product) {
+                const sampleName = String(product?.sample || product?.sample_no || '').trim();
+                if (!sampleName) return '';
+
+                return this.isCountryBlendValue(this.getBlendCountryValue(product))
+                    ? `[BLEND] ${sampleName}`
+                    : sampleName;
+            },
+
             getDisplayDesc: function(product) {
                 if (!product) return '-';
                 const type = this.getTypeInfo(product);
