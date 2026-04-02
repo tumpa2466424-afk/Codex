@@ -340,13 +340,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 return String(fullProduct?.country || '').trim();
             },
 
+            isBlendProduct: function(product) {
+                return this.isCountryBlendValue(this.getBlendCountryValue(product));
+            },
+
+            getBlendBadgeHtml: function(options = {}) {
+                const marginBottom = options.includeBottomMargin ? ' margin-bottom:4px;' : '';
+                return `<span style="font-size:9px; background:#8B7E66; color:#fff; border-radius:3px; padding:2px 4px; margin-right:5px; vertical-align:middle; display:inline-block;${marginBottom}">BLEND</span>`;
+            },
+
             getLotDisplayName: function(product) {
                 const sampleName = String(product?.sample || product?.sample_no || '').trim();
-                if (!sampleName) return '';
-
-                return this.isCountryBlendValue(this.getBlendCountryValue(product))
-                    ? `[BLEND] ${sampleName}`
-                    : sampleName;
+                return sampleName;
             },
 
             getDisplayDesc: function(product) {
@@ -1636,8 +1641,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 typeColor = muteColor(typeColor, PALETTE_CONFIG.catWeight, PALETTE_CONFIG.catGrey);
                                 const typeSticker = `<span style="font-size:9px; background:${typeColor}; color:#fff; border-radius:3px; padding:2px 4px; margin-right:5px; vertical-align:middle; display:inline-block;">${typeText}</span>`;
                                 const hasStickerPack = !ProductManager.getTypeInfo(r).isSpecial;
-                                const isBlend = r.sample.toLowerCase().includes('blend') || r.sample.toLowerCase().includes('смесь');
-                                const blendLabel = isBlend ? `<span style="font-size:9px; border:1px solid #ccc; border-radius:3px; padding:0 2px; margin-right:5px; vertical-align:middle; display:inline-block; color:var(--locus-dark);">BLEND</span>` : '';
+                                const blendLabel = ProductManager.isBlendProduct(r) ? ProductManager.getBlendBadgeHtml() : '';
                                 const displaySampleName = ProductManager.getLotDisplayName(r);
 
                                 const item = document.createElement('div');
@@ -1647,7 +1651,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 item.innerHTML = `
                                     <div class="catalog-item-header" onclick="CatalogSystem.toggleDetails('${r.id}')">
                                         <div class="item-title" style="display:flex; align-items:center; flex-wrap:wrap;">
-                                            ${(gName==='Эспрессо'||gName==='Фильтр') ? typeSticker : ''}${blendLabel} <span>${r.sample}</span>
+                                            ${(gName==='Эспрессо'||gName==='Фильтр') ? typeSticker : ''}${blendLabel}<span>${displaySampleName}</span>
                                         </div>
                                         <div class="item-controls" onclick="event.stopPropagation()">
                                             <div class="cat-checkbox-wrapper">
@@ -1674,10 +1678,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     </div>
                                     <div class="catalog-item-content" id="cat-content-${r.id}">${this.getViewHtml(r)}</div>
                                 `;
-                                item.innerHTML = item.innerHTML.replace(
-                                    `${blendLabel} <span>${r.sample}</span>`,
-                                    `<span>${displaySampleName}</span>`
-                                );
                                 container.appendChild(item);
                             });
                         }
@@ -1791,13 +1791,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 return '';
             },
 
+            isBlendProduct: function(product) {
+                return this.isCountryBlendValue(this.getBlendCountryValue(product));
+            },
+
             getLotDisplayName: function(product) {
                 const sampleName = String(product?.sample || product?.sample_no || '').trim();
-                if (!sampleName) return '';
-
-                return this.isCountryBlendValue(this.getBlendCountryValue(product))
-                    ? `[BLEND] ${sampleName}`
-                    : sampleName;
+                return sampleName;
             },
 
             getBlendStickerKind: function(roastTextLabel) {
@@ -5636,15 +5636,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 
                         typeColor = muteColor(typeColor, PALETTE_CONFIG.catWeight, PALETTE_CONFIG.catGrey);
                         const typeSticker = `<span style="font-size:9px; background:${typeColor}; color:#fff; border-radius:3px; padding:2px 4px; margin-right:5px; vertical-align:middle; display:inline-block; margin-bottom:4px;">${typeText}</span>`;
-                        const isBlend = i.sample.toLowerCase().includes('blend') || i.sample.toLowerCase().includes('смесь');
-                        const blendLabel = isBlend ? `<span style="font-size:9px; border:1px solid #ccc; border-radius:3px; padding:0 2px; margin-right:5px; vertical-align:middle; display:inline-block; margin-bottom:4px;">BLEND</span>` : '';
+                        const blendLabel = ProductManager.isBlendProduct(i) ? ProductManager.getBlendBadgeHtml({ includeBottomMargin: true }) : '';
                         const displaySampleName = ProductManager.getLotDisplayName(i);
                         
                         // Исправлено: берем описание товара через ProductManager
                         const displayDesc = ProductManager.getDisplayDesc(i);
                         
                         html += `<tr>
-                            <td style="font-weight:600; vertical-align:middle; line-height:1.4;">${typeSticker}${blendLabel}<br>${i.sample}</td>
+                            <td style="font-weight:600; vertical-align:middle; line-height:1.4;">${typeSticker}${blendLabel}<br>${displaySampleName}</td>
                             <td style="font-size:10px; opacity:0.8; vertical-align:middle; line-height:1.4;">${displayDesc}</td>
                             <td style="vertical-align:middle;">
                                 <div style="display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap;">
@@ -5659,10 +5658,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 </div>
                             </td>
                         </tr>`;
-                        html = html.replace(
-                            `${typeSticker}${blendLabel}<br>${i.sample}</td>`,
-                            `${typeSticker}<br>${displaySampleName}</td>`
-                        );
                     });
                     html += `</tbody></table></div>`
 
@@ -5929,8 +5924,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         typeText = 'ЭСПРЕССО';
                     }
 
-                    const isBlend = p.sample.toLowerCase().includes('blend') || p.sample.toLowerCase().includes('смесь');
-                    const prefixText = `[${typeText}] `;
+                    const blendPrefix = ProductManager.isBlendProduct(p) ? 'BLEND ' : '';
+                    const prefixText = `${blendPrefix}[${typeText}] `;
                     const displaySampleName = ProductManager.getLotDisplayName(p);
                     
                     // Исправлено: используем ProductManager (для HTML-таблицы и PDF)
