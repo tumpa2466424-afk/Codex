@@ -2047,25 +2047,71 @@ module.exports.handler = async function (event, context) {
                     .filter(Boolean)
                     .slice(0, 2);
                 const singleCountryPrompt = (countryName) => (
-                    `Создай фотореалистичное изображение дикой природы ${countryName} с кофейными деревьями. ` +
-                    `Без животных, без людей, без зданий, без текста, без надписей, без фантастических элементов. ` +
-                    `Естественные цвета, реалистичный свет, реалистичный пейзаж, акцент на природе и кофейных деревьях.`
+                    `Photorealistic wild natural landscape of ${countryName}, native vegetation, realistic terrain, ` +
+                    `coffee trees growing naturally in the environment, documentary nature photography, ` +
+                    `natural daylight, natural colors, high detail, wide scenic composition.`
                 );
                 const dynamicImgPrompt = countryParts.length >= 2
                     ? (
-                        `Создай фотореалистичное изображение, разделенное по диагонали на две равные части. ` +
-                        `В одной половине покажи дикую природу ${countryParts[0]} с кофейными деревьями. ` +
-                        `В другой половине покажи дикую природу ${countryParts[1]} с кофейными деревьями. ` +
-                        `Без животных, без людей, без зданий, без текста, без надписей, без фантастических элементов. ` +
-                        `Естественные цвета, реалистичный свет, реалистичные природные ландшафты обеих стран.`
+                        `Photorealistic diagonal split composition. One half shows the wild natural landscape of ${countryParts[0]}, ` +
+                        `with native vegetation, realistic terrain, and coffee trees growing naturally in the environment. ` +
+                        `The other half shows the wild natural landscape of ${countryParts[1]}, with native vegetation, realistic terrain, ` +
+                        `and coffee trees growing naturally in the environment. Documentary nature photography, natural daylight, ` +
+                        `natural colors, high detail, clean diagonal composition.`
                     )
-                    : singleCountryPrompt(countryParts[0] || 'страны происхождения кофе');
+                    : singleCountryPrompt(countryParts[0] || 'the coffee origin country');
+                const negativeImgPrompt = [
+                    'animals',
+                    'animal',
+                    'birds',
+                    'bird',
+                    'wildlife',
+                    'mammals',
+                    'insects',
+                    'people',
+                    'person',
+                    'human',
+                    'workers',
+                    'portrait',
+                    'face',
+                    'hands',
+                    'roasted coffee beans',
+                    'coffee beans scattered on the ground',
+                    'coffee cherries piled on the ground',
+                    'cup',
+                    'cups',
+                    'mug',
+                    'bags',
+                    'sacks',
+                    'basket',
+                    'buildings',
+                    'house',
+                    'houses',
+                    'road',
+                    'roads',
+                    'car',
+                    'cars',
+                    'city',
+                    'village',
+                    'text',
+                    'letters',
+                    'logo',
+                    'watermark',
+                    'fantasy',
+                    'surreal',
+                    'sci-fi',
+                    'illustration',
+                    'painting',
+                    'cartoon',
+                    'blurry',
+                    'low quality'
+                ].join(', ');
 
                 // 3. ГЕНЕРАЦИЯ УНИКАЛЬНОЙ КАРТИНКИ
                 let imageUrl = '';
                 try {
                     const randomSeed = Math.floor(Math.random() * 2147483647);
-                    const finalImgPrompt = `${dynamicImgPrompt} Фотореализм, высокая детализация, натуральная природная сцена, без сюрреализма.`;
+                    const finalImgPrompt = `${dynamicImgPrompt} Highly realistic, natural scene, realistic textures, no stylization.`;
                     
                     const imgReq = await fetch('https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/image-generation/generation', {
                         method: 'POST',
@@ -2076,7 +2122,10 @@ module.exports.handler = async function (event, context) {
                             parameters: { 
                                 size: '1024*1024', 
                                 n: 1,
-                                seed: randomSeed
+                                seed: randomSeed,
+                                prompt_extend: false,
+                                negative_prompt: negativeImgPrompt,
+                                watermark: false
                             } 
                         })
                     });
