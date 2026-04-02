@@ -1755,8 +1755,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         : '\u0424\u0418\u041b\u042c\u0422\u0420-\u041e\u0411\u0416\u0410\u0420\u041a\u0410';
 
                     if (this.isCountryBlendValue(country)) {
-                        country = String(r.sample || '').trim() || '\u041d\u0410\u0417\u0412\u0410\u041d\u0418\u0415 \u0421\u041c\u0415\u0421\u0418';
-                        farm = '';
+                        const blendLines = this.splitAromaStickerTitle(r.sample || '\u041d\u0410\u0417\u0412\u0410\u041d\u0418\u0415 \u0421\u041c\u0415\u0421\u0418');
+                        country = blendLines.primary || '\u041d\u0410\u0417\u0412\u0410\u041d\u0418\u0415 \u0421\u041c\u0415\u0421\u0418';
+                        farm = blendLines.secondary || '';
                     }
                 }
 
