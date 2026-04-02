@@ -1358,6 +1358,10 @@
     top: 59.8%;
 }
 
+.product-pack-label-overlay.is-classic.is-single-line .product-pack-country {
+    top: 68.5%;
+}
+
 .product-pack-farm {
     top: 73%;
     font-size: 1.2em;
