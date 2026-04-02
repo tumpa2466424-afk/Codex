@@ -224,6 +224,21 @@ module.exports.handler = async function (event, context) {
         // Обновление всей информации о лоте (Редактирование)
         if (formType === 'catalog_edit') {
             await dbDriver.tableClient.withSession(async (session) => {
+                const originalQuery = `
+                    DECLARE $id AS Utf8;
+                    SELECT sample_no
+                    FROM cvad_results
+                    WHERE id = $id;
+                `;
+                const originalRes = await session.executeQuery(originalQuery, {
+                    '$id': TypedValues.utf8(bodyData.id)
+                });
+                const originalRows = (originalRes.resultSets && originalRes.resultSets[0])
+                    ? TypedData.createNativeObjects(originalRes.resultSets[0])
+                    : [];
+                const originalSampleNo = String(originalRows[0]?.sample_no || '').trim();
+                const nextSampleNo = String(bodyData.sample || '').trim();
+
                 const query = `
                     DECLARE $id AS Utf8;
                     DECLARE $cupping_date AS Utf8;
@@ -285,6 +300,62 @@ module.exports.handler = async function (event, context) {
                     '$image_url': TypedValues.utf8(bodyData.imageUrl || ''),
                     '$custom_desc': TypedValues.utf8(bodyData.customDesc || '')
                 });
+
+                if (originalSampleNo && nextSampleNo && originalSampleNo !== nextSampleNo) {
+                    const extQuery = `
+                        DECLARE $sample_no AS Utf8;
+                        SELECT sample_no, created_at, raw_green_price, form_data
+                        FROM extrinsic_results
+                        WHERE sample_no = $sample_no;
+                    `;
+                    const extRes = await session.executeQuery(extQuery, {
+                        '$sample_no': TypedValues.utf8(originalSampleNo)
+                    });
+                    const extRows = (extRes.resultSets && extRes.resultSets[0])
+                        ? TypedData.createNativeObjects(extRes.resultSets[0])
+                        : [];
+
+                    if (extRows.length > 0) {
+                        const extRow = extRows[0];
+                        let formData = extRow.form_data || extRow.formdata || {};
+
+                        if (typeof formData === 'string') {
+                            try {
+                                formData = JSON.parse(formData);
+                            } catch (e) {
+                                formData = {};
+                            }
+                        }
+
+                        if (!formData || typeof formData !== 'object') formData = {};
+                        formData['Sample No'] = nextSampleNo;
+
+                        const extUpsertQuery = `
+                            DECLARE $sample_no AS Utf8;
+                            DECLARE $created_at AS Timestamp;
+                            DECLARE $raw_green_price AS Double;
+                            DECLARE $form_data AS JsonDocument;
+
+                            UPSERT INTO extrinsic_results (sample_no, created_at, raw_green_price, form_data)
+                            VALUES ($sample_no, $created_at, $raw_green_price, $form_data);
+                        `;
+                        await session.executeQuery(extUpsertQuery, {
+                            '$sample_no': TypedValues.utf8(nextSampleNo),
+                            '$created_at': TypedValues.timestamp(new Date(extRow.created_at || createdAt)),
+                            '$raw_green_price': TypedValues.double(Number(extRow.raw_green_price || extRow.rawgreenprice) || 0),
+                            '$form_data': TypedValues.jsonDocument(JSON.stringify(formData))
+                        });
+
+                        const extDeleteQuery = `
+                            DECLARE $sample_no AS Utf8;
+                            DELETE FROM extrinsic_results
+                            WHERE sample_no = $sample_no;
+                        `;
+                        await session.executeQuery(extDeleteQuery, {
+                            '$sample_no': TypedValues.utf8(originalSampleNo)
+                        });
+                    }
+                }
             });
             return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
         }
