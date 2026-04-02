@@ -1721,6 +1721,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     roastTextLabel = (catStr.includes('\u044d\u0441\u043f\u0440\u0435\u0441\u0441\u043e') || (!catStr.includes('\u0444\u0438\u043b\u044c\u0442\u0440') && roastVal >= 10))
                         ? '\u042d\u0421\u041f\u0420\u0415\u0421\u0421\u041e-\u041e\u0411\u0416\u0410\u0420\u041a\u0410'
                         : '\u0424\u0418\u041b\u042c\u0422\u0420-\u041e\u0411\u0416\u0410\u0420\u041a\u0410';
+
+                    if (this.isCountryBlendValue(country)) {
+                        country = String(r.sample || '').trim() || '\u041d\u0410\u0417\u0412\u0410\u041d\u0418\u0415 \u0421\u041c\u0415\u0421\u0418';
+                        farm = (fullProduct && fullProduct.country) ? fullProduct.country : farm;
+                    }
                 }
 
                 let formattedNotes = String(notes || '').trim();
@@ -1730,6 +1735,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 }
 
                 return { roastTextLabel, country, farm, notes: formattedNotes, fullProduct };
+            },
+
+            isCountryBlendValue: function(value) {
+                const parts = String(value || '').split(',').map(part => part.trim()).filter(Boolean);
+                return parts.length > 1;
+            },
+
+            getBlendStickerKind: function(roastTextLabel) {
+                return roastTextLabel === '\u042d\u0421\u041f\u0420\u0415\u0421\u0421\u041e-\u041e\u0411\u0416\u0410\u0420\u041a\u0410'
+                    ? '\u042d\u0441\u043f\u0440\u0435\u0441\u0441\u043e-\u0441\u043c\u0435\u0441\u044c'
+                    : '\u0424\u0438\u043b\u044c\u0442\u0440-\u0441\u043c\u0435\u0441\u044c';
             },
 
             splitPackAromaTitle: function(title) {
@@ -1945,6 +1961,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     formattedNotes = parts.slice(0, 3).join(', ');
                 }
 
+                const backCountryValue = String(country || '').trim();
+                const backFarmValue = String(farm || '').trim();
+                const backRegionHtml = this.escapeEditorHtml(String(region || '-').trim() || '-');
+                const backVarietyHtml = this.escapeEditorHtml(String(variety || '-').trim() || '-');
+                const backHarvestHtml = this.escapeEditorHtml(String(harvest || '-').trim() || '-');
+                const backProcessingHtml = this.escapeEditorHtml(String(processing || '-').trim() || '-');
+                const backCountryHtml = this.escapeEditorHtml(backCountryValue || '-');
+                const backFarmHtml = this.escapeEditorHtml(backFarmValue || '-');
+                const isCountryBlend = !isAroma && this.isCountryBlendValue(backCountryValue);
+                const blendStickerKind = isCountryBlend
+                    ? this.escapeEditorHtml(this.getBlendStickerKind(roastTextLabel))
+                    : '';
+                const blendStickerName = isCountryBlend
+                    ? this.escapeEditorHtml(String(r.sample || '').trim() || 'Название смеси')
+                    : '';
+
                 const frontStickerData = this.getFrontStickerData(r);
                 roastTextLabel = frontStickerData.roastTextLabel;
                 country = frontStickerData.country;
@@ -1955,11 +1987,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const frontStickerId = `front-${safeSampleId}`;
                 const backStickerId = `back-${safeSampleId}`;
                 const normalizedVariety = String(variety || '').trim();
-                const normalizedCountry = String(country || '').trim();
-                const countryParts = normalizedCountry
-                    ? normalizedCountry.split(',').map(part => part.trim()).filter(Boolean)
-                    : [];
-                const isCountryBlend = countryParts.length > 1;
                 const firstVarietyToken = normalizedVariety && normalizedVariety !== '-'
                     ? normalizedVariety.split(/\s+/).filter(Boolean)[0]
                     : '';
@@ -1972,14 +1999,27 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     : '';
                 const backStickerMetaBlock = isAroma
                     ? `<div class="sb-aroma-copy">${backStickerDescription}</div>`
+                    : isCountryBlend
+                        ? `
+                                <div class="sb-blend-head">
+                                    <div class="sb-blend-type">${blendStickerKind}</div>
+                                    <div class="sb-blend-name">${blendStickerName}</div>
+                                </div>
+                                <div class="sb-grid sb-grid-blend">
+                                    <div class="sb-label">Страны:</div><div class="sb-value">${backCountryHtml}</div>
+                                    <div class="sb-label">Вид/Разновидность:</div><div class="sb-value">${backVarietyHtml}</div>
+                                    <div class="sb-label">Год урожая:</div><div class="sb-value">${backHarvestHtml}</div>
+                                    <div class="sb-label">Описание обработки:</div><div class="sb-value">${backProcessingHtml}</div>
+                                </div>
+                        `
                     : `
                                 <div class="sb-grid">
-                                    <div class="sb-label">Страна:</div><div class="sb-value">${country}</div>
-                                    <div class="sb-label">Регион:</div><div class="sb-value">${region}</div>
-                                    <div class="sb-label">Ферма:</div><div class="sb-value">${farm}</div>
-                                    <div class="sb-label">Вид/Разновидность:</div><div class="sb-value">${variety}</div>
-                                    <div class="sb-label">Год урожая:</div><div class="sb-value">${harvest}</div>
-                                    <div class="sb-label">Описание обработки:</div><div class="sb-value">${processing}</div>
+                                    <div class="sb-label">Страна:</div><div class="sb-value">${backCountryHtml}</div>
+                                    <div class="sb-label">Регион:</div><div class="sb-value">${backRegionHtml}</div>
+                                    <div class="sb-label">Ферма:</div><div class="sb-value">${backFarmHtml}</div>
+                                    <div class="sb-label">Вид/Разновидность:</div><div class="sb-value">${backVarietyHtml}</div>
+                                    <div class="sb-label">Год урожая:</div><div class="sb-value">${backHarvestHtml}</div>
+                                    <div class="sb-label">Описание обработки:</div><div class="sb-value">${backProcessingHtml}</div>
                                     <div class="sb-label">Обжарено:</div><div class="sb-value"></div>
                                 </div>
                     `;
@@ -2957,7 +2997,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 usnRate: 0.06,
                 targetMarginRate: 0.30,
                 targetContributionPerKg: 200,
-                commercialMarkupRate: 0.15
+                commercialMarkupRate: 0.10
             },
             userDataLoaded: false,
             retailCountdownInterval: null,
