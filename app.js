@@ -1533,7 +1533,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             // --- CATALOG SYSTEM (Управление каппингами) ---
         const CatalogSystem = {
             ALL_PRODUCTS: [],
-            PACK_PREVIEW_BASE_IMAGE: 'https://disk.yandex.ru/i/0AmtsFoTzpqWvA',
+            PACK_PREVIEW_BASE_IMAGE: 'https://disk.yandex.ru/i/fhVTU-KARFkeNQ',
 
             switchTab: function(tabName) {
                 document.querySelectorAll('.cat-tab-btn').forEach(btn => btn.classList.remove('active'));
