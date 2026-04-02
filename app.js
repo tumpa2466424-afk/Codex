@@ -1968,7 +1968,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     : '';
                 const aromaName = this.escapeEditorHtml(String(r.sample || 'Название ароматизатора').trim() || 'Название ароматизатора');
                 const backStickerDescription = isAroma
-                    ? `Кофе на основе Бразилии текущего ассортимента с кондитерским ароматизатором "${aromaName}".`
+                    ? `Кофе на основе сорта Бразилии текущего ассортимента с кондитерским ароматизатором "${aromaName}".`
                     : '';
                 const backStickerMetaBlock = isAroma
                     ? `<div class="sb-aroma-copy">${backStickerDescription}</div>`
@@ -4509,27 +4509,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
             // --- PRICING LOGIC ---
             fetchHistoricalUSDRate: async function(daysBack = 60) {
-                const date = new Date();
-                date.setDate(date.getDate() - daysBack);
-
-                for (let i = 0; i < 4; i++) {
-                    const yyyy = date.getFullYear();
-                    const mm = String(date.getMonth() + 1).padStart(2, '0');
-                    const dd = String(date.getDate()).padStart(2, '0');
-                    const url = `https://www.cbr-xml-daily.ru/archive/${yyyy}/${mm}/${dd}/daily_json.js`;
-
-                    try {
-                        const response = await fetch(url);
-                        if (response.ok) {
-                            const data = await response.json();
-                            return data?.Valute?.USD?.Value || 0;
-                        }
-                    } catch (e) {}
-
-                    date.setDate(date.getDate() - 1);
-                }
-
-                return 0;
+                void daysBack;
+                return this.usdPrevRate || this.usdRate || 0;
             },
 
             fetchUSDRate: async function() {
