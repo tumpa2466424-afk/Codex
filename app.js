@@ -2930,6 +2930,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             // WHOLESALE & PRICING
             pricingSettings: null,
             usdRate: 0,
+            usdPrevRate: 0,
+            usdHistRate: 0,
+            usdCurrentDate: '',
+            usdHistoricalDate: '',
+            usdHistoricalDaysBackActual: 0,
             wholesaleEconomics: {
                 minOrderKg: 5,
                 greenLogisticsPerKg: 50,
@@ -4515,21 +4520,31 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
             fetchUSDRate: async function() {
                 try {
-                    const resp = await fetch('https://www.cbr-xml-daily.ru/daily_json.js');
+                    const resp = await fetch(LOCUS_API_URL + '?action=getUsdAnalytics&daysBack=60');
                     const data = await resp.json();
-                    if(data && data.Valute && data.Valute.USD) {
-                        this.usdRate = data.Valute.USD.Value;
-                        this.usdPrevRate = data.Valute.USD.Previous || data.Valute.USD.Value;
+                    if (data && data.success) {
+                        this.usdRate = Number(data.currentRate) || 90;
+                        this.usdPrevRate = Number(data.previousRate) || this.usdRate;
+                        this.usdHistRate = Number(data.historicalRate) || this.usdRate;
+                        this.usdCurrentDate = data.currentDate || '';
+                        this.usdHistoricalDate = data.historicalDate || '';
+                        this.usdHistoricalDaysBackActual = Number(data.historicalDaysBackActual) || 0;
                     } else {
                         this.usdRate = 90;
                         this.usdPrevRate = 90;
+                        this.usdHistRate = 90;
+                        this.usdCurrentDate = '';
+                        this.usdHistoricalDate = '';
+                        this.usdHistoricalDaysBackActual = 0;
                     }
-                    this.usdHistRate = await this.fetchHistoricalUSDRate(60);
                 } catch(e) {
                     console.error('USD Fetch Error', e);
                     this.usdRate = 90;
                     this.usdPrevRate = 90;
                     this.usdHistRate = 90;
+                    this.usdCurrentDate = '';
+                    this.usdHistoricalDate = '';
+                    this.usdHistoricalDaysBackActual = 0;
                 }
                 if (document.getElementById('admin-sec-contracts')) {
                     this.updateContractAutoRisk(true);
@@ -4813,6 +4828,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     current,
                     previous,
                     historical,
+                    currentDateLabel: this.usdCurrentDate || '',
+                    historicalDateLabel: this.usdHistoricalDate || '',
+                    historicalDaysBackActual: this.usdHistoricalDaysBackActual || 0,
                     diffPerc,
                     trend60Days,
                     suggestedVolatility,
@@ -4837,7 +4855,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 }
 
                 if (spreadNote) {
-                    spreadNote.textContent = `${snapshot.spreadComment} День: ${snapshot.diffPerc >= 0 ? '+' : ''}${snapshot.diffPerc.toFixed(2)}%, тренд 60 дней: ${snapshot.trend60Days >= 0 ? '+' : ''}${snapshot.trend60Days.toFixed(1)}%.`;
+                    const historicalBase = snapshot.historicalDateLabel
+                        ? ` База 60 дней: ${snapshot.historicalDateLabel}${snapshot.historicalDaysBackActual ? ` (${snapshot.historicalDaysBackActual} дн.)` : ''}.`
+                        : '';
+                    spreadNote.textContent = `${snapshot.spreadComment} День: ${snapshot.diffPerc >= 0 ? '+' : ''}${snapshot.diffPerc.toFixed(2)}%, тренд 60 дней: ${snapshot.trend60Days >= 0 ? '+' : ''}${snapshot.trend60Days.toFixed(1)}%.${historicalBase}`;
                 }
                 if (volatilityNote) {
                     volatilityNote.textContent = snapshot.volatilityComment;
