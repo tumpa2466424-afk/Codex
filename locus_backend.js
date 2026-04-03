@@ -2113,27 +2113,32 @@ module.exports.handler = async function (event, context) {
                     const randomSeed = Math.floor(Math.random() * 2147483647);
                     const finalImgPrompt = `${dynamicImgPrompt} Highly realistic, natural scene, realistic textures, no stylization.`;
                     
-                    const imgReq = await fetch('https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/image-generation/generation', {
+                    const imgReq = await fetch('https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
                         method: 'POST',
-                        headers: { 'X-DashScope-Async': 'enable', 'Authorization': `Bearer ${qwenKey}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            model: 'wan2.6-t2i', 
-                            input: { messages: [ { role: 'user', content: [ { text: finalImgPrompt } ] } ] }, 
-                            parameters: { 
-                                size: '1024*1024', 
-                                n: 1,
+                        headers: { 'Authorization': `Bearer ${qwenKey}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            model: 'qwen-image-max',
+                            input: {
+                                messages: [
+                                    { role: 'user', content: [{ text: finalImgPrompt }] }
+                                ]
+                            },
+                            parameters: {
+                                size: '1328*1328',
                                 seed: randomSeed,
-                                prompt_extend: false,
+                                prompt_extend: true,
                                 negative_prompt: negativeImgPrompt,
                                 watermark: false
-                            } 
+                            }
                         })
                     });
                     const imgTask = await imgReq.json();
                     
-                    let tempAlibabaUrl = '';
+                    let tempAlibabaUrl = imgTask?.output?.choices?.[0]?.message?.content?.find(item => item?.image || item?.url)?.image
+                        || imgTask?.output?.choices?.[0]?.message?.content?.find(item => item?.image || item?.url)?.url
+                        || '';
 
-                    if (imgTask && imgTask.output && imgTask.output.task_id) {
+                    if (false) {
                         const taskId = imgTask.output.task_id;
                         for (let i = 0; i < 30; i++) { 
                             await new Promise(r => setTimeout(r, 2000));
@@ -2153,12 +2158,18 @@ module.exports.handler = async function (event, context) {
                                 break; 
                             }
                         }
-                    } else if (imgTask && imgTask.output && imgTask.output.choices) {
+                    } else if (false) {
                         const imgItem = imgTask.output.choices[0]?.message?.content?.find(item => item.image || item.url);
                         if (imgItem) tempAlibabaUrl = imgItem.image || imgItem.url || '';
                     }
 
-                    if (!tempAlibabaUrl) {
+                    if (!imgReq.ok || imgTask?.code || !tempAlibabaUrl) {
+                        logDebug('Qwen-Image-Max response diagnostics:', {
+                            httpStatus: imgReq.status,
+                            code: imgTask?.code,
+                            message: imgTask?.message,
+                            hasImageUrl: !!tempAlibabaUrl
+                        });
                         generatedText += "\n\n[ДИАГНОСТИКА: Таймаут Алибабы. Картинка не успела сгенерироваться за 60 секунд.]";
                     }
 
