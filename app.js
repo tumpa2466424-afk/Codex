@@ -48,6 +48,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             }
         ];
         
+        
         const SCA_CSV_MAP = {
             // ФРУКТОВЫЕ (Fruity)
             'fruity': [225, 40, 59], 'фрукт': [225, 40, 59],
