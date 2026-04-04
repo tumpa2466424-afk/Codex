@@ -34,6 +34,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             'АКСЕССУАРЫ': 'Все, с помощью чего вы сможете приготовить себе чашку вкусного кофе.',
             'ИНФОРМАЦИЯ': 'Ознакомьтесь с информацией в этом разделе, чтобы узнать о нас больше.'
         };
+
+        const STATIC_CATALOG_PRODUCTS = [
+            {
+                id: 'static_scafw',
+                sample_no: 'SCA Flawor Wheel',
+                in_catalogue: '1',
+                category: 'Информация',
+                price: '0',
+                image_url: '',
+                custom_desc: 'Открыть SCA Flavor Wheel',
+                external_url: 'https://locus.coffee/scafw'
+            }
+        ];
         
         const SCA_CSV_MAP = {
             // ФРУКТОВЫЕ (Fruity)
@@ -501,6 +514,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             if(cartBtn) {
                 cartBtn.href = `#order:${sampleName}_${currentWeight}g=${finalPrice}`;
             }
+        }
+
+        function openExternalProductUrl(product) {
+            const targetUrl = String(product?.externalUrl || '').trim();
+            if (!targetUrl) return false;
+            window.location.href = targetUrl;
+            return true;
         }
 
         function updateInfo(seg) {
@@ -1022,6 +1042,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 g.appendChild(path); g.appendChild(text);
                 g.addEventListener('click', () => {
                     if (Math.abs(velocity) > 0.5) return;
+                    if (seg.raw?.externalUrl) {
+                        openExternalProductUrl(seg.raw);
+                        return;
+                    }
                     svg.querySelectorAll('path').forEach(p => p.classList.remove('selected'));
                     path.classList.add('selected');
                     updateInfo(seg);
@@ -3806,6 +3830,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const product = (Array.isArray(ALL_PRODUCTS_CACHE) ? ALL_PRODUCTS_CACHE : []).find(item => String(item.id) === String(productId));
                 if (!product) {
                     alert('Лот не найден в каталоге.');
+                    return;
+                }
+
+                if (product.externalUrl) {
+                    openExternalProductUrl(product);
                     return;
                 }
 
@@ -8490,7 +8519,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     cat.children = [];
                 });
                 
-                catRes.data.forEach(r => {
+                const catalogItems = [...catRes.data, ...STATIC_CATALOG_PRODUCTS];
+
+                catalogItems.forEach(r => {
                     const sName = r.sample_no || r.sample;
                     
                     if (sName) {
@@ -8528,6 +8559,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             price: r.price || '0',
                             imageUrl: r.image_url || '',
                             customDesc: r.custom_desc || '',
+                            externalUrl: r.external_url || '',
                             rawGreenPrice: parseFloat(r.raw_green_price || extItem.raw_green_price || getE('Farm Gate Price')) || 0,
                             
                             // ДОБАВЛЕНО ПОЛЕ ИСТОРИИ ИЗ БАЗЫ
