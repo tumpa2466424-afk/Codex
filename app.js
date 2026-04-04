@@ -38,7 +38,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         const STATIC_CATALOG_PRODUCTS = [
             {
                 id: 'static_scafw',
-                sample_no: 'SCA Flawor Wheel',
+                sample_no: 'SCA Flavor Wheel',
                 in_catalogue: '1',
                 category: 'Информация',
                 price: '0',
