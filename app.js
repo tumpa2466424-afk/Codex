@@ -402,6 +402,235 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         let currentWeight = 250;
         let currentGrind = "Зерно";
 
+        const WHEEL_PICKER_OPTIONS = [
+            {
+                id: 'berry',
+                label: 'ЯГОДЫ',
+                summary: 'Ягодный профиль',
+                color: '#A7455D',
+                keywords: ['ягод', 'berry', 'berries', 'strawb', 'rasp', 'currant', 'blueber', 'cranber', 'вишн', 'череш', 'клубн', 'малин', 'смород', 'черник', 'ежев']
+            },
+            {
+                id: 'citrus',
+                label: 'ЦИТРУС',
+                summary: 'Цитрусовый профиль',
+                color: '#D98E2F',
+                keywords: ['цитрус', 'lemon', 'lime', 'orange', 'grapefruit', 'bergamot', 'апельс', 'лимон', 'лайм', 'грейпфрут', 'мандар', 'бергамот']
+            },
+            {
+                id: 'chocolate',
+                label: 'ШОКОЛАД',
+                summary: 'Шоколадно-ореховый профиль',
+                color: '#7B523A',
+                keywords: ['шоколад', 'какао', 'cocoa', 'choco', 'caramel', 'карамел', 'nut', 'nutty', 'орех', 'hazelnut', 'almond', 'фундук', 'миндал']
+            },
+            {
+                id: 'floral',
+                label: 'ЦВЕТЫ',
+                summary: 'Цветочный профиль',
+                color: '#CC628D',
+                keywords: ['цвет', 'floral', 'flower', 'jasmine', 'rose', 'tea', 'чай', 'жасмин', 'роза', 'ромаш', 'лаванд']
+            },
+            {
+                id: 'milk',
+                label: 'МОЛОКО',
+                summary: 'Лучше под молоко',
+                color: '#8E6A4E',
+                keywords: ['шоколад', 'какао', 'cocoa', 'орех', 'nut', 'карамел', 'caramel', 'ванил', 'vanilla', 'плотн', 'round']
+            },
+            {
+                id: 'filter',
+                label: 'ФИЛЬТР',
+                summary: 'Чище и ярче для фильтра',
+                color: '#4F7E79',
+                keywords: ['цитрус', 'ягод', 'цвет', 'tea', 'floral', 'berry', 'citrus', 'clean', 'delicate', 'filter', 'чай', 'чист', 'деликат']
+            }
+        ];
+
+        const wheelUIState = {
+            mode: 'catalog',
+            pickerTag: '',
+            highlightedLotIds: [],
+            dimmedLotIds: []
+        };
+
+        function getWheelProductKey(product) {
+            return String(product?.sample || product?.sample_no || product?.id || '').trim();
+        }
+
+        function normalizeWheelSearchText(value) {
+            return String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+        }
+
+        function getWheelPickerOption(optionId) {
+            return WHEEL_PICKER_OPTIONS.find(option => option.id === optionId) || null;
+        }
+
+        function getWheelPickerProductText(product) {
+            return normalizeWheelSearchText([
+                product?.sample,
+                product?.category,
+                product?.flavorDesc,
+                product?.flavorNotes,
+                product?.mainFlavors,
+                product?.aromaDesc,
+                product?.aromaNotes,
+                product?.acidNotes,
+                product?.sweetNotes,
+                product?.bodyDesc,
+                product?.bodyNotes,
+                product?.processType,
+                product?.processDesc,
+                product?.country,
+                product?.region
+            ].filter(Boolean).join(' '));
+        }
+
+        function wheelTextContainsAny(text, keywords = []) {
+            return keywords.some(keyword => text.includes(String(keyword).toLowerCase()));
+        }
+
+        function isWheelPickerMatch(product, option) {
+            if (!product || !option) return false;
+
+            const lookupText = getWheelPickerProductText(product);
+            const category = normalizeWheelSearchText(product.category);
+            const roastLevel = parseFloat(product.roast) || 0;
+
+            if (option.id === 'milk') {
+                return category.includes('эспрессо') || roastLevel >= 10 || wheelTextContainsAny(lookupText, option.keywords);
+            }
+
+            if (option.id === 'filter') {
+                if (category.includes('фильтр')) return true;
+                if (category.includes('эспрессо') && roastLevel >= 10) return false;
+                return roastLevel > 0
+                    ? roastLevel <= 10 || wheelTextContainsAny(lookupText, option.keywords)
+                    : wheelTextContainsAny(lookupText, option.keywords);
+            }
+
+            return wheelTextContainsAny(lookupText, option.keywords);
+        }
+
+        function getWheelVisibleProducts() {
+            return SHOP_DATA.flatMap(cat => (cat.children || []).map(child => child.raw)).filter(Boolean);
+        }
+
+        function applyWheelPickerState(optionId = '') {
+            const option = getWheelPickerOption(optionId);
+            wheelUIState.mode = 'picker';
+            wheelUIState.pickerTag = option ? option.id : '';
+            wheelUIState.highlightedLotIds = [];
+            wheelUIState.dimmedLotIds = [];
+
+            if (option) {
+                getWheelVisibleProducts().forEach(product => {
+                    const productKey = getWheelProductKey(product);
+                    if (!productKey) return;
+                    if (isWheelPickerMatch(product, option)) wheelUIState.highlightedLotIds.push(productKey);
+                    else wheelUIState.dimmedLotIds.push(productKey);
+                });
+            }
+
+            renderWheel();
+        }
+
+        function setWheelCatalogMode() {
+            wheelUIState.mode = 'catalog';
+            wheelUIState.pickerTag = '';
+            wheelUIState.highlightedLotIds = [];
+            wheelUIState.dimmedLotIds = [];
+            renderWheel();
+        }
+
+        function syncWheelModeHub() {
+            const hub = document.getElementById('wheel-mode-hub');
+            if (!hub) return;
+
+            const pickerBtn = hub.querySelector('[data-wheel-action="picker"]');
+            const catalogBtn = hub.querySelector('[data-wheel-action="catalog"]');
+            const titleEl = hub.querySelector('.wheel-mode-hub-title');
+            const statusEl = hub.querySelector('.wheel-mode-hub-status');
+            const disabled = !!window.fortuneMode;
+            const activePicker = getWheelPickerOption(wheelUIState.pickerTag);
+            const matchesCount = wheelUIState.highlightedLotIds.length;
+
+            hub.classList.toggle('is-picker-open', wheelUIState.mode === 'picker');
+            hub.classList.toggle('is-disabled', disabled);
+            if (pickerBtn) pickerBtn.classList.toggle('active', wheelUIState.mode === 'picker');
+            if (catalogBtn) catalogBtn.classList.toggle('active', wheelUIState.mode === 'catalog');
+            if (pickerBtn) pickerBtn.disabled = disabled;
+            if (catalogBtn) catalogBtn.disabled = disabled;
+
+            if (titleEl) {
+                titleEl.textContent = disabled
+                    ? 'Колесо удачи'
+                    : (wheelUIState.mode === 'picker' ? 'Подобрать вкус' : 'Режим колеса');
+            }
+
+            if (statusEl) {
+                if (disabled) {
+                    statusEl.textContent = 'Игровой режим активен. Сначала докрутите колесо удачи.';
+                } else if (wheelUIState.mode !== 'picker') {
+                    statusEl.textContent = 'Каталог работает как обычно. Подбор только подсвечивает лоты.';
+                } else if (!activePicker) {
+                    statusEl.textContent = 'Выберите сектор на внутреннем кольце и колесо подсветит подходящие лоты.';
+                } else {
+                    statusEl.textContent = `${activePicker.summary}. Совпадений: ${matchesCount}.`;
+                }
+            }
+        }
+
+        function initWheelModeHub() {
+            const wheelZone = document.getElementById('wheel-zone');
+            if (!wheelZone) return;
+
+            let hub = document.getElementById('wheel-mode-hub');
+            if (!hub) {
+                hub = document.createElement('div');
+                hub.id = 'wheel-mode-hub';
+                hub.className = 'wheel-mode-hub';
+                hub.innerHTML = `
+                    <div class="wheel-mode-hub-card">
+                        <div class="wheel-mode-hub-kicker">LOCI / FLAVOR WHEEL</div>
+                        <div class="wheel-mode-hub-title"></div>
+                        <div class="wheel-mode-hub-actions">
+                            <button type="button" class="wheel-mode-btn active" data-wheel-action="catalog">Каталог</button>
+                            <button type="button" class="wheel-mode-btn" data-wheel-action="picker">Подобрать</button>
+                        </div>
+                        <div class="wheel-mode-hub-status"></div>
+                    </div>
+                `;
+                hub.addEventListener('mousedown', event => event.stopPropagation());
+                hub.addEventListener('touchstart', event => event.stopPropagation(), { passive: true });
+
+                hub.querySelector('[data-wheel-action="catalog"]')?.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (window.fortuneMode) return;
+                    setWheelCatalogMode();
+                });
+
+                hub.querySelector('[data-wheel-action="picker"]')?.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (window.fortuneMode) return;
+                    if (wheelUIState.mode === 'picker') setWheelCatalogMode();
+                    else applyWheelPickerState(wheelUIState.pickerTag);
+                });
+
+                wheelZone.appendChild(hub);
+            }
+
+            syncWheelModeHub();
+        }
+
+        window.WheelOverlaySystem = {
+            setCatalogMode: setWheelCatalogMode,
+            setPickerMode: applyWheelPickerState,
+            syncHub: syncWheelModeHub
+        };
+
         function getAngle(clientX, clientY) {
             if (!zone) return 0;
             const rect = zone.getBoundingClientRect();
@@ -451,10 +680,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             pInfo.classList.remove('active');
             setTimeout(() => { pInfo.style.display = 'none'; dMsg.style.display = 'block'; setTimeout(() => dMsg.classList.add('active'), 50); }, 250);
             currentActiveProduct = null;
+            wheelUIState.mode = 'catalog';
+            wheelUIState.pickerTag = '';
+            wheelUIState.highlightedLotIds = [];
+            wheelUIState.dimmedLotIds = [];
             // ОЧИЩАЕМ АДРЕСНУЮ СТРОКУ ОТ ССЫЛКИ НА ЛОТ
             const url = new URL(window.location);
             url.searchParams.delete('lot');
             window.history.replaceState({}, '', url);
+            renderWheel();
         };
 
         function updatePriceDisplay() {
@@ -981,6 +1215,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             const svg = document.createElementNS(svgNS, "svg");
             svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
             spin.appendChild(svg);
+            const selectedLotKey = getWheelProductKey(currentActiveProduct);
+            const highlightedLots = new Set(wheelUIState.highlightedLotIds);
+            const dimmedLots = new Set(wheelUIState.dimmedLotIds);
 
             const polarToCartesian = (cX, cY, r, a) => {
                 const rad = (a - 90) * Math.PI / 180.0;
@@ -1014,6 +1251,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             segments.forEach(seg => {
                 const { in: iR, out: oR } = radii[seg.depth];
                 const g = document.createElementNS(svgNS, "g");
+                let textClassName = '';
                 
                 // БЕЗОПАСНАЯ ПРИВЯЗКА: Добавляем метку только для лотов
                 if (seg.raw && seg.raw.sample) {
@@ -1025,6 +1263,27 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 path.setAttribute("fill", seg.color);
                 path.setAttribute("stroke", "var(--locus-bg)"); 
                 path.setAttribute("stroke-width", "1.5");
+
+                if (seg.depth === 0 && wheelUIState.mode === 'picker') {
+                    path.classList.add('wheel-category-muted');
+                    textClassName = 'wheel-segment-text-muted';
+                }
+
+                if (seg.depth === 1) {
+                    const lotKey = getWheelProductKey(seg.raw);
+
+                    if (wheelUIState.mode === 'picker' && wheelUIState.pickerTag) {
+                        if (highlightedLots.has(lotKey)) {
+                            path.classList.add('wheel-lot-highlighted');
+                            textClassName = 'wheel-segment-text-highlighted';
+                        } else if (dimmedLots.has(lotKey)) {
+                            path.classList.add('wheel-lot-dimmed');
+                            textClassName = 'wheel-segment-text-dimmed';
+                        }
+                    }
+
+                    if (selectedLotKey && lotKey === selectedLotKey) path.classList.add('selected');
+                }
                 
                 const mid = (seg.start + seg.end) / 2;
                 const textPos = polarToCartesian(cx, cy, iR + (oR - iR)/2, mid);
@@ -1032,6 +1291,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 text.setAttribute("x", textPos.x); text.setAttribute("y", textPos.y);
                 text.setAttribute("text-anchor", "middle");
                 text.setAttribute("transform", `rotate(${mid - 90}, ${textPos.x}, ${textPos.y})`);
+                if (textClassName) text.setAttribute("class", textClassName);
                 
                 seg.label.split('\n').forEach((l, i) => {
                     const tspan = document.createElementNS(svgNS, "tspan");
@@ -1064,6 +1324,49 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 svg.appendChild(g);
             });
 
+            if (wheelUIState.mode === 'picker') {
+                const pickerInnerRadius = 92;
+                const pickerOuterRadius = 148;
+                const optionAngle = 360 / WHEEL_PICKER_OPTIONS.length;
+
+                WHEEL_PICKER_OPTIONS.forEach((option, index) => {
+                    const start = index * optionAngle;
+                    const end = start + optionAngle;
+                    const mid = (start + end) / 2;
+                    const group = document.createElementNS(svgNS, "g");
+                    const path = document.createElementNS(svgNS, "path");
+                    const textPos = polarToCartesian(cx, cy, pickerInnerRadius + ((pickerOuterRadius - pickerInnerRadius) / 2), mid);
+                    const label = document.createElementNS(svgNS, "text");
+                    const isActive = wheelUIState.pickerTag === option.id;
+
+                    path.setAttribute("d", describeArc(cx, cy, pickerInnerRadius, pickerOuterRadius, start, end));
+                    path.setAttribute("fill", option.color);
+                    path.setAttribute("fill-opacity", isActive ? "0.88" : "0.28");
+                    path.setAttribute("stroke", isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.35)");
+                    path.setAttribute("stroke-width", isActive ? "2.6" : "1");
+                    path.setAttribute("class", "wheel-picker-path");
+
+                    label.setAttribute("x", textPos.x);
+                    label.setAttribute("y", textPos.y);
+                    label.setAttribute("text-anchor", "middle");
+                    label.setAttribute("transform", `rotate(${mid - 90}, ${textPos.x}, ${textPos.y})`);
+                    label.setAttribute("class", isActive ? "wheel-picker-text wheel-picker-text-active" : "wheel-picker-text");
+                    label.textContent = option.label;
+
+                    group.addEventListener('click', event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (Math.abs(velocity) > 0.5 || window.fortuneMode) return;
+                        if (wheelUIState.pickerTag === option.id) applyWheelPickerState('');
+                        else applyWheelPickerState(option.id);
+                    });
+
+                    group.appendChild(path);
+                    group.appendChild(label);
+                    svg.appendChild(group);
+                });
+            }
+
             const center = document.createElementNS(svgNS, "circle");
             center.setAttribute("cx", cx); center.setAttribute("cy", cy); center.setAttribute("r", 78);
             center.setAttribute("fill", "var(--locus-bg)");
@@ -1080,6 +1383,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             spin.style.opacity = "1";
             const loader = document.getElementById('loading-overlay');
             if (loader) loader.style.display = "none";
+            initWheelModeHub();
         }
 
         function animate() {
@@ -2970,16 +3274,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             accept: function() {
                 const offer = document.getElementById('fortune-offer');
                 if(offer) offer.remove();
+                if (window.WheelOverlaySystem) window.WheelOverlaySystem.setCatalogMode();
                 this.activateTriangle();
                 window.fortuneMode = true;
                 window.wheelSpun = false;
                 window.fortuneMaxVelocity = 0;
+                if (window.WheelOverlaySystem) window.WheelOverlaySystem.syncHub();
                 alert('Крутите колесо как можно сильнее! Сектор, который остановится у золотого треугольника, получит скидку 10%.');
             },
             decline: function() {
                 const offer = document.getElementById('fortune-offer');
                 if(offer) offer.remove();
                 localStorage.setItem('locus_fortune_date', new Date().toDateString());
+                if (window.WheelOverlaySystem) window.WheelOverlaySystem.syncHub();
             },
             activateTriangle: function() {
                 const zone = document.getElementById('wheel-zone');
@@ -3052,6 +3359,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     window.fortuneLocked = false; // Снимаем блокировку
                     const pointer = document.getElementById('fortune-pointer');
                     if(pointer) pointer.remove();
+                    if (window.WheelOverlaySystem) window.WheelOverlaySystem.syncHub();
                     
                     if (window.UserSystem) window.UserSystem.updateCartTotals();
                 }
