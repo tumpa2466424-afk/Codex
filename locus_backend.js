@@ -80,6 +80,45 @@ async function sendTransactionalMail(mailOptions) {
     }
 }
 
+function escapeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+async function sendAdminInboxCopyEmail({ userEmail, userId, subject, text, timestamp }) {
+    const safeUserEmail = escapeHtml(userEmail || 'Не указан');
+    const safeUserId = escapeHtml(userId || 'Не указан');
+    const safeSubject = escapeHtml(subject || 'Без темы');
+    const safeText = escapeHtml(text || '').replace(/\r?\n/g, '<br>');
+    const safeTimestamp = escapeHtml(timestamp || new Date().toISOString());
+
+    return sendTransactionalMail({
+        from: '"Locus Coffee" <info@locus.coffee>',
+        to: 'info@locus.coffee',
+        subject: `Новое сообщение в админку: ${subject || 'Без темы'}`,
+        html: `<div style="font-family: Inter, Arial, sans-serif; color: #333; max-width: 640px; margin: 0 auto; border: 1px solid #E5E1D8; border-radius: 10px; overflow: hidden;">
+                <div style="background: #693a05; padding: 18px 20px; color: #fff;">
+                    <h2 style="margin: 0; font-size: 18px; letter-spacing: 0.04em;">Новое сообщение в админку</h2>
+                </div>
+                <div style="padding: 20px; background: #F4F1EA;">
+                    <div style="background: #fff; border-radius: 8px; padding: 16px; line-height: 1.55;">
+                        <p style="margin: 0 0 10px 0;"><b>Отправитель:</b> ${safeUserEmail}</p>
+                        <p style="margin: 0 0 10px 0;"><b>User ID:</b> ${safeUserId}</p>
+                        <p style="margin: 0 0 10px 0;"><b>Тема:</b> ${safeSubject}</p>
+                        <p style="margin: 0 0 16px 0;"><b>Отправлено:</b> ${safeTimestamp}</p>
+                        <div style="padding: 14px; background: #F9F7F2; border-radius: 8px; white-space: normal;">
+                            ${safeText || '<i>Пустое сообщение</i>'}
+                        </div>
+                    </div>
+                </div>
+            </div>`
+    });
+}
+
 function buildPasswordResetUrl(token) {
     const url = new URL(PUBLIC_WEB_URL);
     url.searchParams.set('view', 'reset-password');
@@ -383,6 +422,7 @@ const RETRYABLE_SESSION_ACTIONS = new Set([
     'getActions',
     'getActiveActions',
     'getAdminMessages',
+    'markAdminMessagesRead',
     'getUserMessages',
     'getAdminSubs',
     'getPricingSettings',
@@ -1578,6 +1618,31 @@ module.exports.handler = async function (event, context) {
                 responseData = { success: true, messages: msgs };
             }
             
+            else if (action === 'markAdminMessagesRead') {
+                const decoded = verifyToken(rawToken);
+                if (decoded.email !== 'info@locus.coffee') throw new Error('Р”РѕСЃС‚СѓРї Р·Р°РїСЂРµС‰РµРЅ');
+
+                const qFindUnread = `SELECT id, direction, isRead, deletedByAdmin FROM messages;`;
+                const { resultSets } = await session.executeQuery(qFindUnread);
+                const unreadIds = [];
+
+                if (resultSets[0] && resultSets[0].rows.length > 0) {
+                    resultSets[0].rows.forEach(row => {
+                        const message = rowToObj(resultSets[0].columns, row);
+                        if (message.direction === 'to_admin' && message.deletedbyadmin !== true && message.isread !== true) {
+                            unreadIds.push(String(message.id));
+                        }
+                    });
+                }
+
+                for (const messageId of unreadIds) {
+                    const qMarkRead = `DECLARE $id AS Utf8; UPDATE messages SET isRead = true WHERE id = $id;`;
+                    await session.executeQuery(qMarkRead, { '$id': TypedValues.utf8(messageId) });
+                }
+
+                responseData = { success: true, updatedCount: unreadIds.length };
+            }
+            
             else if (action === 'getUserMessages') {
                 const decoded = verifyToken(rawToken);
                 const query = `DECLARE $userId AS Utf8; SELECT * FROM messages WHERE userId = $userId;`;
@@ -1606,6 +1671,9 @@ module.exports.handler = async function (event, context) {
                 
                 const finalUserId = direction === 'to_admin' ? decoded.userId : targetUserId;
                 const finalEmail = direction === 'to_admin' ? (decoded.email || userEmail) : '';
+                const normalizedSubject = String(subject || 'Без темы');
+                const normalizedText = String(text || '');
+                const messageTimestamp = new Date().toISOString();
 
                 const query = `
                     DECLARE $id AS Utf8; DECLARE $userId AS Utf8; DECLARE $userEmail AS Utf8;
@@ -1623,6 +1691,16 @@ module.exports.handler = async function (event, context) {
                     '$timestamp': TypedValues.utf8(new Date().toISOString()), '$isRead': TypedValues.bool(false),
                     '$deletedByAdmin': TypedValues.bool(false), '$deletedByUser': TypedValues.bool(false)
                 });
+                if (direction === 'to_admin') {
+                    const mailSent = await sendAdminInboxCopyEmail({
+                        userEmail: finalEmail,
+                        userId: finalUserId,
+                        subject: normalizedSubject,
+                        text: normalizedText,
+                        timestamp: messageTimestamp
+                    });
+                    if (!mailSent) console.error('Не удалось отправить почтовую копию нового сообщения администратору');
+                }
                 responseData = { success: true };
             }
             
