@@ -14,7 +14,7 @@
     --locus-success: #7A8F7C;
     --locus-countdown: #9C7A74;
     --locus-font: 'Inter', system-ui, -apple-system, sans-serif;
-    --locus-sticker-font: 'Cormorant Garamond', 'Times New Roman', serif;
+    --locus-sticker-font: 'Inter', Arial, sans-serif;
 }
 
 /* 1. БРОНЯ ШРИФТОВ (Перебиваем любые настройки браузера и платформы для всех элементов) */
