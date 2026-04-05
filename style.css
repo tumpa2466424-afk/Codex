@@ -1643,3 +1643,34 @@
     font-weight: 400 !important;
     letter-spacing: 0.35px;
 }
+
+/* Задник: верхняя строка стартует на 3 мм ниже верхнего края,
+   нижняя строка держится на 3 мм выше нижнего края,
+   а весь остальной контент ужимается между ними. */
+.locus-back-sticker-canvas {
+    padding-top: 3mm !important;
+    padding-bottom: 3mm !important;
+}
+
+.sb-top {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+.sb-grid,
+.sb-aroma-copy {
+    margin-top: auto !important;
+    margin-bottom: auto !important;
+}
+
+.sb-info {
+    flex: 0 0 auto;
+    min-height: auto;
+    margin-bottom: 0 !important;
+}
+
+.sb-footer {
+    margin-top: 2mm !important;
+    padding-top: 0;
+    margin-bottom: 0 !important;
+}
