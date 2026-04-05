@@ -1497,6 +1497,115 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             }
         };
         window.MessageSystem = MessageSystem;
+        MessageSystem.sendMessageToAdmin = async function(text, subject = '\u0421\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435 \u0441 \u0441\u0430\u0439\u0442\u0430') {
+            if (!UserSystem.uid) return alert('\u041d\u0443\u0436\u043d\u043e \u0432\u043e\u0439\u0442\u0438');
+            const token = localStorage.getItem('locus_token');
+            try {
+                const res = await fetch(LOCUS_API_URL + '?action=sendMessage', {
+                    method: 'POST',
+                    headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'sendMessage', direction: 'to_admin', subject, text, userEmail: UserSystem.currentUser.email })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || '\u041e\u0448\u0438\u0431\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043a\u0438');
+                alert('\u0421\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043e!');
+                this.loadMessagesForUser();
+            } catch (e) {
+                console.error(e);
+                alert('\u041e\u0448\u0438\u0431\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043a\u0438');
+            }
+        };
+        MessageSystem.replyToUser = async function(userId, subject, text) {
+            const token = localStorage.getItem('locus_token');
+            try {
+                const res = await fetch(LOCUS_API_URL + '?action=sendMessage', {
+                    method: 'POST',
+                    headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'sendMessage', direction: 'to_user', targetUserId: userId, subject: 'Re: ' + subject, text })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || '\u041e\u0448\u0438\u0431\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043a\u0438');
+                alert('\u041e\u0442\u0432\u0435\u0442 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d');
+                this.loadMessagesForAdmin({ markAsRead: this.isAdminMessagesTabActive() });
+            } catch (e) {
+                console.error(e);
+            }
+        };
+        MessageSystem.deleteMessage = async function(msgId, side) {
+            if (!confirm('\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u0435\u0440\u0435\u043f\u0438\u0441\u043a\u0443 \u0438\u0437 \u0432\u0430\u0448\u0435\u0433\u043e \u0441\u043f\u0438\u0441\u043a\u0430?')) return;
+            const token = localStorage.getItem('locus_token');
+            try {
+                await fetch(LOCUS_API_URL + '?action=deleteMessage', {
+                    method: 'POST',
+                    headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'deleteMessage', msgId, side })
+                });
+                if (side === 'admin') this.loadMessagesForAdmin({ markAsRead: this.isAdminMessagesTabActive() });
+                else this.loadMessagesForUser();
+            } catch (e) {
+                console.error(e);
+            }
+        };
+        MessageSystem.loadMessagesForAdmin = async function(options = {}) {
+            const {
+                renderList = true,
+                showLoading = renderList,
+                markAsRead = this.isAdminMessagesTabActive()
+            } = options;
+            const container = document.getElementById('admin-messages-list');
+            if (renderList && !container) return;
+            if (showLoading && container) container.innerHTML = '\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430...';
+            const token = localStorage.getItem('locus_token');
+            try {
+                const res = await fetch(LOCUS_API_URL + '?action=getAdminMessages', { headers: { 'X-Auth-Token': token } });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+                let msgs = Array.isArray(data.messages) ? data.messages : [];
+                msgs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                const unreadIncomingCount = msgs.filter(m => m.direction === 'to_admin' && m.isRead !== true).length;
+                this.updateAdminUnreadBadge(unreadIncomingCount);
+                if (markAsRead && unreadIncomingCount > 0) {
+                    const markSuccess = await this.markAdminMessagesRead();
+                    if (markSuccess) {
+                        msgs = msgs.map(m => m.direction === 'to_admin' ? { ...m, isRead: true } : m);
+                        this.updateAdminUnreadBadge(0);
+                    }
+                }
+                if (!renderList) return;
+                container.innerHTML = '';
+                if (msgs.length === 0) {
+                    container.innerHTML = '\u041d\u0435\u0442 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0439';
+                    return;
+                }
+                msgs.forEach(m => {
+                    const isToAdmin = m.direction === 'to_admin';
+                    const el = document.createElement('div');
+                    el.className = `msg-item${isToAdmin && m.isRead !== true ? ' is-unread' : ''}`;
+                    const replyFormId = `reply-form-${m.id}`;
+                    el.innerHTML = `
+                        <div class="msg-header">
+                            <span>${new Date(m.timestamp).toLocaleString()}</span>
+                            <span style="font-weight:bold; color:${isToAdmin ? '#B66A58' : 'gray'}">${isToAdmin ? '\u041e\u0442: ' + (m.userEmail || m.userId) : '\u0412\u044b \u043e\u0442\u0432\u0435\u0442\u0438\u043b\u0438'}</span>
+                        </div>
+                        <div class="msg-subject">${m.subject || '\u0411\u0435\u0437 \u0442\u0435\u043c\u044b'}</div>
+                        <div class="msg-body">${m.text}</div>
+                        <div style="display:flex; justify-content:space-between;">
+                            ${isToAdmin ? `<button class="lc-btn" style="width:auto; padding:5px 15px; font-size:10px;" onclick="document.getElementById('${replyFormId}').classList.toggle('active')">\u041e\u0442\u0432\u0435\u0442\u0438\u0442\u044c</button>` : '<div></div>'}
+                            <button onclick="MessageSystem.deleteMessage('${m.id}', 'admin')" style="color:#B66A58; border:none; background:none; cursor:pointer;">&times; \u0423\u0434\u0430\u043b\u0438\u0442\u044c</button>
+                        </div>
+                        <div id="${replyFormId}" class="msg-reply-area">
+                            <textarea id="reply-text-${m.id}" class="lc-input" placeholder="\u0422\u0435\u043a\u0441\u0442 \u043e\u0442\u0432\u0435\u0442\u0430..." style="height:60px;"></textarea>
+                            <button class="lc-btn" onclick="MessageSystem.submitReply('${m.id}', '${m.userId}', '${m.subject}')">\u041e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c</button>
+                        </div>
+                    `;
+                    container.appendChild(el);
+                });
+            } catch (e) {
+                console.error(e);
+                if (renderList && container) container.innerHTML = '\u041e\u0448\u0438\u0431\u043a\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438';
+            }
+        };
+        window.MessageSystem = MessageSystem;
         // --- КОНЕЦ: СИСТЕМА СООБЩЕНИЙ YDB ---
 
         // --- PROMOTION SYSTEM (ACTIONS V2) ---
