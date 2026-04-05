@@ -1167,6 +1167,93 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 } catch(e) { console.error(e); alert('Ошибка отправки'); }
             },
             
+            adminPollingTimer: null,
+            adminPollingIntervalMs: 45000,
+
+            ensureAdminBadgeNode: function() {
+                let badge = document.getElementById('admin-messages-badge');
+                if (badge) return badge;
+
+                const messagesTabBtn = Array.from(document.querySelectorAll('.admin-tab'))
+                    .find(btn => (btn.getAttribute('onclick') || '').includes(`'messages'`));
+                if (!messagesTabBtn) return null;
+
+                badge = document.createElement('span');
+                badge.id = 'admin-messages-badge';
+                badge.className = 'admin-tab-badge';
+                messagesTabBtn.appendChild(badge);
+                return badge;
+            },
+
+            updateAdminUnreadBadge: function(count) {
+                const badge = this.ensureAdminBadgeNode();
+                if (!badge) return;
+
+                const normalizedCount = Math.max(0, Number(count) || 0);
+                if (!normalizedCount) {
+                    badge.textContent = '';
+                    badge.classList.remove('show');
+                    return;
+                }
+
+                badge.textContent = normalizedCount > 99 ? '99+' : String(normalizedCount);
+                badge.classList.add('show');
+            },
+
+            isAdminViewOpen: function() {
+                return !!(
+                    document.getElementById('lc-modal')?.classList.contains('active') &&
+                    document.getElementById('view-admin')?.classList.contains('show-view')
+                );
+            },
+
+            isAdminMessagesTabActive: function() {
+                return !!document.getElementById('admin-sec-messages')?.classList.contains('active');
+            },
+
+            startAdminPolling: function() {
+                if (!UserSystem.currentUser || UserSystem.currentUser.email !== 'info@locus.coffee') return;
+
+                this.stopAdminPolling();
+                this.loadMessagesForAdmin({
+                    renderList: this.isAdminMessagesTabActive(),
+                    showLoading: this.isAdminMessagesTabActive(),
+                    markAsRead: this.isAdminMessagesTabActive()
+                });
+                this.adminPollingTimer = setInterval(() => {
+                    if (!this.isAdminViewOpen()) {
+                        this.stopAdminPolling();
+                        return;
+                    }
+                    const shouldRender = this.isAdminMessagesTabActive();
+                    this.loadMessagesForAdmin({ renderList: shouldRender, showLoading: false, markAsRead: shouldRender });
+                }, this.adminPollingIntervalMs);
+            },
+
+            stopAdminPolling: function() {
+                if (this.adminPollingTimer) {
+                    clearInterval(this.adminPollingTimer);
+                    this.adminPollingTimer = null;
+                }
+            },
+
+            markAdminMessagesRead: async function() {
+                const token = localStorage.getItem('locus_token');
+                if (!token) return false;
+                try {
+                    const res = await fetch(LOCUS_API_URL + '?action=markAdminMessagesRead', {
+                        method: 'POST',
+                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'markAdminMessagesRead' })
+                    });
+                    const data = await res.json();
+                    return !!data.success;
+                } catch(e) {
+                    console.error(e);
+                    return false;
+                }
+            },
+
             submitUserReply: async function(msgId, subject) {
                 const txt = document.getElementById(`user-reply-text-${msgId}`).value;
                 if(!txt) return;
@@ -1292,6 +1379,121 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         container.appendChild(el);
                     });
                 } catch(e) { console.error(e); container.innerHTML = '<div style="color:red; font-size:10px;">Ошибка загрузки</div>'; }
+            }
+        };
+        MessageSystem.sendMessageToAdmin = async function(text, subject = 'РЎРѕРѕР±С‰РµРЅРёРµ СЃ СЃР°Р№С‚Р°') {
+            if(!UserSystem.uid) return alert('РќСѓР¶РЅРѕ РІРѕР№С‚Рё');
+            const token = localStorage.getItem('locus_token');
+            try {
+                const res = await fetch(LOCUS_API_URL + '?action=sendMessage', {
+                    method: 'POST',
+                    headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'sendMessage', direction: 'to_admin', subject: subject, text: text, userEmail: UserSystem.currentUser.email })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'РћС€РёР±РєР° РѕС‚РїСЂР°РІРєРё');
+                alert('РЎРѕРѕР±С‰РµРЅРёРµ РѕС‚РїСЂР°РІР»РµРЅРѕ!');
+                this.loadMessagesForUser();
+            } catch(e) {
+                console.error(e);
+                alert('РћС€РёР±РєР° РѕС‚РїСЂР°РІРєРё');
+            }
+        };
+        MessageSystem.replyToUser = async function(userId, subject, text) {
+            const token = localStorage.getItem('locus_token');
+            try {
+                const res = await fetch(LOCUS_API_URL + '?action=sendMessage', {
+                    method: 'POST',
+                    headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'sendMessage', direction: 'to_user', targetUserId: userId, subject: 'Re: ' + subject, text: text })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'РћС€РёР±РєР° РѕС‚РїСЂР°РІРєРё');
+                alert('РћС‚РІРµС‚ РѕС‚РїСЂР°РІР»РµРЅ');
+                this.loadMessagesForAdmin({ markAsRead: this.isAdminMessagesTabActive() });
+            } catch(e) {
+                console.error(e);
+            }
+        };
+        MessageSystem.deleteMessage = async function(msgId, side) {
+            if(!confirm('РЈРґР°Р»РёС‚СЊ РїРµСЂРµРїРёСЃРєСѓ РёР· РІР°С€РµРіРѕ СЃРїРёСЃРєР°?')) return;
+            const token = localStorage.getItem('locus_token');
+            try {
+                await fetch(LOCUS_API_URL + '?action=deleteMessage', {
+                    method: 'POST',
+                    headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'deleteMessage', msgId: msgId, side: side })
+                });
+                if (side === 'admin') this.loadMessagesForAdmin({ markAsRead: this.isAdminMessagesTabActive() });
+                else this.loadMessagesForUser();
+            } catch(e) {
+                console.error(e);
+            }
+        };
+        MessageSystem.loadMessagesForAdmin = async function(options = {}) {
+            const {
+                renderList = true,
+                showLoading = renderList,
+                markAsRead = this.isAdminMessagesTabActive()
+            } = options;
+            const container = document.getElementById('admin-messages-list');
+            if(renderList && !container) return;
+            if(showLoading && container) container.innerHTML = 'Р—Р°РіСЂСѓР·РєР°...';
+            const token = localStorage.getItem('locus_token');
+            try {
+                const res = await fetch(LOCUS_API_URL + '?action=getAdminMessages', { headers: { 'X-Auth-Token': token } });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+
+                let msgs = Array.isArray(data.messages) ? data.messages : [];
+                msgs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                const unreadIncomingCount = msgs.filter(m => m.direction === 'to_admin' && m.isRead !== true).length;
+                this.updateAdminUnreadBadge(unreadIncomingCount);
+
+                if (markAsRead && unreadIncomingCount > 0) {
+                    const markSuccess = await this.markAdminMessagesRead();
+                    if (markSuccess) {
+                        msgs = msgs.map(m => m.direction === 'to_admin' ? { ...m, isRead: true } : m);
+                        this.updateAdminUnreadBadge(0);
+                    }
+                }
+
+                if (!renderList) return;
+
+                container.innerHTML = '';
+                if(msgs.length === 0) {
+                    container.innerHTML = 'РќРµС‚ СЃРѕРѕР±С‰РµРЅРёР№';
+                    return;
+                }
+
+                msgs.forEach(m => {
+                    const isToAdmin = m.direction === 'to_admin';
+                    const el = document.createElement('div');
+                    el.className = `msg-item${isToAdmin && m.isRead !== true ? ' is-unread' : ''}`;
+                    const replyFormId = `reply-form-${m.id}`;
+
+                    el.innerHTML = `
+                        <div class="msg-header">
+                            <span>${new Date(m.timestamp).toLocaleString()}</span>
+                            <span style="font-weight:bold; color:${isToAdmin ? '#B66A58' : 'gray'}">${isToAdmin ? 'РћС‚: ' + (m.userEmail || m.userId) : 'Р’С‹ РѕС‚РІРµС‚РёР»Рё'}</span>
+                        </div>
+                        <div class="msg-subject">${m.subject || 'Р‘РµР· С‚РµРјС‹'}</div>
+                        <div class="msg-body">${m.text}</div>
+                        <div style="display:flex; justify-content:space-between;">
+                            ${isToAdmin ? `<button class="lc-btn" style="width:auto; padding:5px 15px; font-size:10px;" onclick="document.getElementById('${replyFormId}').classList.toggle('active')">РћС‚РІРµС‚РёС‚СЊ</button>` : '<div></div>'}
+                            <button onclick="MessageSystem.deleteMessage('${m.id}', 'admin')" style="color:#B66A58; border:none; background:none; cursor:pointer;">&times; РЈРґР°Р»РёС‚СЊ</button>
+                        </div>
+                        <div id="${replyFormId}" class="msg-reply-area">
+                            <textarea id="reply-text-${m.id}" class="lc-input" placeholder="РўРµРєСЃС‚ РѕС‚РІРµС‚Р°..." style="height:60px;"></textarea>
+                            <button class="lc-btn" onclick="MessageSystem.submitReply('${m.id}', '${m.userId}', '${m.subject}')">РћС‚РїСЂР°РІРёС‚СЊ</button>
+                        </div>
+                    `;
+                    container.appendChild(el);
+                });
+            } catch(e) {
+                console.error(e);
+                if (renderList && container) container.innerHTML = 'РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё';
             }
         };
         window.MessageSystem = MessageSystem;
@@ -6487,7 +6689,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         this.loadPromos(); 
                         
                         PromotionSystem.loadActionsList();
-                        MessageSystem.loadMessagesForAdmin();
+                        MessageSystem.startAdminPolling();
                     }
                     else if(initialView === 'wholesale') { 
                         m.classList.add('wide'); 
@@ -6513,6 +6715,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 } else { 
                     document.body.style.overflow = '';
                     m.classList.remove('active'); 
+                    MessageSystem.stopAdminPolling();
                     
                     // ДОБАВЛЕНО: Очищаем параметр view при закрытии окна, чтобы вернуть чистый URL
                     url.searchParams.delete('view');
@@ -6556,6 +6759,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     }
                 }
                 const view = document.getElementById(`view-${viewName}`); if(view) view.classList.add('show-view');
+                if (viewName !== 'admin') MessageSystem.stopAdminPolling();
             },
             
             toggleSection: function(secName) {
@@ -6587,7 +6791,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (tabName === 'subs') this.loadActiveSubs();
                 if (tabName === 'users') this.loadUsers();
                 if (tabName === 'actions') PromotionSystem.loadActionsList();
-                if (tabName === 'messages') MessageSystem.loadMessagesForAdmin();
+                if (tabName === 'messages') MessageSystem.loadMessagesForAdmin({ markAsRead: true });
                 if (tabName === 'ws-orders') this.loadWholesaleOrders();
                 if (tabName === 'catalog') CatalogSystem.loadData();
                 if (tabName === 'orders') this.loadRetailOrders();
