@@ -1648,8 +1648,8 @@
    нижняя строка держится на 3 мм выше нижнего края,
    а весь остальной контент ужимается между ними. */
 .locus-back-sticker-canvas {
-    padding-top: 3mm !important;
-    padding-bottom: 3mm !important;
+    padding-top: 2mm !important;
+    padding-bottom: 2mm !important;
 }
 
 .sb-top {
