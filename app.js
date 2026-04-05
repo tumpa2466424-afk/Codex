@@ -3360,6 +3360,71 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
             },
 
+            extractPrimaryFontFamily: function(fontFamily) {
+                const raw = String(fontFamily || '').trim();
+                if (!raw) return '';
+                const firstPart = raw.split(',')[0]?.trim() || '';
+                return firstPart.replace(/^['"]+|['"]+$/g, '').trim();
+            },
+
+            ensureStickerExportFontReady: async function(stickerEl) {
+                const computedFontFamily = window.getComputedStyle(stickerEl).fontFamily || '';
+                const primaryFont = this.extractPrimaryFontFamily(computedFontFamily);
+                if (document.fonts && typeof document.fonts.load === 'function' && primaryFont) {
+                    try {
+                        await Promise.all([
+                            document.fonts.load(`400 20px "${primaryFont}"`),
+                            document.fonts.load(`500 20px "${primaryFont}"`),
+                            document.fonts.load(`600 20px "${primaryFont}"`),
+                            document.fonts.load(`700 20px "${primaryFont}"`)
+                        ]);
+                    } catch (e) {}
+                }
+                return computedFontFamily;
+            },
+
+            lockStickerFontForRender: function(stickerEl, fontFamily) {
+                const computedFontFamily = String(fontFamily || window.getComputedStyle(stickerEl).fontFamily || '').trim();
+                if (!computedFontFamily) return () => {};
+
+                const nodes = [stickerEl, ...stickerEl.querySelectorAll('*')];
+                const previousState = nodes.map(node => ({
+                    node,
+                    fontFamily: node.style.getPropertyValue('font-family'),
+                    fontFamilyPriority: node.style.getPropertyPriority('font-family'),
+                    fontSynthesis: node.style.getPropertyValue('font-synthesis'),
+                    fontSynthesisPriority: node.style.getPropertyPriority('font-synthesis'),
+                    fontKerning: node.style.getPropertyValue('font-kerning'),
+                    fontKerningPriority: node.style.getPropertyPriority('font-kerning'),
+                    textRendering: node.style.getPropertyValue('text-rendering'),
+                    textRenderingPriority: node.style.getPropertyPriority('text-rendering')
+                }));
+
+                nodes.forEach(node => {
+                    node.style.setProperty('font-family', computedFontFamily, 'important');
+                    node.style.setProperty('font-synthesis', 'none', 'important');
+                    node.style.setProperty('font-kerning', 'normal', 'important');
+                    node.style.setProperty('text-rendering', 'geometricPrecision', 'important');
+                });
+
+                return () => {
+                    previousState.forEach(state => {
+                        if (!state?.node) return;
+                        if (state.fontFamily) state.node.style.setProperty('font-family', state.fontFamily, state.fontFamilyPriority || '');
+                        else state.node.style.removeProperty('font-family');
+
+                        if (state.fontSynthesis) state.node.style.setProperty('font-synthesis', state.fontSynthesis, state.fontSynthesisPriority || '');
+                        else state.node.style.removeProperty('font-synthesis');
+
+                        if (state.fontKerning) state.node.style.setProperty('font-kerning', state.fontKerning, state.fontKerningPriority || '');
+                        else state.node.style.removeProperty('font-kerning');
+
+                        if (state.textRendering) state.node.style.setProperty('text-rendering', state.textRendering, state.textRenderingPriority || '');
+                        else state.node.style.removeProperty('text-rendering');
+                    });
+                };
+            },
+
             getStickerSideFromElement: function(stickerEl) {
                 return stickerEl?.classList.contains('locus-back-sticker-canvas') ? 'back' : 'front';
             },
@@ -3467,6 +3532,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const exportConfig = this.getStickerExportConfig(side);
                 const targetWidthPx = this.mmToPrintPixels(exportConfig.width);
                 const originalBorderColor = stickerEl.style.borderColor;
+                const computedStickerFontFamily = await this.ensureStickerExportFontReady(stickerEl);
+                const unlockStickerFont = this.lockStickerFontForRender(stickerEl, computedStickerFontFamily);
                 stickerEl.style.borderColor = 'transparent';
 
                 try {
@@ -3486,6 +3553,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     return await this.setPngBlobDpi(pngBlob, this.STICKER_EXPORT_DPI);
                 } finally {
                     stickerEl.style.borderColor = originalBorderColor;
+                    unlockStickerFont();
                 }
             },
 
