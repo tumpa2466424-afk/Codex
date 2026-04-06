@@ -614,35 +614,97 @@ async function fetchUsdAnalytics(daysBack = 60) {
     const startDate = new Date(targetDate.getTime() - (10 * 24 * 60 * 60 * 1000));
     const requestUrl = `https://www.cbr.ru/scripts/XML_dynamic.asp?date_req1=${formatCbrRequestDate(startDate)}&date_req2=${formatCbrRequestDate(endDate)}&VAL_NM_RQ=${CBR_USD_VALUTE_ID}`;
 
-    const response = await fetch(requestUrl, {
-        headers: { 'Accept': 'application/xml, text/xml;q=0.9, */*;q=0.1' }
-    });
-    if (!response.ok) throw new Error(`Не удалось получить динамику USD от ЦБ (${response.status})`);
+    try {
+        const response = await fetch(requestUrl, {
+            headers: { 'Accept': 'application/xml, text/xml;q=0.9, */*;q=0.1' }
+        });
+        if (!response.ok) throw new Error(`Не удалось получить динамику USD от ЦБ (${response.status})`);
 
-    const xmlText = await response.text();
-    const records = parseCbrDynamicXml(xmlText);
-    if (!records.length) throw new Error('ЦБ не вернул данные по динамике USD');
+        const xmlText = await response.text();
+        const records = parseCbrDynamicXml(xmlText);
+        if (!records.length) throw new Error('ЦБ не вернул данные по динамике USD');
 
-    const currentRecord = records[records.length - 1];
-    const previousRecord = records.length > 1 ? records[records.length - 2] : currentRecord;
-    const historicalRecord = findHistoricalCbrRecord(records, targetDate) || currentRecord;
-    const daySpan = Math.round((currentRecord.date.getTime() - historicalRecord.date.getTime()) / (24 * 60 * 60 * 1000));
-    const trendPercent = historicalRecord.value
-        ? (((currentRecord.value - historicalRecord.value) / historicalRecord.value) * 100)
-        : 0;
+        const currentRecord = records[records.length - 1];
+        const previousRecord = records.length > 1 ? records[records.length - 2] : currentRecord;
+        const historicalRecord = findHistoricalCbrRecord(records, targetDate) || currentRecord;
+        const daySpan = Math.round((currentRecord.date.getTime() - historicalRecord.date.getTime()) / (24 * 60 * 60 * 1000));
+        const trendPercent = historicalRecord.value
+            ? (((currentRecord.value - historicalRecord.value) / historicalRecord.value) * 100)
+            : 0;
 
-    return {
-        currentRate: currentRecord.value,
-        currentDate: currentRecord.dateText,
-        previousRate: previousRecord.value,
-        previousDate: previousRecord.dateText,
-        historicalRate: historicalRecord.value,
-        historicalDate: historicalRecord.dateText,
-        historicalDaysBackActual: daySpan,
-        requestedDaysBack: normalizedDaysBack,
-        trendPercent,
-        source: 'cbr.ru/XML_dynamic'
-    };
+        return {
+            currentRate: currentRecord.value,
+            currentDate: currentRecord.dateText,
+            previousRate: previousRecord.value,
+            previousDate: previousRecord.dateText,
+            historicalRate: historicalRecord.value,
+            historicalDate: historicalRecord.dateText,
+            historicalDaysBackActual: daySpan,
+            requestedDaysBack: normalizedDaysBack,
+            trendPercent,
+            source: 'cbr.ru/XML_dynamic'
+        };
+    } catch (primaryError) {
+        logDebug('Primary CBR API failed, trying fallback 1:', primaryError.message);
+        
+        try {
+            // Резервный источник 1: Зеркало ЦБ РФ
+            const fallbackResponse = await fetch('https://www.cbr-xml-daily.ru/daily_json.js');
+            if (!fallbackResponse.ok) throw new Error('Fallback API 1 failed');
+            const data = await fallbackResponse.json();
+            
+            const usdData = data.Valute.USD;
+            if (!usdData || !usdData.Value) throw new Error('No USD data in fallback API 1');
+            
+            const currentRate = usdData.Value;
+            const previousRate = usdData.Previous || currentRate;
+            const dateObj = new Date(data.Date);
+            const dateText = formatRuDisplayDate(dateObj);
+            
+            return {
+                currentRate: currentRate,
+                currentDate: dateText,
+                previousRate: previousRate,
+                previousDate: dateText,
+                historicalRate: previousRate, 
+                historicalDate: dateText,
+                historicalDaysBackActual: 1,
+                requestedDaysBack: normalizedDaysBack,
+                trendPercent: ((currentRate - previousRate) / previousRate) * 100,
+                source: 'cbr-xml-daily.ru (fallback)'
+            };
+        } catch (fallbackError) {
+            logDebug('Fallback API 1 failed, trying fallback 2:', fallbackError.message);
+            
+            try {
+                // Резервный источник 2: Международный открытый API
+                const fallback2Response = await fetch('https://open.er-api.com/v6/latest/USD');
+                if (!fallback2Response.ok) throw new Error('Fallback API 2 failed');
+                const data2 = await fallback2Response.json();
+                
+                if (!data2 || !data2.rates || !data2.rates.RUB) throw new Error('No RUB rate in fallback API 2');
+                
+                const currentRate = data2.rates.RUB;
+                const dateText = formatRuDisplayDate(new Date());
+                
+                return {
+                    currentRate: currentRate,
+                    currentDate: dateText,
+                    previousRate: currentRate,
+                    previousDate: dateText,
+                    historicalRate: currentRate,
+                    historicalDate: dateText,
+                    historicalDaysBackActual: 0,
+                    requestedDaysBack: normalizedDaysBack,
+                    trendPercent: 0,
+                    source: 'open.er-api.com (fallback 2)'
+                };
+            } catch (fallback2Error) {
+                logDebug('All fallback APIs failed:', fallback2Error.message);
+                throw new Error('Критическая ошибка: невозможно получить курс валют ни из одного источника.');
+            }
+        }
+    }
 }
 
 async function syncRetailHistoryStatus(session, userId, orderId, patch) {
