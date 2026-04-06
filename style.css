@@ -1471,7 +1471,7 @@
 /* Расчет: 18мм (низ фермы) + 5.5мм (высота фермы) + 4мм (зазор) = 27.5мм */
 .s-country {
     position: absolute;
-    bottom: 25mm; /* <-- Нижний край строки ровно в 25мм от низа наклейки */
+    bottom: 20mm; /* <-- Нижний край строки ровно в 25мм от низа наклейки */
     left: 0;
     right: 0;
     text-align: center;
@@ -1613,7 +1613,7 @@
 }
 
 .locus-sticker-canvas.sticker-front-single-line .s-country {
-    bottom: 25mm;
+    bottom: 20mm;
 }
 
 .s-farm {
