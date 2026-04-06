@@ -5040,33 +5040,70 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             fetchUSDRate: async function() {
+                let rateFetched = false;
                 try {
+                    // Попытка 1: Через наш бэкенд
                     const resp = await fetch(LOCUS_API_URL + '?action=getUsdAnalytics&daysBack=60');
                     const data = await resp.json();
-                    if (data && data.success) {
-                        this.usdRate = Number(data.currentRate) || 90;
+                    if (data && data.success && data.currentRate) {
+                        this.usdRate = Number(data.currentRate);
                         this.usdPrevRate = Number(data.previousRate) || this.usdRate;
                         this.usdHistRate = Number(data.historicalRate) || this.usdRate;
                         this.usdCurrentDate = data.currentDate || '';
                         this.usdHistoricalDate = data.historicalDate || '';
                         this.usdHistoricalDaysBackActual = Number(data.historicalDaysBackActual) || 0;
-                    } else {
-                        this.usdRate = 90;
-                        this.usdPrevRate = 90;
-                        this.usdHistRate = 90;
-                        this.usdCurrentDate = '';
-                        this.usdHistoricalDate = '';
-                        this.usdHistoricalDaysBackActual = 0;
+                        rateFetched = true;
                     }
                 } catch(e) {
-                    console.error('USD Fetch Error', e);
-                    this.usdRate = 90;
-                    this.usdPrevRate = 90;
-                    this.usdHistRate = 90;
-                    this.usdCurrentDate = '';
-                    this.usdHistoricalDate = '';
-                    this.usdHistoricalDaysBackActual = 0;
+                    console.error('Primary USD Fetch Error:', e);
                 }
+
+                if (!rateFetched) {
+                    try {
+                        // Попытка 2: Прямой запрос браузера в зеркало ЦБ
+                        const fallbackResp = await fetch('https://www.cbr-xml-daily.ru/daily_json.js');
+                        const fallbackData = await fallbackResp.json();
+                        if (fallbackData && fallbackData.Valute && fallbackData.Valute.USD) {
+                            this.usdRate = Number(fallbackData.Valute.USD.Value);
+                            this.usdPrevRate = Number(fallbackData.Valute.USD.Previous) || this.usdRate;
+                            this.usdHistRate = this.usdPrevRate; 
+                            this.usdCurrentDate = new Date().toLocaleDateString('ru-RU');
+                            this.usdHistoricalDate = this.usdCurrentDate;
+                            this.usdHistoricalDaysBackActual = 1;
+                            rateFetched = true;
+                        }
+                    } catch(fallbackErr) {
+                        console.error('Fallback 1 USD Fetch Error:', fallbackErr);
+                    }
+                }
+
+                if (!rateFetched) {
+                    try {
+                        // Попытка 3: Прямой запрос браузера в международный API
+                        const secondFallback = await fetch('https://open.er-api.com/v6/latest/USD');
+                        const secondData = await secondFallback.json();
+                        if (secondData && secondData.rates && secondData.rates.RUB) {
+                            this.usdRate = Number(secondData.rates.RUB);
+                            this.usdPrevRate = this.usdRate;
+                            this.usdHistRate = this.usdRate;
+                            this.usdCurrentDate = new Date().toLocaleDateString('ru-RU');
+                            this.usdHistoricalDate = this.usdCurrentDate;
+                            this.usdHistoricalDaysBackActual = 0;
+                            rateFetched = true;
+                        }
+                    } catch(e) {
+                        console.error('All USD fetches failed.');
+                    }
+                }
+
+                // Динамическое обновление цен в Опте, как только курс получен (если клиент уже зашел в Опт)
+                if (rateFetched) {
+                    if (document.getElementById('view-wholesale') && document.getElementById('view-wholesale').classList.contains('show-view')) {
+                        this.renderWholesaleTable();
+                    }
+                    if (typeof updatePriceDisplay === 'function') updatePriceDisplay();
+                }
+
                 if (document.getElementById('admin-sec-contracts')) {
                     this.updateContractAutoRisk(true);
                     if (document.getElementById('admin-sec-contracts').dataset.ready === '1') {
