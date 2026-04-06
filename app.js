@@ -5920,14 +5920,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 // Можешь менять коэффициент 1.8 на нужный тебе
                 const retailMargin = 1.8; 
 
-                // Математика (округляем до десятков)
-                const price1000 = Math.ceil((fullCost1kg * retailMargin) / 10) * 10;
-                
-                // Для 250г плюсуем стоимость розничной пачки (напр., 60 руб)
-                const cost250 = (fullCost1kg / 4) + 60;
-                const price250 = Math.ceil((cost250 * retailMargin) / 10) * 10;
+                // Сначала считаем цену за 250г (плюсуем стоимость розничной пачки, напр., 60 руб)
+            const cost250 = (fullCost1kg / 4) + 60;
+            const price250 = Math.ceil((cost250 * retailMargin) / 10) * 10;
 
-                return { p250: price250, p1000: price1000 };
+            // Цена за 1 кг на 10% дешевле, чем 4 пачки по 250г
+            const price1000 = Math.ceil((price250 * 4 * 0.90) / 10) * 10;
+            
+            return { p250: price250, p1000: price1000 };
             },
             // --- КОНЕЦ: РАСЧЕТ РОЗНИЧНЫХ ЦЕН ---
 
