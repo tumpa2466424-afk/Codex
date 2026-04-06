@@ -1348,8 +1348,10 @@
 .product-pack-farm,
 .product-pack-descriptors {
     position: absolute;
-    left: 0;
-    right: 0;
+    /* Расширяем контейнеры на 300%, чтобы длинные строки не упирались в край и не съезжали вправо */
+    left: -100%;
+    right: -100%;
+    text-align: center;
     font-family: inherit;
 }
 
@@ -1375,11 +1377,6 @@
 
 .product-pack-label-overlay.is-classic.is-single-line .product-pack-country {
     top: 65.8%;
-    left: 0;
-    right: 0;
-    width: auto;
-    transform: none;
-    text-align: center;
 }
 
 .product-pack-farm {
@@ -1412,8 +1409,6 @@
 
 .product-pack-descriptors {
     bottom: 6%;
-    left: 5%;
-    right: 5%;
     width: auto;
     max-width: none;
     transform: none;
@@ -1422,7 +1417,6 @@
     line-height: 1.18;
     letter-spacing: 0.035em;
     white-space: nowrap;
-    text-align: center;
 }
 
 @media (max-width: 768px) {
