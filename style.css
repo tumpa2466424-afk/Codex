@@ -1375,10 +1375,11 @@
 
 .product-pack-label-overlay.is-classic.is-single-line .product-pack-country {
     top: 65.8%;
-    left: 50%;
-    right: auto;
-    width: max-content;
-    transform: translateX(-50%);
+    left: 0;
+    right: 0;
+    width: auto;
+    transform: none;
+    text-align: center;
 }
 
 .product-pack-farm {
@@ -1476,7 +1477,7 @@
 /* Расчет: 18мм (низ фермы) + 5.5мм (высота фермы) + 4мм (зазор) = 27.5мм */
 .s-country {
     position: absolute;
-    bottom: 27.5mm; 
+    bottom: 25mm; 
     left: 0;
     right: 0;
     text-align: center;
@@ -1618,7 +1619,7 @@
 }
 
 .locus-sticker-canvas.sticker-front-single-line .s-country {
-    bottom: 21.5mm;
+    bottom: 25mm;
 }
 
 .s-farm {
