@@ -1430,6 +1430,8 @@
 }
 
 .locus-sticker-canvas {
+    --country-bottom: 20mm; /* Управляет высотой Страны */
+    --farm-gap: 7mm; /* Дистанция между Страной и Фермой */
     position: relative; 
     width: 80mm;  
     height: 80mm; 
@@ -1471,28 +1473,29 @@
 /* Расчет: 18мм (низ фермы) + 5.5мм (высота фермы) + 4мм (зазор) = 27.5мм */
 .s-country {
     position: absolute;
-    bottom: 20mm; /* <-- Нижний край строки ровно в 25мм от низа наклейки */
+    bottom: var(--country-bottom); 
     left: 0;
     right: 0;
     text-align: center;
     font-size: 7mm; 
     font-weight: 900; 
-    line-height: 1; /* <-- Убивает паразитные отступы у шрифта */
+    line-height: 1; 
 }
 
-.locus-sticker-canvas.sticker-front-aroma.is-single-line .s-country {
-    bottom: 17.5mm;
+.locus-sticker-canvas.sticker-front-aroma.is-single-line {
+    --country-bottom: 17.5mm;
 }
 
-.locus-sticker-canvas.sticker-front-aroma.has-secondary-line .s-country {
-    bottom: 27.5mm;
+.locus-sticker-canvas.sticker-front-aroma.has-secondary-line {
+    --country-bottom: 27.5mm;
 }
 
 /* ПУНКТ 2: Расстояние от Дескрипторов до Фермы 10мм */
 /* Расчет: 5мм (низ дескр.) + 3мм (высота дескр.) + 10мм (зазор) = 18мм */
 .s-farm {
     position: absolute;
-    bottom: 18mm; 
+    /* Положение фермы теперь резиновое и зависит только от Страны */
+    bottom: calc(var(--country-bottom) - var(--farm-gap)); 
     left: 0;
     right: 0;
     text-align: center;
@@ -1612,8 +1615,8 @@
     letter-spacing: 0.2px;
 }
 
-.locus-sticker-canvas.sticker-front-single-line .s-country {
-    bottom: 20mm;
+.locus-sticker-canvas.sticker-front-single-line {
+    --country-bottom: 20mm;
 }
 
 .s-farm {
