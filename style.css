@@ -1471,13 +1471,13 @@
 /* Расчет: 18мм (низ фермы) + 5.5мм (высота фермы) + 4мм (зазор) = 27.5мм */
 .s-country {
     position: absolute;
-    bottom: 25mm; 
+    bottom: 25mm; /* <-- Нижний край строки ровно в 25мм от низа наклейки */
     left: 0;
     right: 0;
     text-align: center;
     font-size: 7mm; 
-    font-weight: 900; /* Максимальная толщина для названия */
-    line-height: 1;
+    font-weight: 900; 
+    line-height: 1; /* <-- Убивает паразитные отступы у шрифта */
 }
 
 .locus-sticker-canvas.sticker-front-aroma.is-single-line .s-country {
@@ -1613,7 +1613,7 @@
 }
 
 .locus-sticker-canvas.sticker-front-single-line .s-country {
-    bottom: 20mm;
+    bottom: 25mm;
 }
 
 .s-farm {
