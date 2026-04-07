@@ -1440,7 +1440,7 @@ module.exports.handler = async function (event, context) {
                 const lotTitle = String(body.lotTitle || '').trim();
                 const attachmentsInput = Array.isArray(body.attachments) ? body.attachments : [];
                 if (!lotTitle) throw new Error('Не указано название лота');
-                if (attachmentsInput.length !== 2) throw new Error('Нужно передать две наклейки');
+                if (attachmentsInput.length === 0) throw new Error('Нет вложений с наклейками');
 
                 const attachments = attachmentsInput.map((item, index) => {
                     const filename = String(item?.filename || '').trim();
@@ -1462,7 +1462,7 @@ module.exports.handler = async function (event, context) {
                     from: '"Locus Coffee" <info@locus.coffee>',
                     to: 'info@locus.coffee',
                     subject: lotTitle,
-                    text: `Во вложении две наклейки для лота ${lotTitle} в разрешении 300 dpi.`,
+                    text: `Во вложении наклейки для лота ${lotTitle} в разрешении 300 dpi.`,
                     attachments
                 });
 
