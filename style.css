@@ -1696,6 +1696,15 @@
     font-size: calc(1.6mm + 1pt);
 }
 
+.locus-back-sticker-canvas {
+    padding-left: 2mm !important;
+    padding-right: 2mm !important;
+}
+
+.locus-back-sticker-canvas .sb-label {
+    text-align: left !important;
+}
+
 .sb-info {
     flex: 0 0 auto;
     min-height: auto;
