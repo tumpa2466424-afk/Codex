@@ -1588,7 +1588,7 @@
 .locus-sticker-canvas,
 .locus-back-sticker-canvas {
     font-family: var(--locus-sticker-font) !important;
-    font-weight: 400 !important;
+    font-weight: 700 !important;
     font-synthesis: none;
     font-kerning: normal;
     font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
@@ -1631,30 +1631,30 @@
 
 .sb-brand {
     font-size: 3.8mm;
-    font-weight: 400 !important;
+    font-weight: 700 !important;
     line-height: 1.05;
     letter-spacing: 0.5px;
 }
 
 .sb-sub {
     font-size: 2.3mm;
-    font-weight: 400 !important;
+    font-weight: 700 !important;
     letter-spacing: 0.6px;
 }
 
 .sb-label,
 .sb-value {
-    font-weight: 400 !important;
+    font-weight: 700 !important;
     opacity: 1;
     letter-spacing: 0.2px;
 }
 
 .sb-info {
-    font-weight: 400 !important;
+    font-weight: 700 !important;
 }
 
 .sb-footer {
-    font-weight: 400 !important;
+    font-weight: 700 !important;
     letter-spacing: 0.35px;
 }
 
@@ -1675,6 +1675,25 @@
 .sb-aroma-copy {
     margin-top: auto !important;
     margin-bottom: auto !important;
+}
+
+.locus-back-sticker-canvas *,
+.locus-back-sticker-canvas .sb-brand,
+.locus-back-sticker-canvas .sb-sub,
+.locus-back-sticker-canvas .sb-label,
+.locus-back-sticker-canvas .sb-value,
+.locus-back-sticker-canvas .sb-info,
+.locus-back-sticker-canvas .sb-footer,
+.locus-back-sticker-canvas .sb-aroma-copy {
+    font-weight: 700 !important;
+}
+
+.locus-back-sticker-canvas .sb-grid {
+    font-size: calc(1.8mm + 2pt);
+}
+
+.locus-back-sticker-canvas .sb-info {
+    font-size: calc(1.6mm + 2pt);
 }
 
 .sb-info {
