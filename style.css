@@ -1673,8 +1673,8 @@
 
 .sb-grid,
 .sb-aroma-copy {
-    margin-top: 0 !important;
-    margin-bottom: 1mm !important;
+    margin-top: auto !important;
+    margin-bottom: auto !important;
 }
 
 .locus-back-sticker-canvas *,
@@ -1701,7 +1701,7 @@
     width: 100%;
     align-self: stretch;
     box-sizing: border-box;
-    margin-top: 0 !important;
+    margin-top: 1mm !important;
 }
 
 .locus-back-sticker-canvas {
