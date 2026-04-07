@@ -1798,6 +1798,6 @@
 
 /* Подвал: всегда прижат к нижнему padding (5мм от края) */
 .locus-back-sticker-canvas.is-80 .sb-footer {
-    font-size: 2.5mm !important;
+    font-size: 3mm !important;
     margin-top: 0 !important;
 }
