@@ -2498,16 +2498,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 
                                 ${resolvedBackStickerMetaBlock}
 
-                                <div class="sb-info" style="display:flex; justify-content: space-between; align-items: flex-end;">
+                                <div class="sb-info">
                                     <div>
                                         Состав: ${backStickerComposition}<br>
                                         Срок годности: 1 год<br>
                                         Срок реализации: 1 месяц<br>
                                         Производитель: ИП Зуева Е.В.<br>
                                         Адрес: г. Орёл, ул. Наугорское шоссе, д. 5<br>
-                                        Нетто: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; г.
+                                        Нетто: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; г.
                                     </div>
-                                    <img src="${qrCodeUrl}" crossorigin="anonymous" style="width: 18mm; height: 18mm; object-fit: contain; mix-blend-mode: multiply;">
+                                    <img src="${qrCodeUrl}" crossorigin="anonymous">
                                 </div>
 
                                 <div class="sb-footer">
