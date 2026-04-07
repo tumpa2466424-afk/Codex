@@ -3233,7 +3233,23 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     setTimeout(() => { statusEl.style.opacity = '0'; setTimeout(() => { statusEl.textContent = ""; statusEl.style.opacity = ''; }, 300); }, 2000);
 
                     const pIndex = this.ALL_PRODUCTS.findIndex(p => p.id === id);
-                    if (pIndex !== -1) this.ALL_PRODUCTS[pIndex].inCatalog = isChecked ? "1" : "";
+                    if (pIndex !== -1) {
+                        this.ALL_PRODUCTS[pIndex].inCatalog = isChecked ? "1" : "";
+                        
+                        if (isChecked) {
+                            if (confirm(`Отправить подписчикам уведомление о новом лоте "${this.ALL_PRODUCTS[pIndex].sample}" со скидкой 10% на 24 часа?`)) {
+                                const token = localStorage.getItem('locus_token');
+                                fetch(LOCUS_API_URL + '?action=notifyNewLot', {
+                                    method: 'POST',
+                                    headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ action: 'notifyNewLot', sampleName: this.ALL_PRODUCTS[pIndex].sample })
+                                }).then(res => res.json()).then(data => {
+                                    if (data.success) alert(`Рассылка запущена! Отправлено писем: ${data.sentCount}`);
+                                    else alert('Ошибка рассылки: ' + data.error);
+                                }).catch(e => alert('Ошибка при вызове рассылки: ' + e.message));
+                            }
+                        }
+                    }
 
                     this.renderCatalog();
                     if (window.fetchExternalData) window.fetchExternalData(); // Обновляем витрину
@@ -3549,7 +3565,43 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         this.toggleModal(true, 'login');
                     }
                 });
+                this.fetchNewLotDiscount();
+                
             },
+
+            fetchNewLotDiscount: async function() {
+            try {
+                const res = await fetch(LOCUS_API_URL + '?action=getNewLotDiscount');
+                const data = await res.json();
+                if (data.success && data.discount) {
+                    this.newLotDiscount = data.discount;
+                }
+            } catch(e) {}
+        },
+
+        toggleNewLotsNotification: async function() {
+            if(!this.uid) return;
+            const isChecked = document.getElementById('notify-new-lots-check').checked;
+            
+            let history = [...(this.currentUser.history || [])];
+            history = history.filter(item => !(item && item.isSystemMeta && item.systemType === 'NOTIFY_NEW_LOTS'));
+            history.push({ isSystemMeta: true, systemType: 'NOTIFY_NEW_LOTS', enabled: isChecked, updatedAt: new Date().toISOString() });
+            
+            this.currentUser.history = history;
+
+            const token = localStorage.getItem('locus_token');
+            if(token) {
+                try {
+                    await fetch(LOCUS_API_URL + '?action=updateUser', {
+                        method: 'POST',
+                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'updateUser', field: 'history', data: history })
+                    });
+                } catch(e) {
+                    console.error('Ошибка сохранения', e);
+                }
+            }
+        },
 
             normalizeEmailAddress: function(value) {
                 return String(value || '').trim().toLowerCase();
@@ -7778,9 +7830,46 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const welcomeDiscountVal = breakdown.welcomeDiscountVal;
                 const fortuneDiscountVal = breakdown.fortuneDiscountVal;
                 let totalAfterLoyalty = breakdown.totalAfterStoreDiscounts + fortuneDiscountVal;
-                
                 // --- СКИДКА УДАЧИ ---
                 totalAfterLoyalty -= fortuneDiscountVal; // Вычитаем удачу из Итого
+
+                // --- СКИДКА НА НОВИНКУ ---
+                let newLotDiscountVal = 0;
+                const isNewLotDiscountUsed = this.currentUser && this.currentUser.history && this.currentUser.history.some(h => 
+                    h && h.isSystemMeta && h.systemType === 'NEW_LOT_DISCOUNT_USED' && h.sampleName === this.newLotDiscount?.sampleName
+                );
+                
+                if (this.newLotDiscount && !isNewLotDiscountUsed) {
+                    const newLotItem = this.localCart.find(i => i.item.includes(this.newLotDiscount.sampleName));
+                    if (newLotItem) {
+                        // Скидка 10% на первую пачку лота
+                        newLotDiscountVal = Math.floor(newLotItem.price * 0.1);
+                    }
+                }
+                this.currentNewLotDiscountVal = newLotDiscountVal; // Для сохранения в placeOrder
+
+                let rowNewLot = document.getElementById('row-new-lot-discount');
+                if (!rowNewLot) {
+                    const promoRow = document.getElementById('row-promo-discount');
+                    if (promoRow && promoRow.parentNode) {
+                        rowNewLot = document.createElement('div');
+                        rowNewLot.className = 'summary-row';
+                        rowNewLot.id = 'row-new-lot-discount';
+                        rowNewLot.style.color = '#187a30';
+                        rowNewLot.style.display = 'none';
+                        rowNewLot.innerHTML = `<span>Новинка каталога (10%)</span><span id="cart-new-lot-val">-0 ₽</span>`;
+                        promoRow.parentNode.insertBefore(rowNewLot, promoRow.nextSibling);
+                    }
+                }
+                
+                if (rowNewLot) {
+                    if (newLotDiscountVal > 0) {
+                        rowNewLot.style.display = 'flex';
+                        document.getElementById('cart-new-lot-val').textContent = `-${newLotDiscountVal} ₽`;
+                    } else {
+                        rowNewLot.style.display = 'none';
+                    }
+                }
                 
                 // Динамически добавляем строчку в интерфейс корзины
                 let rowWelcome = document.getElementById('row-welcome-discount');
@@ -7842,7 +7931,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     }
                 }
 
-                let finalTotal = totalAfterLoyalty - promoDiscountVal + (digitalOnly ? 0 : (this.cdekPrice || 0));
+                let finalTotal = totalAfterLoyalty - promoDiscountVal - newLotDiscountVal + (digitalOnly ? 0 : (this.cdekPrice || 0));
                 if (finalTotal < 0) finalTotal = 1;
 
                 const setTxt = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
@@ -7994,23 +8083,24 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         }
                     }
 
-                    const pricingBreakdown = {
-                        subtotal,
-                        loyaltyPercent: breakdown.loyaltyPercent || 0,
-                        loyaltyDiscountVal: breakdown.loyaltyDiscountVal || 0,
-                        welcomeBonusPercent: breakdown.welcomeBonusPercent || 0,
-                        welcomeDiscountVal: breakdown.welcomeDiscountVal || 0,
-                        fortuneDiscountPercent: (breakdown.fortuneDiscountVal || 0) > 0 ? 10 : 0,
-                        fortuneDiscountVal: breakdown.fortuneDiscountVal || 0,
-                        promoCode: this.activePromo ? this.activePromo.code : '',
-                        promoType: this.activePromo ? this.activePromo.type : '',
-                        promoValue: this.activePromo ? (Number(this.activePromo.val) || 0) : 0,
-                        promoDiscountVal,
-                        totalDiscountVal: (breakdown.loyaltyDiscountVal || 0) + (breakdown.welcomeDiscountVal || 0) + (breakdown.fortuneDiscountVal || 0) + promoDiscountVal,
-                        shippingCost,
-                        deliveryMode: digitalOnly ? 'DIGITAL' : (isPickup ? 'PICKUP' : 'CDEK'),
-                        finalTotal: total
-                    };
+                    const newLotDiscountVal = this.currentNewLotDiscountVal || 0;
+        const pricingBreakdown = {
+            subtotal: subtotal,
+            loyaltyPercent: discountPercent,
+            loyaltyDiscountVal: loyaltyDiscountVal,
+            welcomeBonusPercent: welcomeBonusPercent,
+            welcomeDiscountVal: welcomeDiscountVal,
+            fortuneDiscountVal: fortuneDiscountVal,
+            promoCode: this.activePromo ? this.activePromo.code : '',
+            promoType: this.activePromo ? this.activePromo.type : '',
+            promoValue: this.activePromo ? this.activePromo.val : 0,
+            promoDiscountVal: promoDiscountVal,
+            newLotDiscountVal: newLotDiscountVal,
+            newLotSampleName: newLotDiscountVal > 0 && this.newLotDiscount ? this.newLotDiscount.sampleName : '',
+            totalDiscountVal: loyaltyDiscountVal + welcomeDiscountVal + fortuneDiscountVal + promoDiscountVal + newLotDiscountVal,
+            shippingCost: shippingCost,
+            finalTotal: total
+        };
 
                     historyOrder.pricingBreakdown = pricingBreakdown;
 
@@ -8349,8 +8439,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             renderDashboard: function() {
                 try {
                     if(!this.currentUser) return;
-                    const u = this.currentUser;
-                    const safeSpent = isNaN(u.totalSpent) ? 0 : u.totalSpent;
+                const u = this.currentUser;
+
+                const notifyEntry = u.history.find(h => h && h.isSystemMeta && h.systemType === 'NOTIFY_NEW_LOTS');
+                const notifyCheck = document.getElementById('notify-new-lots-check');
+                if(notifyCheck) notifyCheck.checked = notifyEntry ? notifyEntry.enabled : false;
+
+                const safeSpent = isNaN(u.totalSpent) ? 0 : u.totalSpent;
                     let discountPercent = Math.floor(safeSpent / 3000);
                     if(discountPercent > 15) discountPercent = 15;
                     
