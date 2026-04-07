@@ -1728,28 +1728,58 @@
     padding-top: 0;
     margin-bottom: 0 !important;
 }
-/* Стили для 80мм задника */
+/* Обновленные стили для 80мм задника с "резиновой" версткой */
 .locus-back-sticker-canvas.is-80 {
     width: 80mm !important;
     height: 80mm !important;
-    padding: 4mm 6mm !important;
+    /* Жесткие отступы от краев по 5мм (сбоку оставил 6мм для эстетики) */
+    padding: 5mm 6mm !important;
+    display: flex !important;
+    flex-direction: column !important;
+    /* Гарантированный минимальный зазор 1мм между всеми крупными блоками */
+    gap: 1mm !important;
+    box-sizing: border-box !important;
 }
+
+/* Шапка: убираем лишний нижний отступ, так как зазор теперь регулируется через gap */
+.locus-back-sticker-canvas.is-80 .sb-top {
+    margin-bottom: 0 !important;
+}
+
 .locus-back-sticker-canvas.is-80 .sb-brand {
     font-size: 5mm !important;
+    line-height: 1.1 !important;
 }
+
 .locus-back-sticker-canvas.is-80 .sb-sub {
     font-size: 3mm !important;
-    margin-top: 1.5mm !important;
+    /* Расстояние от бренда до подзаголовка как на 60мм (там 1мм) */
+    margin-top: 1mm !important; 
 }
+
+/* Сетка характеристик: становится "резиновой" (выталкивает соседей) */
 .locus-back-sticker-canvas.is-80 .sb-grid {
     font-size: calc(2.2mm + 1pt) !important;
     grid-template-columns: 28mm 1fr !important;
     gap: 1.5mm 2mm !important;
+    /* Магия Flexbox: забирает свободное место сверху и снизу */
+    margin-top: auto !important;
+    margin-bottom: auto !important;
 }
+
+/* Инфоблок (Техничка): поджимается снизу, чтобы Подвал всегда был внизу */
 .locus-back-sticker-canvas.is-80 .sb-info {
     font-size: calc(2mm + 1pt) !important;
+    margin-bottom: auto !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-end !important;
 }
+
+/* Подвал: всегда прижат к нижнему padding (5мм от края) */
 .locus-back-sticker-canvas.is-80 .sb-footer {
     font-size: 2.5mm !important;
-    margin-top: 4mm !important;
+    margin-top: 0 !important;
+    border-top: 1pt solid var(--locus-border) !important;
+    padding-top: 1mm !important;
 }
