@@ -2505,7 +2505,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                         Срок реализации: 1 месяц<br>
                                         Производитель: ИП Зуева Е.В.<br>
                                         Адрес: г. Орёл, ул. Наугорское шоссе, д. 5<br>
-                                        Нетто: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; г.
+                                        Нетто: <span style="display:inline-block; width: 5.5ch;"></span> г.
                                     </div>
                                     <img src="${qrCodeUrl}" crossorigin="anonymous">
                                 </div>
