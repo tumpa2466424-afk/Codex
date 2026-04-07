@@ -1771,13 +1771,22 @@
 
 /* Инфоблок (Техничка): поджимается снизу, чтобы Подвал всегда был внизу */
 .locus-back-sticker-canvas.is-80 .sb-info {
-    font-size: calc(1.8mm + 1pt) !important;
-    /* Абсолютно такой же интервал, как и в сетке */
+    font-size: calc(2mm + 1pt) !important;
     line-height: 1.4 !important; 
     margin-bottom: auto !important;
     display: flex !important;
     justify-content: space-between !important;
-    align-items: flex-start !important; 
+    /* Возвращаем stretch, чтобы контейнер картинки растянулся по высоте текста */
+    align-items: stretch !important; 
+}
+
+/* QR-код вытягивается по высоте текстового блока */
+.locus-back-sticker-canvas.is-80 .sb-info img {
+    height: 100% !important; /* Берет всю высоту от "Состав" до "Нетто" */
+    width: auto !important;
+    aspect-ratio: 1 / 1 !important; /* Сохраняет строгий квадрат */
+    object-fit: contain !important;
+    mix-blend-mode: multiply !important;
 }
 
 /* Подвал: всегда прижат к нижнему padding (5мм от края) */
