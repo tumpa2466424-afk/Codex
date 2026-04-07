@@ -1769,22 +1769,29 @@
     margin-bottom: auto !important;
 }
 
-/* Инфоблок (Техничка): поджимается снизу, чтобы Подвал всегда был внизу */
+/* Инфоблок (Техничка): поджимается снизу, считаем высоту ТОЛЬКО по тексту */
 .locus-back-sticker-canvas.is-80 .sb-info {
     font-size: calc(2mm + 1pt) !important;
     line-height: 1.4 !important; 
     margin-bottom: auto !important;
-    display: flex !important;
-    justify-content: space-between !important;
-    /* Возвращаем stretch, чтобы контейнер картинки растянулся по высоте текста */
-    align-items: stretch !important; 
+    /* Уходим от flex к relative-блоку, чтобы изолировать размер картинки */
+    display: block !important; 
+    position: relative !important; 
 }
 
-/* QR-код вытягивается по высоте текстового блока */
+/* Защищаем текст от наезда на QR-код (бронируем 20 мм пространства справа) */
+.locus-back-sticker-canvas.is-80 .sb-info > div {
+    padding-right: 20mm !important;
+}
+
+/* QR-код жестко привязан к высоте текстового блока */
 .locus-back-sticker-canvas.is-80 .sb-info img {
-    height: 100% !important; /* Берет всю высоту от "Состав" до "Нетто" */
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    height: 100% !important; /* Берет ровно высоту родителя (текста) */
     width: auto !important;
-    aspect-ratio: 1 / 1 !important; /* Сохраняет строгий квадрат */
+    aspect-ratio: 1 / 1 !important; /* Остается строгим квадратом */
     object-fit: contain !important;
     mix-blend-mode: multiply !important;
 }
