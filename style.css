@@ -1733,7 +1733,7 @@
     width: 80mm !important;
     height: 80mm !important;
     /* Жесткие отступы от краев по 5мм (сбоку оставил 6мм для эстетики) */
-    padding: 5mm 6mm !important;
+    padding: 3mm 3mm !important;
     display: flex !important;
     flex-direction: column !important;
     /* Гарантированный минимальный зазор 1мм между всеми крупными блоками */
