@@ -1759,7 +1759,7 @@
 
 /* Сетка характеристик: становится "резиновой" (выталкивает соседей) */
 .locus-back-sticker-canvas.is-80 .sb-grid {
-    font-size: calc(2.2mm + 1pt) !important;
+    font-size: calc(2mm + 1pt) !important;
     grid-template-columns: 28mm 1fr !important;
     gap: 1.5mm 2mm !important;
     /* Магия Flexbox: забирает свободное место сверху и снизу */
