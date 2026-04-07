@@ -1780,6 +1780,4 @@
 .locus-back-sticker-canvas.is-80 .sb-footer {
     font-size: 2.5mm !important;
     margin-top: 0 !important;
-    border-top: 1pt solid var(--locus-border) !important;
-    padding-top: 1mm !important;
 }
