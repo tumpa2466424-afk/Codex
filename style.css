@@ -1689,11 +1689,11 @@
 }
 
 .locus-back-sticker-canvas .sb-grid {
-    font-size: calc(1.8mm + 2pt);
+    font-size: calc(1.8mm + 1pt);
 }
 
 .locus-back-sticker-canvas .sb-info {
-    font-size: calc(1.6mm + 2pt);
+    font-size: calc(1.6mm + 1pt);
 }
 
 .sb-info {
