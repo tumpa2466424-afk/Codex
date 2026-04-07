@@ -1690,10 +1690,17 @@
 
 .locus-back-sticker-canvas .sb-grid {
     font-size: calc(1.8mm + 1pt);
+    width: 100%;
+    align-self: stretch;
+    box-sizing: border-box;
+    grid-template-columns: max-content minmax(0, 1fr);
 }
 
 .locus-back-sticker-canvas .sb-info {
     font-size: calc(1.6mm + 1pt);
+    width: 100%;
+    align-self: stretch;
+    box-sizing: border-box;
 }
 
 .locus-back-sticker-canvas {
@@ -1702,6 +1709,10 @@
 }
 
 .locus-back-sticker-canvas .sb-label {
+    text-align: right !important;
+}
+
+.locus-back-sticker-canvas .sb-value {
     text-align: left !important;
 }
 
