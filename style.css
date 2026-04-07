@@ -1757,11 +1757,13 @@
     margin-top: 1mm !important; 
 }
 
-/* Сетка характеристик: становится "резиновой" (выталкивает соседей) */
+/* Сетка характеристик: становится "резиновой" снаружи, но плотной внутри */
 .locus-back-sticker-canvas.is-80 .sb-grid {
     font-size: calc(2mm + 1pt) !important;
     grid-template-columns: 28mm 1fr !important;
-    gap: 1.5mm 2mm !important;
+    /* Уменьшили вертикальный gap с 1.5mm до 0.5mm для плотности строк */
+    gap: 0.5mm 2mm !important;
+    line-height: 1.2 !important; /* Единый интервал для монолитности */
     /* Магия Flexbox: забирает свободное место сверху и снизу */
     margin-top: auto !important;
     margin-bottom: auto !important;
@@ -1770,10 +1772,11 @@
 /* Инфоблок (Техничка): поджимается снизу, чтобы Подвал всегда был внизу */
 .locus-back-sticker-canvas.is-80 .sb-info {
     font-size: calc(2mm + 1pt) !important;
+    line-height: 1.2 !important; /* Такой же интервал, как в сетке */
     margin-bottom: auto !important;
     display: flex !important;
     justify-content: space-between !important;
-    align-items: flex-start !important; /* Изменили flex-end на flex-start для выравнивания по верху */
+    align-items: flex-start !important; 
 }
 
 /* Подвал: всегда прижат к нижнему padding (5мм от края) */
