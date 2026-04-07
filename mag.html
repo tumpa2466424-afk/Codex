@@ -213,6 +213,11 @@
                         <div class="progress-track"><div class="progress-fill" id="user-progress-fill"></div></div>
                         <div class="loyalty-info" id="user-next-level">Потрачено: <span id="user-spent-val">0</span> ₽.</div>
                     </div>
+
+                    <div class="checkbox-row" style="margin-bottom: 20px; font-size: 13px; line-height: 1.4;">
+                        <input type="checkbox" id="notify-new-lots-check" onchange="UserSystem.toggleNewLotsNotification()">
+                        <label for="notify-new-lots-check" style="font-weight: 600; color: var(--locus-dark);">Сообщать о новинках каталога кофе</label>
+                    </div>
                     
                     <!-- USER MESSAGES SECTION -->
                     <div id="user-messages-section">
