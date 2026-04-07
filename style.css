@@ -1771,7 +1771,7 @@
 
 /* Инфоблок (Техничка): поджимается снизу, считаем высоту ТОЛЬКО по тексту */
 .locus-back-sticker-canvas.is-80 .sb-info {
-    font-size: calc(2mm + 1pt) !important;
+    font-size: calc(1.8mm + 1pt) !important;
     line-height: 1.4 !important; 
     margin-bottom: auto !important;
     /* Уходим от flex к relative-блоку, чтобы изолировать размер картинки */
