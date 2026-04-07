@@ -431,7 +431,9 @@ const RETRYABLE_SESSION_ACTIONS = new Set([
     'getAdminWholesaleOrders',
     'getExtrinsicData',
     'robokassaCallback',
-    'robokassaSuccess'
+    'robokassaSuccess',
+    'notifyNewLot',
+    'getNewLotDiscount'
 ]);
 
 function verifyToken(token) {
@@ -894,7 +896,15 @@ async function finalizeRetailPayment(session, invId) {
             const promoType = String(pricingBreakdown.promoType || '').trim();
             const promoValue = Number(pricingBreakdown.promoValue) || 0;
             const promoDiscountVal = Number(pricingBreakdown.promoDiscountVal) || 0;
-            const totalDiscountVal = Number(pricingBreakdown.totalDiscountVal) || (loyaltyDiscountVal + welcomeDiscountVal + fortuneDiscountVal + promoDiscountVal);
+            const newLotDiscountVal = Number(pricingBreakdown.newLotDiscountVal) || 0;
+            const totalDiscountVal = Number(pricingBreakdown.totalDiscountVal) || (loyaltyDiscountVal + welcomeDiscountVal + fortuneDiscountVal + promoDiscountVal + newLotDiscountVal);
+            
+            if (newLotDiscountVal > 0 && pricingBreakdown.newLotSampleName) {
+                hist = upsertSystemHistoryEntry(hist, 'NEW_LOT_DISCOUNT_USED', {
+                    sampleName: pricingBreakdown.newLotSampleName,
+                    orderId
+                });
+            }
             const finalTotal = Number(pricingBreakdown.finalTotal) || Number(ord.total) || 0;
             const pricingRows = [
                 `<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;"><span>Цена товаров без скидок</span><b>${baseSubtotal} ₽</b></div>`
@@ -908,6 +918,7 @@ async function finalizeRetailPayment(session, invId) {
                     : 'Промокод';
                 pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#187a30;"><span>${promoLabel}</span><b>- ${promoDiscountVal} ₽</b></div>`);
             }
+            if (newLotDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#187a30;"><span>Скидка на новинку</span><b>- ${newLotDiscountVal} ₽</b></div>`);
             if (totalDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;"><span>Общая сумма скидок</span><b>- ${totalDiscountVal} ₽</b></div>`);
             pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;"><span>Доставка</span><b>${deliveryCost} ₽</b></div>`);
             pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-top:10px; padding-top:10px; border-top:1px dashed #ccc; font-size:18px;"><span>Итого оплачено</span><b>${finalTotal} ₽</b></div>`);
@@ -2373,6 +2384,86 @@ module.exports.handler = async function (event, context) {
 
                 responseData = { success: true, text: generatedText, image: imageUrl };
             }
+            // --- НАЧАЛО: РАССЫЛКА И СКИДКА НА НОВЫЙ ЛОТ ---
+            else if (action === 'notifyNewLot') {
+                const decoded = verifyToken(rawToken);
+                if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
+                
+                const sampleName = String(body.sampleName || '').trim();
+                if (!sampleName) throw new Error('Не указано название лота');
+
+                const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+                const saveQuery = `DECLARE $id AS Utf8; DECLARE $config AS JsonDocument; UPSERT INTO settings (id, config) VALUES ($id, $config);`;
+                await session.executeQuery(saveQuery, {
+                    '$id': TypedValues.utf8('new_lot_discount'),
+                    '$config': TypedValues.jsonDocument(JSON.stringify({ sampleName, expiresAt }))
+                });
+
+                const usersQuery = `SELECT email, history FROM users;`;
+                const { resultSets } = await session.executeQuery(usersQuery);
+                const targetEmails = [];
+                
+                if (resultSets[0].rows.length > 0) {
+                    resultSets[0].rows.forEach(row => {
+                        const u = rowToObj(resultSets[0].columns, row);
+                        const hist = getRawArray(u.history);
+                        const notifyEntry = hist.find(h => h && h.isSystemMeta && h.systemType === 'NOTIFY_NEW_LOTS');
+                        if (notifyEntry && notifyEntry.enabled && isValidEmailAddress(u.email)) {
+                            targetEmails.push(u.email);
+                        }
+                    });
+                }
+
+                const formatter = new Intl.DateTimeFormat('ru-RU', {
+                    timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                });
+                const expiresText = formatter.format(new Date(expiresAt));
+
+                let sentCount = 0;
+                for (const email of targetEmails) {
+                    const sent = await sendTransactionalMail({
+                        from: '"Locus Coffee" <info@locus.coffee>',
+                        to: email,
+                        subject: `Новый сорт ${sampleName}`,
+                        html: `<div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #E5E1D8; border-radius: 8px; overflow: hidden;">
+                                <div style="background: #693a05; padding: 20px; text-align: center; color: #fff;">
+                                    <h2 style="margin: 0; letter-spacing: 2px;">LOCUS COFFEE</h2>
+                                </div>
+                                <div style="padding: 20px; background: #F4F1EA;">
+                                    <h3 style="margin-top: 0;">Здравствуйте!</h3>
+                                    <p>Рады сообщить вам, что в нашем магазине новое поступление - <b>${sampleName}</b>.</p>
+                                    <p>Попробуйте его непременно с приятной скидкой 10%.</p>
+                                    <p>Скидка автоматически применяется в корзине при добавлении этого сорта и будет ждать вас до <b>${expiresText}</b>.</p>
+                                    <p>Приятной покупки!</p>
+                                </div>
+                            </div>`
+                    });
+                    if (sent) sentCount++;
+                }
+
+                responseData = { success: true, sentCount };
+            }
+            
+            else if (action === 'getNewLotDiscount') {
+                const query = `SELECT config FROM settings WHERE id = 'new_lot_discount';`;
+                const { resultSets } = await session.executeQuery(query);
+                let config = null;
+                if (resultSets[0] && resultSets[0].rows.length > 0) {
+                    const row = rowToObj(resultSets[0].columns, resultSets[0].rows[0]);
+                    let raw = row.config;
+                    if (typeof raw === 'object' && raw !== null && raw.value !== undefined) raw = raw.value;
+                    if (Buffer.isBuffer(raw)) raw = raw.toString('utf8');
+                    try { config = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch(e) {}
+                }
+                
+                if (config && config.expiresAt && new Date(config.expiresAt) > new Date()) {
+                    responseData = { success: true, discount: config };
+                } else {
+                    responseData = { success: true, discount: null };
+                }
+            }
+            // --- КОНЕЦ: РАССЫЛКА И СКИДКА НА НОВЫЙ ЛОТ ---
             // --- КОНЕЦ: ГЕНЕРАЦИЯ ИСТОРИИ ЛОТА ЧЕРЕЗ QWEN AI ---
             else { throw new Error('Неизвестное действие API'); }
         });
