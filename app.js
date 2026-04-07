@@ -2006,7 +2006,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                             <button class="cat-btn-icon delete" id="cat-btn-delete-${r.id}" title="Удалить лот" onclick="CatalogSystem.deleteRow('${r.id}', '${r.sample}')">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                                             </button>
-                                            ${hasStickerPack ? `<button class="cat-btn-icon" title="РћС‚РїСЂР°РІРёС‚СЊ РѕР±Рµ РЅР°РєР»РµР№РєРё РЅР° info@locus.coffee" onclick="CatalogSystem.sendStickerPackEmail('${r.id}', event)">
+                                            ${hasStickerPack ? `<button class="cat-btn-icon" title="Отправить все наклейки на info@locus.coffee" onclick="CatalogSystem.sendStickerPackEmail('${r.id}', event)">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"></path><path d="M22 8l-10 7L2 8"></path></svg>
                                             </button>` : ''}
                                         </div>
@@ -2381,6 +2381,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const safeSampleId = r.sample ? r.sample.toString().replace(/[^a-zA-Z0-9]/g, '_') : Math.floor(Math.random() * 10000);
                 const frontStickerId = `front-${safeSampleId}`;
                 const backStickerId = `back-${safeSampleId}`;
+                const back80StickerId = `back80-${safeSampleId}`;
+                
+                // Генерируем ссылку и QR код на лету
+                const lotUrl = `https://locus.coffee/mag?lot=${encodeURIComponent(r.sample)}`;
+                const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(lotUrl)}`;
                 const normalizedVariety = String(variety || '').trim();
                 const firstVarietyToken = normalizedVariety && normalizedVariety !== '-'
                     ? normalizedVariety.split(/\s+/).filter(Boolean)[0]
@@ -2437,7 +2442,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         ? (normalizedVariety && normalizedVariety !== '-' ? normalizedVariety : 'Кофе')
                         : (firstVarietyWord ? `Кофе ${firstVarietyWord}` : 'Кофе'));
 
-                // Выводим обе наклейки рядом (flex-контейнер)
+                // Выводим три наклейки рядом (flex-контейнер)
                 const stickerPreview = `
                     <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;">
                         
@@ -2482,6 +2487,36 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             <button type="button" onclick="window.downloadPackSticker('${backStickerId}', '${r.sample}_BACK')" style="margin-top: 15px; background: var(--locus-dark); color: #fff; border: none; padding: 10px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 11px;">Скачать ЗАДНИК</button>
                         </div>
 
+                        <div style="background: #f4f1ea; padding: 20px; border-radius: 8px; border: 1px solid var(--locus-border); flex: 1; min-width: 320px; display: flex; flex-direction: column; align-items: center;">
+                            <div style="text-align:center; font-size:12px; font-weight:bold; color:var(--locus-accent); margin-bottom:15px; text-transform:uppercase;">Задник (80х80 мм)</div>
+                            
+                            <div class="locus-back-sticker-canvas is-80${isAroma ? ' is-aroma-back' : ''}" id="${back80StickerId}">
+                                <div class="sb-top">
+                                    <div class="sb-brand">Locus Coffee</div>
+                                    <div class="sb-sub">Свежеобжаренный кофе</div>
+                                </div>
+                                
+                                ${resolvedBackStickerMetaBlock}
+
+                                <div class="sb-info" style="display:flex; justify-content: space-between; align-items: flex-end;">
+                                    <div>
+                                        Состав: ${backStickerComposition}<br>
+                                        Срок годности: 1 год<br>
+                                        Срок реализации: 1 месяц<br>
+                                        Производитель: ИП Зуева Е.В.<br>
+                                        Адрес: г. Орёл, ул. Наугорское шоссе, д. 5<br>
+                                        Нетто: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; г.
+                                    </div>
+                                    <img src="${qrCodeUrl}" crossorigin="anonymous" style="width: 18mm; height: 18mm; object-fit: contain; mix-blend-mode: multiply;">
+                                </div>
+
+                                <div class="sb-footer">
+                                    +7 906 660 4060 &nbsp;&nbsp; | &nbsp;&nbsp; locus.coffee
+                                </div>
+                            </div>
+
+                            <button type="button" onclick="window.downloadPackSticker('${back80StickerId}', '${r.sample}_BACK_80')" style="margin-top: 15px; background: var(--locus-dark); color: #fff; border: none; padding: 10px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 11px;">Скачать ЗАДНИК 80х80</button>
+                        </div>
                     </div>
                 `;
                 // --------------------------
@@ -3624,9 +3659,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
             STICKER_EXPORT_DPI: 300,
             STICKER_EXPORT_SIZES_MM: {
-                front: { width: 80, height: 80 },
-                back: { width: 60, height: 60 }
-            },
+            front: { width: 80, height: 80 },
+            back: { width: 60, height: 60 },
+            back80: { width: 80, height: 80 }
+        },
 
             supportsStickerExport: function(product) {
                 return !!product && !ProductManager.getTypeInfo(product).isSpecial;
@@ -3737,8 +3773,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             getStickerSideFromElement: function(stickerEl) {
-                return stickerEl?.classList.contains('locus-back-sticker-canvas') ? 'back' : 'front';
-            },
+            if (stickerEl?.classList.contains('is-80')) return 'back80';
+            return stickerEl?.classList.contains('locus-back-sticker-canvas') ? 'back' : 'front';
+        },
 
             getCrc32Table: function() {
                 if (this._crc32Table) return this._crc32Table;
@@ -3902,19 +3939,24 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     if (!token) throw new Error('Нет доступа');
 
                     host = this.createStickerExportContainer(product);
+                    
                     const frontStickerEl = host.querySelector('.locus-sticker-canvas');
-                    const backStickerEl = host.querySelector('.locus-back-sticker-canvas');
-                    if (!frontStickerEl || !backStickerEl) throw new Error('Не удалось собрать обе наклейки для отправки.');
-
-                    const [frontBlob, backBlob] = await Promise.all([
+                    const backStickerEl = host.querySelector('.locus-back-sticker-canvas:not(.is-80)');
+                    const back80StickerEl = host.querySelector('.locus-back-sticker-canvas.is-80');
+                    
+                    if (!frontStickerEl || !backStickerEl || !back80StickerEl) throw new Error('Не удалось собрать все наклейки для отправки.');
+                    
+                    const [frontBlob, backBlob, back80Blob] = await Promise.all([
                         this.renderStickerElementToBlob(frontStickerEl, 'front'),
-                        this.renderStickerElementToBlob(backStickerEl, 'back')
+                        this.renderStickerElementToBlob(backStickerEl, 'back'),
+                        this.renderStickerElementToBlob(back80StickerEl, 'back80')
                     ]);
-
+                    
                     const safeBaseName = this.sanitizeStickerFileName(product.sample || 'lot');
-                    const [frontBase64, backBase64] = await Promise.all([
+                    const [frontBase64, backBase64, back80Base64] = await Promise.all([
                         this.blobToBase64(frontBlob),
-                        this.blobToBase64(backBlob)
+                        this.blobToBase64(backBlob),
+                        this.blobToBase64(back80Blob)
                     ]);
 
                     const res = await fetch(LOCUS_API_URL + '?action=sendStickerPackEmail', {
@@ -3924,14 +3966,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                             action: 'sendStickerPackEmail',
                             lotTitle: product.sample || 'Лот',
                             attachments: [
-                                { filename: `${safeBaseName}_FRONT_300dpi.png`, contentType: 'image/png', contentBase64: frontBase64 },
-                                { filename: `${safeBaseName}_BACK_300dpi.png`, contentType: 'image/png', contentBase64: backBase64 }
+                                { filename: `${safeBaseName}_FRONT_80x80_300dpi.png`, contentType: 'image/png', contentBase64: frontBase64 },
+                                { filename: `${safeBaseName}_BACK_60x60_300dpi.png`, contentType: 'image/png', contentBase64: backBase64 },
+                                { filename: `${safeBaseName}_BACK_80x80_300dpi.png`, contentType: 'image/png', contentBase64: back80Base64 }
                             ]
                         })
                     });
                     const data = await res.json();
                     if (!data.success) throw new Error(data.error || 'Не удалось отправить наклейки на почту.');
-                    alert('Обе наклейки отправлены на info@locus.coffee.');
+                    alert('Все 3 наклейки отправлены на info@locus.coffee.');
                 } catch (e) {
                     console.error(e);
                     alert('Ошибка отправки наклеек: ' + e.message);
