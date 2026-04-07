@@ -1773,7 +1773,7 @@
     margin-bottom: auto !important;
     display: flex !important;
     justify-content: space-between !important;
-    align-items: flex-end !important;
+    align-items: flex-start !important; /* Изменили flex-end на flex-start для выравнивания по верху */
 }
 
 /* Подвал: всегда прижат к нижнему padding (5мм от края) */
