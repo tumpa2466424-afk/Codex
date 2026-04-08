@@ -4047,11 +4047,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     const packEl = host.querySelector('.product-pack-preview');
                     if (!packEl) throw new Error('РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР±СЂР°С‚СЊ РїР°С‡РєСѓ СЃ Р»РёС†РµРІРѕР№ РЅР°РєР»РµР№РєРѕР№.');
 
-                    const computedFontFamily = await this.ensureStickerExportFontReady(packEl);
-                    const unlockPackFont = this.lockStickerFontForRender(packEl, computedFontFamily);
-
-                    try {
-                        await this.waitForStickerRenderReady();
+                    await this.waitForStickerRenderReady();
                         await this.waitForRenderImagesReady(packEl);
                         const rect = packEl.getBoundingClientRect();
                         const targetWidthPx = Math.max(Math.round((rect.width || 380) * 4), 1400);
@@ -4066,9 +4062,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         return await new Promise((resolve, reject) => {
                             canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ PNG-С„Р°Р№Р» РїР°С‡РєРё.')), 'image/png');
                         });
-                    } finally {
-                        unlockPackFont();
-                    }
                 } finally {
                     if (host?.parentNode) host.parentNode.removeChild(host);
                 }
