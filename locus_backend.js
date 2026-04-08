@@ -119,6 +119,39 @@ async function sendAdminInboxCopyEmail({ userEmail, userId, subject, text, times
     });
 }
 
+function formatMailMultilineHtml(value, fallback = 'Не указано') {
+    const trimmed = String(value || '').trim();
+    return escapeHtml(trimmed || fallback).replace(/\r?\n/g, '<br>');
+}
+
+async function sendAdminNewLotEmail({ sampleName, bouquetDescription, nuanceDescription, categoryName, attachment }) {
+    const resolvedSampleName = String(sampleName || '').trim() || 'Новый сорт';
+    const safeSampleName = escapeHtml(resolvedSampleName);
+    const safeBouquetDescription = formatMailMultilineHtml(bouquetDescription);
+    const safeNuanceDescription = formatMailMultilineHtml(nuanceDescription);
+    const safeCategoryName = escapeHtml(String(categoryName || '').trim() || 'подходящей категории');
+    const attachments = attachment ? [attachment] : [];
+
+    return sendTransactionalMail({
+        from: '"Locus Coffee" <info@locus.coffee>',
+        to: 'info@locus.coffee',
+        subject: `Описание ${resolvedSampleName}`,
+        html: `<div style="font-family: Inter, Arial, sans-serif; color: #333; max-width: 680px; margin: 0 auto; border: 1px solid #E5E1D8; border-radius: 10px; overflow: hidden;">
+                <div style="background: #693a05; padding: 18px 20px; color: #fff;">
+                    <h2 style="margin: 0; font-size: 18px; letter-spacing: 0.04em;">Описание ${safeSampleName}</h2>
+                </div>
+                <div style="padding: 22px; background: #F4F1EA; line-height: 1.6;">
+                    <p style="margin: 0 0 14px 0;">Друзья! Мы рады сообщить вам о новом поступлении в наш каталог кофе - <b>${safeSampleName}</b>.</p>
+                    <p style="margin: 0 0 10px 0;"><b>В букете:</b><br>${safeBouquetDescription}</p>
+                    <p style="margin: 0 0 10px 0;"><b>Нюансы:</b><br>${safeNuanceDescription}</p>
+                    <p style="margin: 0 0 14px 0;"><b>${safeSampleName}</b> отлично подойдет для приготовления в <b>${safeCategoryName}</b>.</p>
+                    <p style="margin: 0;">Регистрируйтесь в ЛК на нашем сайте locus.coffee, получайте уведомления о новых лотах и приятные скидки, чтобы попробовать их одними из первых.<br><br>Хорошего вам дня и вкусного кофе!</p>
+                </div>
+            </div>`,
+        attachments
+    });
+}
+
 function buildPasswordResetUrl(token) {
     const url = new URL(PUBLIC_WEB_URL);
     url.searchParams.set('view', 'reset-password');
@@ -2390,6 +2423,25 @@ module.exports.handler = async function (event, context) {
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
                 
                 const sampleName = String(body.sampleName || '').trim();
+                const bouquetDescription = String(body.bouquetDescription || '').trim();
+                const nuanceDescription = String(body.nuanceDescription || '').trim();
+                const categoryName = String(body.categoryName || '').trim();
+                const adminAttachmentInput = body && typeof body.adminAttachment === 'object' ? body.adminAttachment : null;
+                let adminAttachment = null;
+
+                if (adminAttachmentInput) {
+                    const filename = String(adminAttachmentInput.filename || 'locus_coffee.png').trim() || 'locus_coffee.png';
+                    const contentType = String(adminAttachmentInput.contentType || '').trim().toLowerCase();
+                    const contentBase64 = String(adminAttachmentInput.contentBase64 || '').trim();
+                    if (contentType !== 'image/png') throw new Error('Вложение для администратора должно быть PNG');
+                    if (!contentBase64) throw new Error('Вложение для администратора пустое');
+
+                    adminAttachment = {
+                        filename,
+                        content: Buffer.from(contentBase64, 'base64'),
+                        contentType: 'image/png'
+                    };
+                }
                 if (!sampleName) throw new Error('Не указано название лота');
 
                 const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -2419,6 +2471,14 @@ module.exports.handler = async function (event, context) {
                     timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                 });
                 const expiresText = formatter.format(new Date(expiresAt));
+                const adminMailSent = await sendAdminNewLotEmail({
+                    sampleName,
+                    bouquetDescription,
+                    nuanceDescription,
+                    categoryName,
+                    attachment: adminAttachment
+                });
+                if (!adminMailSent) throw new Error('Не удалось отправить письмо администратору');
 
                 let sentCount = 0;
                 for (const email of targetEmails) {
@@ -2442,7 +2502,7 @@ module.exports.handler = async function (event, context) {
                     if (sent) sentCount++;
                 }
 
-                responseData = { success: true, sentCount };
+                responseData = { success: true, sentCount, adminMailSent };
             }
             
             else if (action === 'getNewLotDiscount') {
