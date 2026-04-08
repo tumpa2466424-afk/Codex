@@ -46,7 +46,10 @@
     }
 }
 
-/* 2.2. КНОПКА В ПОПАПЕ "КОЛЕСО УДАЧИ" — ЦЕНТРИРОВАНИЕ И КОМПАКТНОСТЬ */
+/* 2.2. ПОПАП "КОЛЕСО УДАЧИ" — ВЫРАВНИВАНИЕ ВСЕГО ПО ЦЕНТРУ И КОМПАКТНАЯ КНОПКА */
+#fortune-offer {
+    text-align: center !important;
+}
 #fortune-offer .lc-btn {
     margin-left: auto !important;
     margin-right: auto !important;
