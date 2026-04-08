@@ -1360,6 +1360,7 @@
     font-size: 0.46em;
     font-weight: 400;
     letter-spacing: 0.12em;
+    transform: rotate(-1.5deg);
 }
 
 .product-pack-country {
