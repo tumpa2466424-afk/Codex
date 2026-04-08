@@ -3236,7 +3236,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     if (pIndex !== -1) {
                         this.ALL_PRODUCTS[pIndex].inCatalog = isChecked ? "1" : "";
                         
-                        if (isChecked) {
+                       if (isChecked) {
                             if (confirm(`Отправить подписчикам уведомление о новом лоте "${this.ALL_PRODUCTS[pIndex].sample}" со скидкой 10% на 24 часа?`)) {
                                 const product = this.ALL_PRODUCTS[pIndex];
                                 
@@ -3255,20 +3255,43 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 const fNotes = product.flavorNotes || 'Нюансы не указаны';
 
                                 const token = localStorage.getItem('locus_token');
-                                fetch(LOCUS_API_URL + '?action=notifyNewLot', {
-                                    method: 'POST',
-                                    headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ 
-                                        action: 'notifyNewLot', 
-                                        sampleName: product.sample,
-                                        flavorDesc: fDesc,
-                                        flavorNotes: fNotes,
-                                        category: gName
-                                    })
-                                }).then(res => res.json()).then(data => {
-                                    if (data.success) alert(`Рассылка запущена! Отправлено писем: ${data.sentCount}`);
-                                    else alert('Ошибка рассылки: ' + data.error);
-                                }).catch(e => alert('Ошибка при вызове рассылки: ' + e.message));
+                                
+                                const sendApiRequest = (imageBase64) => {
+                                    fetch(LOCUS_API_URL + '?action=notifyNewLot', {
+                                        method: 'POST',
+                                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ 
+                                            action: 'notifyNewLot', 
+                                            sampleName: product.sample,
+                                            flavorDesc: fDesc,
+                                            flavorNotes: fNotes,
+                                            category: gName,
+                                            packageImageBase64: imageBase64
+                                        })
+                                    }).then(res => res.json()).then(data => {
+                                        if (data.success) alert(`Рассылка запущена! Отправлено писем: ${data.sentCount}`);
+                                        else alert('Ошибка рассылки: ' + data.error);
+                                    }).catch(e => alert('Ошибка при вызове рассылки: ' + e.message));
+                                };
+
+                                // Формируем точный ID лицевой наклейки, как он генерируется в getViewHtml
+                                const safeSampleId = product.sample ? product.sample.toString().replace(/[^a-zA-Z0-9]/g, '_') : '';
+                                const frontStickerId = `front-${safeSampleId}`;
+                                const mockupEl = document.getElementById(frontStickerId); 
+                                
+                                if (mockupEl) {
+                                    // Используем твою готовую функцию рендера наклейки для сохранения шрифтов и стилей
+                                    CatalogSystem.renderStickerElementToBlob(mockupEl, 'front')
+                                        .then(blob => CatalogSystem.blobToBase64(blob))
+                                        .then(base64 => sendApiRequest(base64))
+                                        .catch(err => {
+                                            console.error('Ошибка создания скриншота пачки:', err);
+                                            sendApiRequest('');
+                                        });
+                                } else {
+                                    console.warn('Элемент пачки не найден. Отправляю письмо без картинки.');
+                                    sendApiRequest('');
+                                }
                             }
                         }
                     }
