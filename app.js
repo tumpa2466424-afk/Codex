@@ -3266,7 +3266,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                             flavorDesc: fDesc,
                                             flavorNotes: fNotes,
                                             category: gName,
-                                            packageImageBase64: imageBase64
+                                            packageImageBase64: imageBase64 // Передаем картинку мокапа белой пачки
                                         })
                                     }).then(res => res.json()).then(data => {
                                         if (data.success) alert(`Рассылка запущена! Отправлено писем: ${data.sentCount}`);
@@ -3274,22 +3274,42 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     }).catch(e => alert('Ошибка при вызове рассылки: ' + e.message));
                                 };
 
-                                // Формируем точный ID лицевой наклейки, как он генерируется в getViewHtml
-                                const safeSampleId = product.sample ? product.sample.toString().replace(/[^a-zA-Z0-9]/g, '_') : '';
-                                const frontStickerId = `front-${safeSampleId}`;
-                                const mockupEl = document.getElementById(frontStickerId); 
+                                // Генерируем HTML белой пачки с текстом (как в карточке товара)
+                                const packHtml = CatalogSystem.getPackPreviewHtml(product);
                                 
-                                if (mockupEl) {
-                                    // Используем твою готовую функцию рендера наклейки для сохранения шрифтов и стилей
-                                    CatalogSystem.renderStickerElementToBlob(mockupEl, 'front')
-                                        .then(blob => CatalogSystem.blobToBase64(blob))
-                                        .then(base64 => sendApiRequest(base64))
-                                        .catch(err => {
-                                            console.error('Ошибка создания скриншота пачки:', err);
+                                if (packHtml && typeof html2canvas !== 'undefined') {
+                                    // Создаем невидимый блок для рендера пачки
+                                    const tempDiv = document.createElement('div');
+                                    tempDiv.style.position = 'absolute';
+                                    tempDiv.style.left = '-9999px';
+                                    tempDiv.style.top = '-9999px';
+                                    tempDiv.style.width = '280px'; // Фиксируем ширину, чтобы верстка не разъехалась
+                                    tempDiv.innerHTML = packHtml;
+                                    document.body.appendChild(tempDiv);
+                                    
+                                    const packImg = tempDiv.querySelector('img.product-pack-base');
+                                    const targetNode = tempDiv.querySelector('.product-pack-figure');
+                                    
+                                    const renderCanvas = () => {
+                                        html2canvas(targetNode, { useCORS: true, backgroundColor: null, scale: 2 }).then(canvas => {
+                                            const imgData = canvas.toDataURL('image/png').split(',')[1];
+                                            sendApiRequest(imgData);
+                                            document.body.removeChild(tempDiv);
+                                        }).catch(err => {
+                                            console.error('Ошибка создания скриншота белой пачки:', err);
                                             sendApiRequest('');
+                                            document.body.removeChild(tempDiv);
                                         });
+                                    };
+
+                                    // Ждем загрузки фоновой картинки белой пачки, чтобы html2canvas ее увидел
+                                    if (packImg && !packImg.complete) {
+                                        packImg.onload = renderCanvas;
+                                        packImg.onerror = renderCanvas; // Если не загрузится, все равно делаем скрин (хотя бы с текстом)
+                                    } else {
+                                        renderCanvas();
+                                    }
                                 } else {
-                                    console.warn('Элемент пачки не найден. Отправляю письмо без картинки.');
                                     sendApiRequest('');
                                 }
                             }
