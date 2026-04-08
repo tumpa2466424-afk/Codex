@@ -1152,7 +1152,7 @@
 .locus-footer {
     margin-top: auto; /* Всегда прижимает подвал к низу контейнера */
     padding-top: 20px;
-    padding-bottom: 10px;
+    padding-bottom: 0px;
     display: flex;
     flex-direction: column;
     gap: 20px;
