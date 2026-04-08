@@ -2387,6 +2387,7 @@ module.exports.handler = async function (event, context) {
             
             
             // --- НАЧАЛО: РАССЫЛКА И СКИДКА НА НОВЫЙ ЛОТ ---
+            // --- НАЧАЛО: РАССЫЛКА И СКИДКА НА НОВЫЙ ЛОТ ---
             else if (action === 'notifyNewLot') {
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
@@ -2395,39 +2396,33 @@ module.exports.handler = async function (event, context) {
                 const flavorDesc = String(body.flavorDesc || '').trim();
                 const flavorNotes = String(body.flavorNotes || '').trim();
                 const category = String(body.category || '').trim();
-                const packageImageBase64 = String(body.packageImageBase64 || '').trim(); // Принимаем картинку
+                const packageImageBase64 = String(body.packageImageBase64 || '').trim();
 
                 if (!sampleName) throw new Error('Не указано название лота');
 
                 const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+                const expiresText = new Date(expiresAt).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
 
-                const saveQuery = `DECLARE $id AS Utf8; DECLARE $config AS JsonDocument; UPSERT INTO settings (id, config) VALUES ($id, $config);`;
-                await session.executeQuery(saveQuery, {
-                    '$id': TypedValues.utf8('new_lot_discount'),
-                    '$config': TypedValues.jsonDocument(JSON.stringify({ sampleName, expiresAt }))
-                });
-
-                const usersQuery = `SELECT email, history FROM users;`;
-                const { resultSets } = await session.executeQuery(usersQuery);
-                const targetEmails = [];
-                
-                if (resultSets[0].rows.length > 0) {
-                    resultSets[0].rows.forEach(row => {
-                        const u = rowToObj(resultSets[0].columns, row);
-                        const hist = getRawArray(u.history);
-                        const notifyEntry = hist.find(h => h && h.isSystemMeta && h.systemType === 'NOTIFY_NEW_LOTS');
-                        if (notifyEntry && notifyEntry.enabled && isValidEmailAddress(u.email)) {
-                            targetEmails.push(u.email);
-                        }
-                    });
+                // 1. Сохраняем конфиг скидки. Используем JSON.stringify и экранируем одинарные кавычки для SQL
+                const configJson = JSON.stringify({ sampleName, expiresAt }).replace(/'/g, "''");
+                try {
+                    await executeQuery(db, `UPSERT INTO catalog_config (id, config) VALUES ('new_lot_discount', '${configJson}');`);
+                } catch (dbErr) {
+                    console.error('Ошибка записи конфига скидки:', dbErr);
+                    // Продолжаем работу, даже если скидка не записалась, чтобы ушли письма
                 }
 
-                const formatter = new Intl.DateTimeFormat('ru-RU', {
-                    timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                });
-                const expiresText = formatter.format(new Date(expiresAt));
+                // 2. Получаем список email пользователей
+                let targetEmails = [];
+                try {
+                    const users = await executeQuery(db, "SELECT email FROM users WHERE notify_new_lots = true;");
+                    targetEmails = users.map(u => u.email).filter(e => e && e.includes('@'));
+                } catch (dbErr) {
+                    console.error('Ошибка получения списка пользователей:', dbErr);
+                }
 
                 let sentCount = 0;
+                // Рассылка пользователям
                 for (const email of targetEmails) {
                     const sent = await sendTransactionalMail({
                         from: '"Locus Coffee" <info@locus.coffee>',
@@ -2449,14 +2444,13 @@ module.exports.handler = async function (event, context) {
                     if (sent) sentCount++;
                 }
 
-                // Отправка письма администратору для публикации в соцсетях
+                // 3. Отправка письма администратору для соцсетей
                 const adminMailText = `Друзья!\nНовое поступление в каталог кофе - ${sampleName}.\nВ букете: ${flavorDesc}\nНюансы: ${flavorNotes}\n${sampleName} отлично подойдет для приготовления в ${category}.\nРегистрируйтесь в ЛК на нашем сайте locus.coffee, получайте уведомления о новых лотах и приятные скидки, чтобы попробовать их одними из первых.\nХорошего дня и вкусного кофе!`;
 
-                // Формируем вложения для письма администратору
                 const adminAttachments = [];
                 if (packageImageBase64) {
                     adminAttachments.push({
-                        filename: `${sampleName.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_')}_pack.png`, // Имя файла
+                        filename: `${sampleName.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_')}_pack.png`,
                         content: Buffer.from(packageImageBase64, 'base64'),
                         contentType: 'image/png'
                     });
@@ -2468,9 +2462,9 @@ module.exports.handler = async function (event, context) {
                     subject: `Описание ${sampleName}`,
                     text: adminMailText,
                     html: `<div style="font-family: sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #E5E1D8; border-radius: 8px; background: #F4F1EA;">
-${adminMailText.replace(/\n/g, '<br>')}
-</div>`,
-                    attachments: adminAttachments // Прикрепляем вложения
+                        ${adminMailText.replace(/\n/g, '<br>')}
+                    </div>`,
+                    attachments: adminAttachments
                 });
 
                 responseData = { success: true, sentCount };
