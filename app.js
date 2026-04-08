@@ -3271,7 +3271,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                         nuanceDescription,
                                         categoryName,
                                         adminAttachment: {
-                                            filename: 'locus_coffee.png',
+                                            filename: `${product.sample}_locus_coffee.png`,
                                             contentType: 'image/png',
                                             contentBase64: packBase64
                                         }
@@ -3788,8 +3788,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             createPackPreviewExportContainer: function(product) {
                 const host = document.createElement('div');
                 host.className = 'sticker-export-host';
-                host.style.cssText = 'position:fixed; left:-10000px; top:0; pointer-events:none; background:#fff; padding:0; margin:0; z-index:-1; width:420px;';
-                host.innerHTML = `<div>${this.getPackPreviewHtml(product)}</div>`;
+                // Полностью имитируем DOM-окружение магазина, чтобы CSS для 3D-трансформаций и шрифтов сработали идеально
+                host.style.cssText = 'position:fixed; left:-10000px; top:0; pointer-events:none; background:transparent; padding:0; margin:0; z-index:-1; width:420px;';
+                host.innerHTML = `
+                    <div id="coffee-shop-wheel" class="cs-widget-container" style="min-height:0; display:block; background:transparent;">
+                        <div class="info-area" style="padding:20px; height:auto; background:transparent;">
+                            <div id="product-info" class="info-card active" style="transform:none; display:block;">
+                                <div id="p-simple-desc" class="simple-desc">
+                                    ${this.getPackPreviewHtml(product)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
                 document.body.appendChild(host);
                 return host;
             },
@@ -4038,32 +4049,40 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             renderPackPreviewToBlob: async function(product) {
-                if (!product) throw new Error('Р›РѕС‚ РЅРµ РЅР°Р№РґРµРЅ.');
-                if (typeof html2canvas === 'undefined') throw new Error('РњРѕРґСѓР»СЊ РіРµРЅРµСЂР°С†РёРё РёР·РѕР±СЂР°Р¶РµРЅРёР№ РµС‰С‘ Р·Р°РіСЂСѓР¶Р°РµС‚СЃСЏ.');
-
+                if (!product) throw new Error('Лот не найден.');
+                if (typeof html2canvas === 'undefined') throw new Error('Модуль генерации изображений ещё загружается.');
                 let host = null;
                 try {
                     host = this.createPackPreviewExportContainer(product);
                     const packEl = host.querySelector('.product-pack-preview');
-                    if (!packEl) throw new Error('РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР±СЂР°С‚СЊ РїР°С‡РєСѓ СЃ Р»РёС†РµРІРѕР№ РЅР°РєР»РµР№РєРѕР№.');
+                    if (!packEl) throw new Error('Не удалось собрать пачку с лицевой наклейкой.');
+                    
+                    // Принудительно фиксируем шрифты перед рендером, как это делается для PDF-стикеров
+                    const computedStickerFontFamily = await this.ensureStickerExportFontReady(packEl);
+                    const unlockStickerFont = this.lockStickerFontForRender(packEl, computedStickerFontFamily);
 
                     await this.waitForStickerRenderReady();
-                        await this.waitForRenderImagesReady(packEl);
-                        const rect = packEl.getBoundingClientRect();
-                        const targetWidthPx = Math.max(Math.round((rect.width || 380) * 4), 1400);
-                        const scale = rect.width > 0 ? targetWidthPx / rect.width : 4;
-                        const canvas = await html2canvas(packEl, {
-                            scale: Math.max(scale, 1),
-                            backgroundColor: '#ffffff',
-                            useCORS: true,
-                            logging: false
-                        });
-
-                        return await new Promise((resolve, reject) => {
-                            canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ PNG-С„Р°Р№Р» РїР°С‡РєРё.')), 'image/png');
-                        });
+                    await this.waitForRenderImagesReady(packEl);
+                    
+                    const rect = packEl.getBoundingClientRect();
+                    const targetWidthPx = Math.max(Math.round((rect.width || 380) * 4), 1400);
+                    const scale = rect.width > 0 ? targetWidthPx / rect.width : 4;
+                    
+                    // Рендерим с прозрачным фоном, чтобы картинка пачки в письме была красивой, без белого квадрата
+                    const canvas = await html2canvas(packEl, { 
+                        scale: Math.max(scale, 1), 
+                        backgroundColor: null, 
+                        useCORS: true, 
+                        logging: false 
+                    });
+                    
+                    unlockStickerFont(); // Снимаем жесткую привязку шрифта
+                    
+                    return await new Promise((resolve, reject) => {
+                        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Не удалось создать PNG-файл пачки.')), 'image/png');
+                    });
                 } finally {
-                    if (host?.parentNode) host.parentNode.removeChild(host);
+                    if (host && host.parentNode) host.parentNode.removeChild(host);
                 }
             },
 
