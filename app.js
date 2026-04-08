@@ -3275,40 +3275,47 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 };
 
                                 // Генерируем HTML белой пачки с текстом (как в карточке товара)
+                                // Генерируем HTML белой пачки с текстом
                                 const packHtml = CatalogSystem.getPackPreviewHtml(product);
                                 
                                 if (packHtml && typeof html2canvas !== 'undefined') {
-                                    // Создаем невидимый блок для рендера пачки
                                     const tempDiv = document.createElement('div');
                                     tempDiv.style.position = 'absolute';
                                     tempDiv.style.left = '-9999px';
                                     tempDiv.style.top = '-9999px';
-                                    tempDiv.style.width = '280px'; // Фиксируем ширину, чтобы верстка не разъехалась
+                                    tempDiv.style.width = '400px'; // Чуть шире для лучшего качества
                                     tempDiv.innerHTML = packHtml;
                                     document.body.appendChild(tempDiv);
                                     
-                                    const packImg = tempDiv.querySelector('img.product-pack-base');
-                                    const targetNode = tempDiv.querySelector('.product-pack-figure');
-                                    
-                                    const renderCanvas = () => {
-                                        html2canvas(targetNode, { useCORS: true, backgroundColor: null, scale: 2 }).then(canvas => {
-                                            const imgData = canvas.toDataURL('image/png').split(',')[1];
-                                            sendApiRequest(imgData);
-                                            document.body.removeChild(tempDiv);
-                                        }).catch(err => {
-                                            console.error('Ошибка создания скриншота белой пачки:', err);
-                                            sendApiRequest('');
-                                            document.body.removeChild(tempDiv);
-                                        });
-                                    };
+                                    // Дождемся отрисовки стилей и шрифтов
+                                    setTimeout(() => {
+                                        const targetNode = tempDiv.querySelector('.product-pack-figure');
+                                        const packImg = tempDiv.querySelector('img.product-pack-base');
 
-                                    // Ждем загрузки фоновой картинки белой пачки, чтобы html2canvas ее увидел
-                                    if (packImg && !packImg.complete) {
-                                        packImg.onload = renderCanvas;
-                                        packImg.onerror = renderCanvas; // Если не загрузится, все равно делаем скрин (хотя бы с текстом)
-                                    } else {
-                                        renderCanvas();
-                                    }
+                                        const renderNow = () => {
+                                            html2canvas(targetNode, { 
+                                                useCORS: true, 
+                                                backgroundColor: null, 
+                                                scale: 2,
+                                                logging: false 
+                                            }).then(canvas => {
+                                                const imgData = canvas.toDataURL('image/png').split(',')[1];
+                                                sendApiRequest(imgData);
+                                                document.body.removeChild(tempDiv);
+                                            }).catch(err => {
+                                                console.error('Ошибка скриншота:', err);
+                                                sendApiRequest('');
+                                                if (tempDiv.parentNode) document.body.removeChild(tempDiv);
+                                            });
+                                        };
+
+                                        if (packImg && !packImg.complete) {
+                                            packImg.onload = renderNow;
+                                            packImg.onerror = renderNow;
+                                        } else {
+                                            renderNow();
+                                        }
+                                    }, 100); 
                                 } else {
                                     sendApiRequest('');
                                 }
