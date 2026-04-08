@@ -3353,15 +3353,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (document.getElementById('fortune-offer')) return;
                 const div = document.createElement('div');
                 div.id = 'fortune-offer';
-                div.style.cssText = 'position:absolute; right:20px; top:120px; background:#fff; padding:15px; border-radius:8px; box-shadow:0 4px 15px rgba(0,0,0,0.15); z-index:50; width:220px; border:1px solid var(--locus-border); text-align:center;';
+                div.style.cssText = 'position:fixed; left:50%; top:50%; transform:translate(-50%, -50%); background:#fff; padding:15px; border-radius:8px; box-shadow:0 4px 15px rgba(0,0,0,0.15); z-index:50; width:220px; border:1px solid var(--locus-border); text-align:center;';
                 div.innerHTML = `
                     <div style="font-weight:bold; color:var(--locus-dark); margin-bottom:10px;">Колесо удачи! 🎁</div>
                     <div style="font-size:12px; margin-bottom:15px; color:#555;">Испытайте удачу и получите дополнительную скидку 10% на случайный сорт.</div>
                     <button class="lc-btn" style="padding:8px; font-size:12px; margin-bottom:8px; width:100%;" onclick="FortuneSystem.accept()">Участвую!</button>
                     <div style="font-size:10px; color:gray; cursor:pointer; text-decoration:underline;" onclick="FortuneSystem.decline()">Перейти в каталог</div>
                 `;
-                const zone = document.getElementById('wheel-zone');
-                if(zone) zone.appendChild(div);
+                document.body.appendChild(div);
             },
             accept: function() {
                 const offer = document.getElementById('fortune-offer');
