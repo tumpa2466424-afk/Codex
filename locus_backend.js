@@ -2385,11 +2385,16 @@ module.exports.handler = async function (event, context) {
                 responseData = { success: true, text: generatedText, image: imageUrl };
             }
             // --- НАЧАЛО: РАССЫЛКА И СКИДКА НА НОВЫЙ ЛОТ ---
+            // --- НАЧАЛО: РАССЫЛКА И СКИДКА НА НОВЫЙ ЛОТ ---
             else if (action === 'notifyNewLot') {
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
                 
                 const sampleName = String(body.sampleName || '').trim();
+                const flavorDesc = String(body.flavorDesc || '').trim();
+                const flavorNotes = String(body.flavorNotes || '').trim();
+                const category = String(body.category || '').trim();
+
                 if (!sampleName) throw new Error('Не указано название лота');
 
                 const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -2441,6 +2446,19 @@ module.exports.handler = async function (event, context) {
                     });
                     if (sent) sentCount++;
                 }
+
+                // Отправка письма администратору для публикации в соцсетях
+                const adminMailText = `Друзья!\nНовое поступление в каталог кофе - *${sampleName}*.\nВ букете: ${flavorDesc}\nНюансы: ${flavorNotes}\n*${sampleName}* отлично подойдет для приготовления в *${category}*.\nРегистрируйтесь в ЛК на нашем сайте locus.coffee, получайте уведомления о новых лотах и приятные скидки, чтобы попробовать их одними из первых.\nХорошего дня и вкусного кофе!`;
+
+                await sendTransactionalMail({
+                    from: '"Locus Coffee" <info@locus.coffee>',
+                    to: 'info@locus.coffee',
+                    subject: `Описание ${sampleName}`,
+                    text: adminMailText,
+                    html: `<div style="font-family: sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #E5E1D8; border-radius: 8px; background: #F4F1EA;">
+${adminMailText.replace(/\n/g, '<br>')}
+</div>`
+                });
 
                 responseData = { success: true, sentCount };
             }
