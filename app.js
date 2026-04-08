@@ -3357,7 +3357,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 div.innerHTML = `
                     <div style="font-weight:bold; color:var(--locus-dark); margin-bottom:10px;">Колесо удачи! 🎁</div>
                     <div style="font-size:12px; margin-bottom:15px; color:#555;">Испытайте удачу и получите дополнительную скидку 10% на случайный сорт.</div>
-                    <button class="lc-btn" style="padding:8px; font-size:12px; margin-bottom:8px; width:100%;" onclick="FortuneSystem.accept()">Участвую!</button>
+                    <button class="lc-btn" style="padding:8px; font-size:12px; margin-bottom:8px;" onclick="FortuneSystem.accept()">Участвую!</button>
                     <div style="font-size:10px; color:gray; cursor:pointer; text-decoration:underline;" onclick="FortuneSystem.decline()">Перейти в каталог</div>
                 `;
                 document.body.appendChild(div);
