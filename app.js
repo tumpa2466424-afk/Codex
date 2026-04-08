@@ -3239,11 +3239,31 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         if (isChecked) {
                             if (confirm(`Отправить подписчикам уведомление о новом лоте "${this.ALL_PRODUCTS[pIndex].sample}" со скидкой 10% на 24 часа?`)) {
                                 const token = localStorage.getItem('locus_token');
-                                fetch(LOCUS_API_URL + '?action=notifyNewLot', {
+                                const product = this.ALL_PRODUCTS[pIndex];
+                                const fullProduct = (typeof ALL_PRODUCTS_CACHE !== 'undefined' && Array.isArray(ALL_PRODUCTS_CACHE))
+                                    ? (ALL_PRODUCTS_CACHE.find(p => String(p?.id || '') === String(product.id || '')) || ALL_PRODUCTS_CACHE.find(p => String(p?.sample || '') === String(product.sample || '')))
+                                    : null;
+                                const bouquetDescription = String(fullProduct?.flavorDesc || product?.flavorDesc || '').trim();
+                                const nuanceDescription = String(fullProduct?.flavorNotes || product?.flavorNotes || '').trim();
+                                const categoryName = String(fullProduct?.category || product?.category || '').trim();
+                                this.renderPackPreviewToBlob(product)
+                                .then(packBlob => this.blobToBase64(packBlob))
+                                .then(packBase64 => fetch(LOCUS_API_URL + '?action=notifyNewLot', {
                                     method: 'POST',
                                     headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ action: 'notifyNewLot', sampleName: this.ALL_PRODUCTS[pIndex].sample })
-                                }).then(res => res.json()).then(data => {
+                                    body: JSON.stringify({
+                                        action: 'notifyNewLot',
+                                        sampleName: product.sample,
+                                        bouquetDescription,
+                                        nuanceDescription,
+                                        categoryName,
+                                        adminAttachment: {
+                                            filename: 'locus_coffee.png',
+                                            contentType: 'image/png',
+                                            contentBase64: packBase64
+                                        }
+                                    })
+                                })).then(res => res.json()).then(data => {
                                     if (data.success) alert(`Рассылка запущена! Отправлено писем: ${data.sentCount}`);
                                     else alert('Ошибка рассылки: ' + data.error);
                                 }).catch(e => alert('Ошибка при вызове рассылки: ' + e.message));
@@ -3750,6 +3770,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 return host;
             },
 
+            createPackPreviewExportContainer: function(product) {
+                const host = document.createElement('div');
+                host.className = 'sticker-export-host';
+                host.style.cssText = 'position:fixed; left:-10000px; top:0; pointer-events:none; background:#fff; padding:0; margin:0; z-index:-1; width:420px;';
+                host.innerHTML = `<div>${this.getPackPreviewHtml(product)}</div>`;
+                document.body.appendChild(host);
+                return host;
+            },
+
             waitForStickerRenderReady: async function() {
                 if (document.fonts?.ready) {
                     try {
@@ -3757,6 +3786,41 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     } catch (e) {}
                 }
                 await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            },
+
+            waitForRenderImagesReady: async function(rootEl) {
+                if (!rootEl) return;
+                const images = [];
+                if (rootEl.tagName === 'IMG') images.push(rootEl);
+                if (typeof rootEl.querySelectorAll === 'function') {
+                    rootEl.querySelectorAll('img').forEach(img => images.push(img));
+                }
+                const uniqueImages = Array.from(new Set(images));
+                if (!uniqueImages.length) return;
+
+                await Promise.all(uniqueImages.map(img => new Promise(resolve => {
+                    let settled = false;
+                    const done = () => {
+                        if (settled) return;
+                        settled = true;
+                        img.removeEventListener('load', done);
+                        img.removeEventListener('error', done);
+                        resolve();
+                    };
+
+                    if (img.complete && img.naturalWidth > 0) {
+                        if (typeof img.decode === 'function') {
+                            img.decode().catch(() => {}).finally(done);
+                        } else {
+                            done();
+                        }
+                        return;
+                    }
+
+                    img.addEventListener('load', done, { once: true });
+                    img.addEventListener('error', done, { once: true });
+                    setTimeout(done, 10000);
+                })));
             },
 
             extractPrimaryFontFamily: function(fontFamily) {
@@ -3938,6 +4002,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 try {
                     await this.waitForStickerRenderReady();
+                    await this.waitForRenderImagesReady(stickerEl);
                     const rect = stickerEl.getBoundingClientRect();
                     const scale = rect.width > 0 ? targetWidthPx / rect.width : (this.STICKER_EXPORT_DPI / 96);
                     const canvas = await html2canvas(stickerEl, {
@@ -3954,6 +4019,43 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 } finally {
                     stickerEl.style.borderColor = originalBorderColor;
                     unlockStickerFont();
+                }
+            },
+
+            renderPackPreviewToBlob: async function(product) {
+                if (!product) throw new Error('Р›РѕС‚ РЅРµ РЅР°Р№РґРµРЅ.');
+                if (typeof html2canvas === 'undefined') throw new Error('РњРѕРґСѓР»СЊ РіРµРЅРµСЂР°С†РёРё РёР·РѕР±СЂР°Р¶РµРЅРёР№ РµС‰С‘ Р·Р°РіСЂСѓР¶Р°РµС‚СЃСЏ.');
+
+                let host = null;
+                try {
+                    host = this.createPackPreviewExportContainer(product);
+                    const packEl = host.querySelector('.product-pack-preview');
+                    if (!packEl) throw new Error('РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР±СЂР°С‚СЊ РїР°С‡РєСѓ СЃ Р»РёС†РµРІРѕР№ РЅР°РєР»РµР№РєРѕР№.');
+
+                    const computedFontFamily = await this.ensureStickerExportFontReady(packEl);
+                    const unlockPackFont = this.lockStickerFontForRender(packEl, computedFontFamily);
+
+                    try {
+                        await this.waitForStickerRenderReady();
+                        await this.waitForRenderImagesReady(packEl);
+                        const rect = packEl.getBoundingClientRect();
+                        const targetWidthPx = Math.max(Math.round((rect.width || 380) * 4), 1400);
+                        const scale = rect.width > 0 ? targetWidthPx / rect.width : 4;
+                        const canvas = await html2canvas(packEl, {
+                            scale: Math.max(scale, 1),
+                            backgroundColor: '#ffffff',
+                            useCORS: true,
+                            logging: false
+                        });
+
+                        return await new Promise((resolve, reject) => {
+                            canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ PNG-С„Р°Р№Р» РїР°С‡РєРё.')), 'image/png');
+                        });
+                    } finally {
+                        unlockPackFont();
+                    }
+                } finally {
+                    if (host?.parentNode) host.parentNode.removeChild(host);
                 }
             },
 
@@ -8790,7 +8892,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             mmToPrintPixels: UserSystem.mmToPrintPixels,
             sanitizeStickerFileName: UserSystem.sanitizeStickerFileName,
             createStickerExportContainer: UserSystem.createStickerExportContainer,
+            createPackPreviewExportContainer: UserSystem.createPackPreviewExportContainer,
             waitForStickerRenderReady: UserSystem.waitForStickerRenderReady,
+            waitForRenderImagesReady: UserSystem.waitForRenderImagesReady,
             extractPrimaryFontFamily: UserSystem.extractPrimaryFontFamily,
             ensureStickerExportFontReady: UserSystem.ensureStickerExportFontReady,
             lockStickerFontForRender: UserSystem.lockStickerFontForRender,
@@ -8802,6 +8906,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             setPngBlobDpi: UserSystem.setPngBlobDpi,
             blobToBase64: UserSystem.blobToBase64,
             renderStickerElementToBlob: UserSystem.renderStickerElementToBlob,
+            renderPackPreviewToBlob: UserSystem.renderPackPreviewToBlob,
             downloadStickerElement: UserSystem.downloadStickerElement,
             sendStickerPackEmail: UserSystem.sendStickerPackEmail
         });
