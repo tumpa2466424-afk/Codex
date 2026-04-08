@@ -318,6 +318,57 @@ function findCatalogProductById(catalog, productId) {
     ) || null;
 }
 
+function normalizeCatalogLookupValue(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function findCatalogProductBySampleName(catalog, sampleName) {
+    const normalizedSample = normalizeCatalogLookupValue(sampleName);
+    if (!normalizedSample) return null;
+
+    return (Array.isArray(catalog) ? catalog : []).find(item => {
+        const sampleNo = normalizeCatalogLookupValue(item?.sample_no);
+        const sample = normalizeCatalogLookupValue(item?.sample);
+        return sampleNo === normalizedSample || sample === normalizedSample;
+    }) || null;
+}
+
+function resolveCatalogString(...values) {
+    for (const value of values) {
+        const normalized = String(value || '').trim();
+        if (normalized) return normalized;
+    }
+    return '';
+}
+
+function resolveNewLotMailPayload(sampleName, catalogProduct, payload = {}) {
+    const source = catalogProduct ? 'catalog_fallback' : 'request_payload';
+    return {
+        source,
+        sampleName: resolveCatalogString(
+            payload.sampleName,
+            catalogProduct?.sample,
+            catalogProduct?.sample_no,
+            sampleName
+        ),
+        bouquetDescription: resolveCatalogString(
+            payload.bouquetDescription,
+            catalogProduct?.flavorDesc,
+            catalogProduct?.flavor_desc,
+            catalogProduct?.flavor_descriptors
+        ),
+        nuanceDescription: resolveCatalogString(
+            payload.nuanceDescription,
+            catalogProduct?.flavorNotes,
+            catalogProduct?.flavor_notes
+        ),
+        categoryName: resolveCatalogString(
+            payload.categoryName,
+            catalogProduct?.category
+        )
+    };
+}
+
 async function proxyCatalogEdit(updatedData) {
     const response = await fetch(`${YANDEX_CATALOG_FUNCTION_URL}?type=catalog_edit`, {
         method: 'POST',
@@ -2422,12 +2473,14 @@ module.exports.handler = async function (event, context) {
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
                 
+                const productId = String(body.productId || '').trim();
                 const sampleName = String(body.sampleName || '').trim();
-                const bouquetDescription = String(body.bouquetDescription || '').trim();
-                const nuanceDescription = String(body.nuanceDescription || '').trim();
-                const categoryName = String(body.categoryName || '').trim();
+                let bouquetDescription = String(body.bouquetDescription || '').trim();
+                let nuanceDescription = String(body.nuanceDescription || '').trim();
+                let categoryName = String(body.categoryName || '').trim();
                 const adminAttachmentInput = body && typeof body.adminAttachment === 'object' ? body.adminAttachment : null;
                 let adminAttachment = null;
+                let adminDataSource = 'request_payload';
 
                 if (adminAttachmentInput) {
                     const filename = String(adminAttachmentInput.filename || 'locus_coffee.png').trim() || 'locus_coffee.png';
@@ -2443,6 +2496,47 @@ module.exports.handler = async function (event, context) {
                     };
                 }
                 if (!sampleName) throw new Error('Не указано название лота');
+
+                if (!bouquetDescription || !nuanceDescription || !categoryName) {
+                    try {
+                        const catalog = await fetchCatalogProducts();
+                        const catalogProduct = findCatalogProductById(catalog, productId) || findCatalogProductBySampleName(catalog, sampleName);
+                        const resolvedPayload = resolveNewLotMailPayload(sampleName, catalogProduct, {
+                            sampleName,
+                            bouquetDescription,
+                            nuanceDescription,
+                            categoryName
+                        });
+
+                        bouquetDescription = resolvedPayload.bouquetDescription;
+                        nuanceDescription = resolvedPayload.nuanceDescription;
+                        categoryName = resolvedPayload.categoryName;
+                        adminDataSource = resolvedPayload.source;
+
+                        logDebug('notifyNewLot resolved admin mail payload', {
+                            sampleName: resolvedPayload.sampleName,
+                            bouquetDescriptionPresent: !!bouquetDescription,
+                            nuanceDescriptionPresent: !!nuanceDescription,
+                            categoryNamePresent: !!categoryName,
+                            adminAttachmentPresent: !!adminAttachment,
+                            source: adminDataSource
+                        });
+                    } catch (catalogError) {
+                        console.error('notifyNewLot: не удалось загрузить fallback-данные лота:', catalogError.message);
+                    }
+                } else {
+                    logDebug('notifyNewLot received admin mail payload from request', {
+                        sampleName,
+                        bouquetDescriptionPresent: true,
+                        nuanceDescriptionPresent: true,
+                        categoryNamePresent: true,
+                        adminAttachmentPresent: !!adminAttachment
+                    });
+                }
+
+                if (!adminAttachment) {
+                    console.error(`notifyNewLot: вложение для администратора не пришло для лота "${sampleName}"`);
+                }
 
                 const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
@@ -2502,7 +2596,18 @@ module.exports.handler = async function (event, context) {
                     if (sent) sentCount++;
                 }
 
-                responseData = { success: true, sentCount, adminMailSent };
+                responseData = {
+                    success: true,
+                    sentCount,
+                    adminMailSent,
+                    adminDataSource,
+                    adminAttachmentIncluded: !!adminAttachment,
+                    adminPayloadSnapshot: {
+                        bouquetDescriptionPresent: !!bouquetDescription,
+                        nuanceDescriptionPresent: !!nuanceDescription,
+                        categoryNamePresent: !!categoryName
+                    }
+                };
             }
             
             else if (action === 'getNewLotDiscount') {
