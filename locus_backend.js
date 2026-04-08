@@ -67,17 +67,85 @@ function createMailTransport() {
     });
 }
 
-async function sendTransactionalMail(mailOptions) {
+async function sendTransactionalMail(mailOptions, options = {}) {
     if (!process.env.SMTP_PASSWORD) return false;
     try {
         const transporter = createMailTransport();
         if (!transporter) return false;
-        await transporter.sendMail(mailOptions);
+        const info = await transporter.sendMail(mailOptions);
+
+        if (options.logLabel) {
+            console.log(`[mail:${options.logLabel}] sent`, {
+                messageId: info?.messageId || '',
+                accepted: Array.isArray(info?.accepted) ? info.accepted : [],
+                rejected: Array.isArray(info?.rejected) ? info.rejected : [],
+                attachmentCount: Array.isArray(mailOptions?.attachments) ? mailOptions.attachments.length : 0,
+                attachments: (Array.isArray(mailOptions?.attachments) ? mailOptions.attachments : []).map(describeAttachmentForLog)
+            });
+        }
+
+        if (options.returnMeta) {
+            return {
+                ok: true,
+                messageId: info?.messageId || '',
+                accepted: Array.isArray(info?.accepted) ? info.accepted : [],
+                rejected: Array.isArray(info?.rejected) ? info.rejected : [],
+                attachmentCount: Array.isArray(mailOptions?.attachments) ? mailOptions.attachments.length : 0,
+                attachments: (Array.isArray(mailOptions?.attachments) ? mailOptions.attachments : []).map(describeAttachmentForLog)
+            };
+        }
+
         return true;
     } catch (mailErr) {
         console.error('ОШИБКА ПОЧТЫ:', mailErr.message);
+        if (options.logLabel) {
+            console.error(`[mail:${options.logLabel}] failed`, {
+                error: mailErr.message,
+                attachmentCount: Array.isArray(mailOptions?.attachments) ? mailOptions.attachments.length : 0,
+                attachments: (Array.isArray(mailOptions?.attachments) ? mailOptions.attachments : []).map(describeAttachmentForLog)
+            });
+        }
+        if (options.returnMeta) {
+            return {
+                ok: false,
+                error: mailErr.message,
+                attachmentCount: Array.isArray(mailOptions?.attachments) ? mailOptions.attachments.length : 0,
+                attachments: (Array.isArray(mailOptions?.attachments) ? mailOptions.attachments : []).map(describeAttachmentForLog)
+            };
+        }
         return false;
     }
+}
+
+function getAttachmentBuffer(attachment) {
+    if (!attachment) return null;
+    if (Buffer.isBuffer(attachment.content)) return attachment.content;
+    if (attachment.content instanceof Uint8Array) return Buffer.from(attachment.content);
+    return null;
+}
+
+function hasPngSignature(buffer) {
+    if (!Buffer.isBuffer(buffer) || buffer.length < 8) return false;
+    return buffer[0] === 0x89 &&
+        buffer[1] === 0x50 &&
+        buffer[2] === 0x4E &&
+        buffer[3] === 0x47 &&
+        buffer[4] === 0x0D &&
+        buffer[5] === 0x0A &&
+        buffer[6] === 0x1A &&
+        buffer[7] === 0x0A;
+}
+
+function describeAttachmentForLog(attachment) {
+    if (!attachment) return null;
+    const buffer = getAttachmentBuffer(attachment);
+    return {
+        filename: String(attachment.filename || ''),
+        contentType: String(attachment.contentType || ''),
+        contentDisposition: String(attachment.contentDisposition || ''),
+        sizeBytes: buffer ? buffer.length : 0,
+        hasPngSignature: hasPngSignature(buffer)
+    };
 }
 
 function escapeHtml(value) {
@@ -132,6 +200,8 @@ async function sendAdminNewLotEmail({ sampleName, bouquetDescription, nuanceDesc
     const safeCategoryName = escapeHtml(String(categoryName || '').trim() || 'подходящей категории');
     const attachments = attachment ? [attachment] : [];
 
+    console.log('[notifyNewLot] admin attachment payload', attachments.map(describeAttachmentForLog));
+
     return sendTransactionalMail({
         from: '"Locus Coffee" <info@locus.coffee>',
         to: 'info@locus.coffee',
@@ -149,6 +219,9 @@ async function sendAdminNewLotEmail({ sampleName, bouquetDescription, nuanceDesc
                 </div>
             </div>`,
         attachments
+    }, {
+        logLabel: 'admin-new-lot',
+        returnMeta: true
     });
 }
 
@@ -341,6 +414,24 @@ function resolveCatalogString(...values) {
     return '';
 }
 
+function deriveCatalogCategoryName(catalogProduct) {
+    if (!catalogProduct || typeof catalogProduct !== 'object') return '';
+
+    const directCategory = resolveCatalogString(
+        catalogProduct.category,
+        catalogProduct.category_name
+    );
+    if (directCategory) return directCategory;
+
+    const roastValue = parseInt(resolveCatalogString(
+        catalogProduct.roast_level,
+        catalogProduct.roastLevel,
+        catalogProduct.roast
+    ), 10) || 0;
+
+    return roastValue >= 10 ? 'Эспрессо' : 'Фильтр';
+}
+
 function resolveNewLotMailPayload(sampleName, catalogProduct, payload = {}) {
     const source = catalogProduct ? 'catalog_fallback' : 'request_payload';
     return {
@@ -364,8 +455,90 @@ function resolveNewLotMailPayload(sampleName, catalogProduct, payload = {}) {
         ),
         categoryName: resolveCatalogString(
             payload.categoryName,
-            catalogProduct?.category
+            deriveCatalogCategoryName(catalogProduct)
         )
+    };
+}
+
+function parseAdminNewLotAttachment(adminAttachmentInput) {
+    if (!adminAttachmentInput || typeof adminAttachmentInput !== 'object') return null;
+
+    const filename = String(adminAttachmentInput.filename || 'locus_coffee.png').trim() || 'locus_coffee.png';
+    const contentType = String(adminAttachmentInput.contentType || '').trim().toLowerCase();
+    const contentBase64 = String(adminAttachmentInput.contentBase64 || '').trim();
+    if (contentType !== 'image/png') throw new Error('Вложение для администратора должно быть PNG');
+    if (!contentBase64) throw new Error('Вложение для администратора пустое');
+
+    return {
+        filename,
+        content: Buffer.from(contentBase64, 'base64'),
+        contentType: 'image/png',
+        contentDisposition: 'attachment'
+    };
+}
+
+async function buildNotifyNewLotContext(rawToken, body) {
+    const decoded = verifyToken(rawToken);
+    if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
+
+    const productId = String(body?.productId || '').trim();
+    const sampleName = String(body?.sampleName || '').trim();
+    let bouquetDescription = String(body?.bouquetDescription || '').trim();
+    let nuanceDescription = String(body?.nuanceDescription || '').trim();
+    let categoryName = String(body?.categoryName || '').trim();
+    const adminAttachment = parseAdminNewLotAttachment(body?.adminAttachment);
+    let adminDataSource = 'request_payload';
+
+    if (!sampleName) throw new Error('Не указано название лота');
+
+    if (!bouquetDescription || !nuanceDescription || !categoryName) {
+        try {
+            const catalog = await fetchCatalogProducts();
+            const catalogProduct = findCatalogProductById(catalog, productId) || findCatalogProductBySampleName(catalog, sampleName);
+            const resolvedPayload = resolveNewLotMailPayload(sampleName, catalogProduct, {
+                sampleName,
+                bouquetDescription,
+                nuanceDescription,
+                categoryName
+            });
+
+            bouquetDescription = resolvedPayload.bouquetDescription;
+            nuanceDescription = resolvedPayload.nuanceDescription;
+            categoryName = resolvedPayload.categoryName;
+            adminDataSource = resolvedPayload.source;
+
+            logDebug('notifyNewLot resolved admin mail payload', {
+                sampleName: resolvedPayload.sampleName,
+                bouquetDescriptionPresent: !!bouquetDescription,
+                nuanceDescriptionPresent: !!nuanceDescription,
+                categoryNamePresent: !!categoryName,
+                adminAttachmentPresent: !!adminAttachment,
+                source: adminDataSource
+            });
+        } catch (catalogError) {
+            console.error('notifyNewLot: не удалось загрузить fallback-данные лота:', catalogError.message);
+        }
+    } else {
+        logDebug('notifyNewLot received admin mail payload from request', {
+            sampleName,
+            bouquetDescriptionPresent: true,
+            nuanceDescriptionPresent: true,
+            categoryNamePresent: true,
+            adminAttachmentPresent: !!adminAttachment
+        });
+    }
+
+    if (!adminAttachment) {
+        console.error(`notifyNewLot: вложение для администратора не пришло для лота "${sampleName}"`);
+    }
+
+    return {
+        sampleName,
+        bouquetDescription,
+        nuanceDescription,
+        categoryName,
+        adminAttachment,
+        adminDataSource
     };
 }
 
@@ -1085,6 +1258,18 @@ module.exports.handler = async function (event, context) {
         const rawToken = event.headers?.['x-auth-token'] || event.headers?.['X-Auth-Token'];
 
         let responseData = {};
+        let notifyNewLotContext = null;
+        let deferredNotifyNewLot = null;
+
+        if (action === 'notifyNewLot') {
+            console.log('[notifyNewLot] incoming request', {
+                bodyChars: typeof bodyString === 'string' ? bodyString.length : 0,
+                hasAdminAttachmentField: !!(body && body.adminAttachment && typeof body.adminAttachment === 'object'),
+                attachmentBase64Length: String(body?.adminAttachment?.contentBase64 || '').length,
+                sampleName: String(body?.sampleName || '').trim()
+            });
+            notifyNewLotContext = await buildNotifyNewLotContext(rawToken, body);
+        }
 
         const runWithSession = RETRYABLE_SESSION_ACTIONS.has(action) ? withSessionRetry : withSingleSession;
 
@@ -2470,73 +2655,8 @@ module.exports.handler = async function (event, context) {
             }
             // --- НАЧАЛО: РАССЫЛКА И СКИДКА НА НОВЫЙ ЛОТ ---
             else if (action === 'notifyNewLot') {
-                const decoded = verifyToken(rawToken);
-                if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
-                
-                const productId = String(body.productId || '').trim();
-                const sampleName = String(body.sampleName || '').trim();
-                let bouquetDescription = String(body.bouquetDescription || '').trim();
-                let nuanceDescription = String(body.nuanceDescription || '').trim();
-                let categoryName = String(body.categoryName || '').trim();
-                const adminAttachmentInput = body && typeof body.adminAttachment === 'object' ? body.adminAttachment : null;
-                let adminAttachment = null;
-                let adminDataSource = 'request_payload';
-
-                if (adminAttachmentInput) {
-                    const filename = String(adminAttachmentInput.filename || 'locus_coffee.png').trim() || 'locus_coffee.png';
-                    const contentType = String(adminAttachmentInput.contentType || '').trim().toLowerCase();
-                    const contentBase64 = String(adminAttachmentInput.contentBase64 || '').trim();
-                    if (contentType !== 'image/png') throw new Error('Вложение для администратора должно быть PNG');
-                    if (!contentBase64) throw new Error('Вложение для администратора пустое');
-
-                    adminAttachment = {
-                        filename,
-                        content: Buffer.from(contentBase64, 'base64'),
-                        contentType: 'image/png'
-                    };
-                }
+                const sampleName = String(notifyNewLotContext?.sampleName || '').trim();
                 if (!sampleName) throw new Error('Не указано название лота');
-
-                if (!bouquetDescription || !nuanceDescription || !categoryName) {
-                    try {
-                        const catalog = await fetchCatalogProducts();
-                        const catalogProduct = findCatalogProductById(catalog, productId) || findCatalogProductBySampleName(catalog, sampleName);
-                        const resolvedPayload = resolveNewLotMailPayload(sampleName, catalogProduct, {
-                            sampleName,
-                            bouquetDescription,
-                            nuanceDescription,
-                            categoryName
-                        });
-
-                        bouquetDescription = resolvedPayload.bouquetDescription;
-                        nuanceDescription = resolvedPayload.nuanceDescription;
-                        categoryName = resolvedPayload.categoryName;
-                        adminDataSource = resolvedPayload.source;
-
-                        logDebug('notifyNewLot resolved admin mail payload', {
-                            sampleName: resolvedPayload.sampleName,
-                            bouquetDescriptionPresent: !!bouquetDescription,
-                            nuanceDescriptionPresent: !!nuanceDescription,
-                            categoryNamePresent: !!categoryName,
-                            adminAttachmentPresent: !!adminAttachment,
-                            source: adminDataSource
-                        });
-                    } catch (catalogError) {
-                        console.error('notifyNewLot: не удалось загрузить fallback-данные лота:', catalogError.message);
-                    }
-                } else {
-                    logDebug('notifyNewLot received admin mail payload from request', {
-                        sampleName,
-                        bouquetDescriptionPresent: true,
-                        nuanceDescriptionPresent: true,
-                        categoryNamePresent: true,
-                        adminAttachmentPresent: !!adminAttachment
-                    });
-                }
-
-                if (!adminAttachment) {
-                    console.error(`notifyNewLot: вложение для администратора не пришло для лота "${sampleName}"`);
-                }
 
                 const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
@@ -2561,53 +2681,12 @@ module.exports.handler = async function (event, context) {
                     });
                 }
 
-                const formatter = new Intl.DateTimeFormat('ru-RU', {
-                    timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                });
-                const expiresText = formatter.format(new Date(expiresAt));
-                const adminMailSent = await sendAdminNewLotEmail({
-                    sampleName,
-                    bouquetDescription,
-                    nuanceDescription,
-                    categoryName,
-                    attachment: adminAttachment
-                });
-                if (!adminMailSent) throw new Error('Не удалось отправить письмо администратору');
-
-                let sentCount = 0;
-                for (const email of targetEmails) {
-                    const sent = await sendTransactionalMail({
-                        from: '"Locus Coffee" <info@locus.coffee>',
-                        to: email,
-                        subject: `Новый сорт ${sampleName}`,
-                        html: `<div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #E5E1D8; border-radius: 8px; overflow: hidden;">
-                                <div style="background: #693a05; padding: 20px; text-align: center; color: #fff;">
-                                    <h2 style="margin: 0; letter-spacing: 2px;">LOCUS COFFEE</h2>
-                                </div>
-                                <div style="padding: 20px; background: #F4F1EA;">
-                                    <h3 style="margin-top: 0;">Здравствуйте!</h3>
-                                    <p>Рады сообщить вам, что в нашем магазине новое поступление - <b>${sampleName}</b>.</p>
-                                    <p>Попробуйте его непременно с приятной скидкой 10%.</p>
-                                    <p>Скидка автоматически применяется в корзине при добавлении этого сорта и будет ждать вас до <b>${expiresText}</b>.</p>
-                                    <p>Приятной покупки!</p>
-                                </div>
-                            </div>`
-                    });
-                    if (sent) sentCount++;
-                }
-
-                responseData = {
-                    success: true,
-                    sentCount,
-                    adminMailSent,
-                    adminDataSource,
-                    adminAttachmentIncluded: !!adminAttachment,
-                    adminPayloadSnapshot: {
-                        bouquetDescriptionPresent: !!bouquetDescription,
-                        nuanceDescriptionPresent: !!nuanceDescription,
-                        categoryNamePresent: !!categoryName
-                    }
+                deferredNotifyNewLot = {
+                    ...notifyNewLotContext,
+                    expiresAt,
+                    targetEmails
                 };
+                responseData = { success: true };
             }
             
             else if (action === 'getNewLotDiscount') {
@@ -2632,6 +2711,60 @@ module.exports.handler = async function (event, context) {
             // --- КОНЕЦ: ГЕНЕРАЦИЯ ИСТОРИИ ЛОТА ЧЕРЕЗ QWEN AI ---
             else { throw new Error('Неизвестное действие API'); }
         });
+
+        if (action === 'notifyNewLot') {
+            if (!deferredNotifyNewLot) throw new Error('Не удалось подготовить рассылку нового лота');
+
+            const formatter = new Intl.DateTimeFormat('ru-RU', {
+                timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+            const expiresText = formatter.format(new Date(deferredNotifyNewLot.expiresAt));
+            const adminMailResult = await sendAdminNewLotEmail({
+                sampleName: deferredNotifyNewLot.sampleName,
+                bouquetDescription: deferredNotifyNewLot.bouquetDescription,
+                nuanceDescription: deferredNotifyNewLot.nuanceDescription,
+                categoryName: deferredNotifyNewLot.categoryName,
+                attachment: deferredNotifyNewLot.adminAttachment
+            });
+            if (!adminMailResult || adminMailResult.ok === false) throw new Error('Не удалось отправить письмо администратору');
+
+            let sentCount = 0;
+            for (const email of deferredNotifyNewLot.targetEmails) {
+                const sent = await sendTransactionalMail({
+                    from: '"Locus Coffee" <info@locus.coffee>',
+                    to: email,
+                    subject: `Новый сорт ${deferredNotifyNewLot.sampleName}`,
+                    html: `<div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #E5E1D8; border-radius: 8px; overflow: hidden;">
+                            <div style="background: #693a05; padding: 20px; text-align: center; color: #fff;">
+                                <h2 style="margin: 0; letter-spacing: 2px;">LOCUS COFFEE</h2>
+                            </div>
+                            <div style="padding: 20px; background: #F4F1EA;">
+                                <h3 style="margin-top: 0;">Здравствуйте!</h3>
+                                <p>Рады сообщить вам, что в нашем магазине новое поступление - <b>${deferredNotifyNewLot.sampleName}</b>.</p>
+                                <p>Попробуйте его непременно с приятной скидкой 10%.</p>
+                                <p>Скидка автоматически применяется в корзине при добавлении этого сорта и будет ждать вас до <b>${expiresText}</b>.</p>
+                                <p>Приятной покупки!</p>
+                            </div>
+                        </div>`
+                });
+                if (sent) sentCount++;
+            }
+
+            responseData = {
+                success: true,
+                sentCount,
+                adminMailSent: true,
+                adminDataSource: deferredNotifyNewLot.adminDataSource,
+                adminAttachmentIncluded: !!deferredNotifyNewLot.adminAttachment,
+                adminAttachmentMeta: deferredNotifyNewLot.adminAttachment ? describeAttachmentForLog(deferredNotifyNewLot.adminAttachment) : null,
+                adminMailMeta: adminMailResult,
+                adminPayloadSnapshot: {
+                    bouquetDescriptionPresent: !!deferredNotifyNewLot.bouquetDescription,
+                    nuanceDescriptionPresent: !!deferredNotifyNewLot.nuanceDescription,
+                    categoryNamePresent: !!deferredNotifyNewLot.categoryName
+                }
+            };
+        }
 
         // Если это ответ для Робокассы - отдаем простой текст (как она требует)
         if (responseData._isWebhook) {
