@@ -2448,7 +2448,7 @@ module.exports.handler = async function (event, context) {
                 }
 
                 // Отправка письма администратору для публикации в соцсетях
-                const adminMailText = `Друзья!\nНовое поступление в каталог кофе - *${sampleName}*.\nВ букете: ${flavorDesc}\nНюансы: ${flavorNotes}\n*${sampleName}* отлично подойдет для приготовления в *${category}*.\nРегистрируйтесь в ЛК на нашем сайте locus.coffee, получайте уведомления о новых лотах и приятные скидки, чтобы попробовать их одними из первых.\nХорошего дня и вкусного кофе!`;
+                const adminMailText = `Друзья!\nНовое поступление в каталог кофе - ${sampleName}.\nВ букете: ${flavorDesc}\nНюансы: ${flavorNotes}\n${sampleName} отлично подойдет для приготовления в ${category}.\nРегистрируйтесь в ЛК на нашем сайте locus.coffee, получайте уведомления о новых лотах и приятные скидки, чтобы попробовать их одними из первых.\nХорошего дня и вкусного кофе!`;
 
                 await sendTransactionalMail({
                     from: '"Locus Coffee" <info@locus.coffee>',
