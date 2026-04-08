@@ -39,10 +39,10 @@
 @media (max-width: 767px) {
     #fortune-offer {
         position: fixed !important;
-        top: auto !important;
-        bottom: 40vh !important;
+        top: 40vh !important;
+        bottom: auto !important;
         left: 50% !important;
-        transform: translate(-50%, 0) !important;
+        transform: translate(-50%, -100%) !important;
     }
 }
 
