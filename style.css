@@ -50,13 +50,22 @@
 
 /* 2.2. ПОПАП "КОЛЕСО УДАЧИ" — ВЫРАВНИВАНИЕ ВСЕГО ПО ЦЕНТРУ И КОМПАКТНАЯ КНОПКА */
 #fortune-offer {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
     text-align: center !important;
     box-sizing: border-box !important;
 }
 #fortune-offer .lc-btn {
-    margin-left: auto !important;
-    margin-right: auto !important;
-    padding: 4px 4px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    min-width: 96px !important;
+    margin: 0 auto 8px !important;
+    padding: 6px 14px !important;
+    font-size: 9px !important;
+    line-height: 1.1 !important;
 }
 
 /* Пробиваем box-sizing для модалок, чтобы убрать горизонтальный скролл */
