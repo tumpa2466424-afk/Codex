@@ -1355,11 +1355,16 @@
     font-family: inherit;
 }
 
+/* Обычное отображение в магазине (без доворота) */
 .product-pack-roast {
     top: -3%;
     font-size: 0.46em;
     font-weight: 400;
     letter-spacing: 0.12em;
+}
+
+/* Компенсация искажения перспективы ТОЛЬКО при генерации картинки для почты */
+.sticker-export-host .product-pack-roast {
     transform: rotate(-1.5deg);
 }
 
