@@ -50,8 +50,8 @@
 #fortune-offer .lc-btn {
     margin-left: auto !important;
     margin-right: auto !important;
-    padding-left: 14px !important;
-    padding-right: 14px !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
 }
 
 /* Пробиваем box-sizing для модалок, чтобы убрать горизонтальный скролл */
