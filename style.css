@@ -46,6 +46,14 @@
     }
 }
 
+/* 2.2. КНОПКА В ПОПАПЕ "КОЛЕСО УДАЧИ" — ЦЕНТРИРОВАНИЕ И КОМПАКТНОСТЬ */
+#fortune-offer .lc-btn {
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+}
+
 /* Пробиваем box-sizing для модалок, чтобы убрать горизонтальный скролл */
 .cs-widget-container *, #lc-modal * { box-sizing: border-box; }
 
