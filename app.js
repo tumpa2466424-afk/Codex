@@ -3253,6 +3253,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
                                         action: 'notifyNewLot',
+                                        productId: product.id,
                                         sampleName: product.sample,
                                         bouquetDescription,
                                         nuanceDescription,
@@ -3264,6 +3265,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                         }
                                     })
                                 })).then(res => res.json()).then(data => {
+                                    console.log('notifyNewLot response', data);
                                     if (data.success) alert(`Рассылка запущена! Отправлено писем: ${data.sentCount}`);
                                     else alert('Ошибка рассылки: ' + data.error);
                                 }).catch(e => alert('Ошибка при вызове рассылки: ' + e.message));
