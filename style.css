@@ -27,12 +27,23 @@
 }
 
 /* 2. БРОНЯ ЦВЕТА (Модальные окна, таблицы и поля ввода не наследуют цвет по умолчанию) */
-#coffee-shop-wheel, #lc-modal, 
+#coffee-shop-wheel, #lc-modal,
 #coffee-shop-wheel table, #coffee-shop-wheel th, #coffee-shop-wheel td,
 #lc-modal table, #lc-modal th, #lc-modal td,
-#lc-modal input, #lc-modal select, #lc-modal textarea, 
+#lc-modal input, #lc-modal select, #lc-modal textarea,
 #coffee-shop-wheel input {
     color: var(--locus-dark);
+}
+
+/* 2.1. ПОПАП "КОЛЕСО УДАЧИ" — МОБИЛЬНАЯ ВЕРСИЯ (нижний край на границе колеса и инфо-панели) */
+@media (max-width: 767px) {
+    #fortune-offer {
+        position: fixed !important;
+        top: auto !important;
+        bottom: 40vh !important;
+        left: 50% !important;
+        transform: translate(-50%, 0) !important;
+    }
 }
 
 /* Пробиваем box-sizing для модалок, чтобы убрать горизонтальный скролл */
