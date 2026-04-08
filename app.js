@@ -3247,8 +3247,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 const nuanceDescription = String(fullProduct?.flavorNotes || product?.flavorNotes || '').trim();
                                 const categoryName = String(fullProduct?.category || product?.category || '').trim();
                                 this.renderPackPreviewToBlob(product)
-                                .then(packBlob => this.blobToBase64(packBlob))
-                                .then(packBase64 => fetch(LOCUS_API_URL + '?action=notifyNewLot', {
+                                .then(packBlob => {
+                                    console.log('notifyNewLot pack blob', {
+                                        sampleName: product.sample,
+                                        size: Number(packBlob?.size) || 0,
+                                        type: String(packBlob?.type || '')
+                                    });
+                                    return this.blobToBase64(packBlob);
+                                })
+                                .then(packBase64 => {
+                                    console.log('notifyNewLot attachment payload', {
+                                        sampleName: product.sample,
+                                        base64Length: String(packBase64 || '').length
+                                    });
+                                    return fetch(LOCUS_API_URL + '?action=notifyNewLot', {
                                     method: 'POST',
                                     headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
@@ -3264,7 +3276,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                             contentBase64: packBase64
                                         }
                                     })
-                                })).then(res => res.json()).then(data => {
+                                });
+                                }).then(res => res.json()).then(data => {
                                     console.log('notifyNewLot response', data);
                                     if (data.success) alert(`Рассылка запущена! Отправлено писем: ${data.sentCount}`);
                                     else alert('Ошибка рассылки: ' + data.error);
