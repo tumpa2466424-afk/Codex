@@ -3239,6 +3239,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         if (isChecked) {
                             if (confirm(`Отправить подписчикам уведомление о новом лоте "${this.ALL_PRODUCTS[pIndex].sample}" со скидкой 10% на 24 часа?`)) {
                                 const product = this.ALL_PRODUCTS[pIndex];
+                                
+                                // Определяем категорию
                                 const cat = (product.category || '').toLowerCase();
                                 let gName = 'Фильтр';
                                 if (cat.includes('аксессуар')) gName = 'Аксессуары';
@@ -3248,6 +3250,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                 else if (cat.includes('фильтр')) gName = 'Фильтр';
                                 else if (parseFloat(product.roast) >= 10) gName = 'Эспрессо';
 
+                                // Получаем описания
+                                const fDesc = product.flavorDesc || product.customDesc || 'Описание отсутствует';
+                                const fNotes = product.flavorNotes || 'Нюансы не указаны';
+
                                 const token = localStorage.getItem('locus_token');
                                 fetch(LOCUS_API_URL + '?action=notifyNewLot', {
                                     method: 'POST',
@@ -3255,8 +3261,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     body: JSON.stringify({ 
                                         action: 'notifyNewLot', 
                                         sampleName: product.sample,
-                                        flavorDesc: product.flavorDesc || '',
-                                        flavorNotes: product.flavorNotes || '',
+                                        flavorDesc: fDesc,
+                                        flavorNotes: fNotes,
                                         category: gName
                                     })
                                 }).then(res => res.json()).then(data => {
