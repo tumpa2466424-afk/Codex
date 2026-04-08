@@ -2384,7 +2384,8 @@ module.exports.handler = async function (event, context) {
 
                 responseData = { success: true, text: generatedText, image: imageUrl };
             }
-            // --- НАЧАЛО: РАССЫЛКА И СКИДКА НА НОВЫЙ ЛОТ ---
+            
+            
             // --- НАЧАЛО: РАССЫЛКА И СКИДКА НА НОВЫЙ ЛОТ ---
             else if (action === 'notifyNewLot') {
                 const decoded = verifyToken(rawToken);
@@ -2394,6 +2395,7 @@ module.exports.handler = async function (event, context) {
                 const flavorDesc = String(body.flavorDesc || '').trim();
                 const flavorNotes = String(body.flavorNotes || '').trim();
                 const category = String(body.category || '').trim();
+                const packageImageBase64 = String(body.packageImageBase64 || '').trim(); // Принимаем картинку
 
                 if (!sampleName) throw new Error('Не указано название лота');
 
@@ -2450,6 +2452,16 @@ module.exports.handler = async function (event, context) {
                 // Отправка письма администратору для публикации в соцсетях
                 const adminMailText = `Друзья!\nНовое поступление в каталог кофе - ${sampleName}.\nВ букете: ${flavorDesc}\nНюансы: ${flavorNotes}\n${sampleName} отлично подойдет для приготовления в ${category}.\nРегистрируйтесь в ЛК на нашем сайте locus.coffee, получайте уведомления о новых лотах и приятные скидки, чтобы попробовать их одними из первых.\nХорошего дня и вкусного кофе!`;
 
+                // Формируем вложения для письма администратору
+                const adminAttachments = [];
+                if (packageImageBase64) {
+                    adminAttachments.push({
+                        filename: `${sampleName.replace(/[^a-zA-Zа-яА-Я0-9]/g, '_')}_pack.png`, // Имя файла
+                        content: Buffer.from(packageImageBase64, 'base64'),
+                        contentType: 'image/png'
+                    });
+                }
+
                 await sendTransactionalMail({
                     from: '"Locus Coffee" <info@locus.coffee>',
                     to: 'info@locus.coffee',
@@ -2457,7 +2469,8 @@ module.exports.handler = async function (event, context) {
                     text: adminMailText,
                     html: `<div style="font-family: sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #E5E1D8; border-radius: 8px; background: #F4F1EA;">
 ${adminMailText.replace(/\n/g, '<br>')}
-</div>`
+</div>`,
+                    attachments: adminAttachments // Прикрепляем вложения
                 });
 
                 responseData = { success: true, sentCount };
