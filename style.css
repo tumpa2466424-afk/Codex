@@ -129,7 +129,7 @@
 .info-area {
     flex: 1;
     background: var(--locus-bg);
-    padding: 20px 15px 80px 15px;
+    padding: 20px 15px 60px 15px;
     display: flex;
     flex-direction: column;
     z-index: 2;
@@ -157,7 +157,7 @@
     .info-area {
         flex: 1; /* Текст занимает всё оставшееся пространство */
         height: 100vh;
-        padding: 40px 60px 11px 60px; /* 11px снизу = 3мм до подвала */
+        padding: 40px 60px 80px 60px;
         overflow-y: auto; /* Включаем независимый скролл для текста */
         overscroll-behavior: contain;
     }
@@ -1183,13 +1183,13 @@
 
 /* --- FOOTER (ПОДВАЛ) --- */
 .locus-footer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
+    margin-top: auto; /* Всегда прижимает подвал к низу контейнера */
+    padding-top: 20px;
+    padding-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
     width: 100%;
-    padding-top: 11px; /* Визуальный отступ от контента (~3мм) */
-    background: var(--locus-bg);
-    z-index: 1000;
 }
 
 .footer-policy {
