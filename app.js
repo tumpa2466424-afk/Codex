@@ -889,53 +889,46 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         }
 
         function scrollProductInfoToElement(element) {
-            const container = document.getElementById('info-panel') || document.getElementById('product-info');
-            if (!container || !element) return;
-
+            if (!element) return;
             requestAnimationFrame(() => {
-                const containerRect = container.getBoundingClientRect();
-                const elementRect = element.getBoundingClientRect();
-                const targetTop = container.scrollTop + (elementRect.top - containerRect.top) - 12;
-                container.scrollTo({
-                    top: Math.max(0, targetTop),
-                    behavior: 'smooth'
-                });
+                element.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
             });
+        }
+
+        function toggleDescTab(block, button, label) {
+            if (!block || !button) {
+                console.warn('[desc-tabs] missing refs', { label, hasBlock: !!block, hasButton: !!button });
+                return;
+            }
+
+            const wasOpen = window.getComputedStyle(block).display !== 'none' && block.style.display !== 'none';
+            closeAllDescTabs();
+
+            if (!wasOpen) {
+                block.style.display = 'block';
+                button.classList.add('active');
+                console.log('[desc-tabs] opened', label || block.id);
+                scrollProductInfoToElement(block);
+            } else {
+                console.log('[desc-tabs] closed', label || block.id);
+            }
         }
 
         if (btnDetails) {
             btnDetails.addEventListener('click', () => {
-                const isHidden = blockDetails.style.display === 'none' || blockDetails.style.display === '';
-                closeAllDescTabs();
-                if (isHidden) {
-                    blockDetails.style.display = 'block';
-                    btnDetails.classList.add('active');
-                    scrollProductInfoToElement(blockDetails);
-                }
+                toggleDescTab(blockDetails, btnDetails, 'details');
             });
         }
 
         if (btnExtrinsic) {
             btnExtrinsic.addEventListener('click', () => {
-                const isHidden = blockExtrinsic.style.display === 'none' || blockExtrinsic.style.display === '';
-                closeAllDescTabs();
-                if (isHidden) {
-                    blockExtrinsic.style.display = 'block';
-                    btnExtrinsic.classList.add('active');
-                    scrollProductInfoToElement(blockExtrinsic);
-                }
+                toggleDescTab(blockExtrinsic, btnExtrinsic, 'extrinsic');
             });
         }
 
         if (btnAi) {
             btnAi.addEventListener('click', () => {
-                const isHidden = blockAi.style.display === 'none' || blockAi.style.display === '';
-                closeAllDescTabs();
-                if (isHidden) {
-                    blockAi.style.display = 'block';
-                    btnAi.classList.add('active');
-                    scrollProductInfoToElement(blockAi);
-                }
+                toggleDescTab(blockAi, btnAi, 'ai-story');
             });
         }
 
