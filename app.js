@@ -448,7 +448,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             const svg = document.querySelector('#wheel-spinner svg');
             if (svg) svg.querySelectorAll('path').forEach(p => p.classList.remove('selected'));
             pInfo.classList.remove('active');
-            setTimeout(() => { pInfo.style.display = 'none'; dMsg.style.display = 'block'; setTimeout(() => dMsg.classList.add('active'), 50); }, 250);
+            setTimeout(() => { pInfo.style.display = 'none'; dMsg.style.display = 'flex'; setTimeout(() => dMsg.classList.add('active'), 50); }, 250);
             currentActiveProduct = null;
             // ОЧИЩАЕМ АДРЕСНУЮ СТРОКУ ОТ ССЫЛКИ НА ЛОТ
             const url = new URL(window.location);
@@ -847,7 +847,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     if(toggleAiBtn) toggleAiBtn.style.display = 'none';
                     if(lotDescWrapper) lotDescWrapper.style.display = 'none';
                 }
-                pInfo.style.display = 'block';
+                pInfo.style.display = 'flex';
                 setTimeout(() => pInfo.classList.add('active'), 50);
             }, 250);
         }
