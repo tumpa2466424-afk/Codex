@@ -129,14 +129,21 @@
 .info-area {
     flex: 1;
     background: var(--locus-bg);
-    padding: 20px 15px 60px 15px;
+    padding: 20px 15px 3mm 15px;
     display: flex;
     flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
     z-index: 2;
 }
 
 #default-msg {
-    text-align: center; 
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 0;
+    overflow-y: auto;
 }
 /* 4. МАГИЯ ДЛЯ КОМПЬЮТЕРОВ (От 768px и шире) */
 @media (min-width: 768px) {
@@ -157,19 +164,22 @@
     .info-area {
         flex: 1; /* Текст занимает всё оставшееся пространство */
         height: 100vh;
-        padding: 40px 60px 80px 60px;
-        overflow-y: auto; /* Включаем независимый скролл для текста */
+        padding: 40px 60px 3mm 60px;
+        overflow: hidden;
         overscroll-behavior: contain;
     }
 }
 
-        .info-card {
+.info-card {
             max-width: 100%; opacity: 0;
             transform: translateY(15px);
             transition: all 0.5s cubic-bezier(0.2, 0, 0.2, 1);
             display: none;
+            flex: 1 1 auto;
+            min-height: 0;
+            flex-direction: column;
         }
-        .info-card.active { opacity: 1; transform: translateY(0); display: block; }
+        .info-card.active { opacity: 1; transform: translateY(0); display: flex; }
 
         .cupping-header {
             margin-bottom: 25px; 
@@ -1176,6 +1186,16 @@
     padding-bottom: 0 !important;
 }
 
+#default-msg,
+#product-info {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+#product-info {
+    overflow-y: auto;
+}
+
 #product-info .simple-desc {
     border-bottom: none !important;
     margin-bottom: 0 !important;
@@ -1184,12 +1204,13 @@
 /* --- FOOTER (ПОДВАЛ) --- */
 .locus-footer {
     margin-top: auto; /* Всегда прижимает подвал к низу контейнера */
-    padding-top: 20px;
-    padding-bottom: 20px;
+    padding-top: 3mm;
+    padding-bottom: 3mm;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 12px;
     width: 100%;
+    flex-shrink: 0;
 }
 
 .footer-policy {
