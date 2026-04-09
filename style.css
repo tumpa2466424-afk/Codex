@@ -97,7 +97,6 @@
     flex-direction: column;
     position: relative;
     overflow-x: hidden;
-    padding-bottom: 120px; /* Отступ для фиксированного подвала */
 }
 
 #coffee-shop-wheel a { color: inherit; text-decoration: none; border-bottom: none; }
@@ -1184,14 +1183,13 @@
 
 /* --- FOOTER (ПОДВАЛ) --- */
 .locus-footer {
-    position: fixed;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
+    margin-top: auto; /* Всегда прижимает подвал к низу контейнера */
+    padding-top: 20px;
+    padding-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
     width: 100%;
-    padding-top: 11px; /* Визуальный отступ от контента (~3мм) */
-    background: var(--locus-bg);
-    z-index: 1000;
 }
 
 .footer-policy {
