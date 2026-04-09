@@ -16,6 +16,12 @@
     --locus-sticker-font: 'Inter', Arial, sans-serif;
 }
 
+html,
+body {
+    min-height: 100%;
+    overscroll-behavior-y: auto;
+}
+
 /* 1. БРОНЯ ШРИФТОВ (Перебиваем любые настройки браузера и платформы для всех элементов) */
 #coffee-shop-wheel, #coffee-shop-wheel *, 
 #lc-modal, #lc-modal *, 
@@ -109,7 +115,7 @@
     height: 40vh; /* Колесо занимает 40% высоты экрана телефона */
     background: #F2EFE9; 
     overflow: hidden;
-    cursor: grab; touch-action: none; user-select: none;
+    cursor: grab; touch-action: pan-y; user-select: none;
     flex-shrink: 0; 
     border-bottom: 1px solid var(--locus-border);
     z-index: 10;
@@ -1190,7 +1196,8 @@
 @media (max-width: 768px) {
     #coffee-shop-wheel {
         height: var(--locus-viewport-height, 100vh);
-        min-height: var(--locus-viewport-height, 100vh);
+        min-height: calc(var(--locus-viewport-height, 100vh) + 1px);
+        padding-bottom: 1px;
         overflow: hidden;
     }
 
@@ -1200,9 +1207,7 @@
 
     .info-area {
         padding: 13px 12px 2mm 12px;
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior: contain;
+        overflow: hidden;
     }
 
     #default-msg .product-title {
@@ -1224,7 +1229,7 @@
     #product-info {
         padding-bottom: 24px;
         scroll-padding-bottom: 24px;
-        overflow: visible;
+        overflow-y: auto;
     }
 
     #lot-desc-wrapper,
@@ -1234,12 +1239,6 @@
         scroll-margin-bottom: 24px;
     }
 
-    .locus-footer {
-        position: sticky;
-        bottom: 0;
-        background: var(--locus-bg);
-        z-index: 4;
-    }
 }
 
 #default-msg,
