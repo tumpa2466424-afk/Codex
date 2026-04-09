@@ -888,6 +888,21 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             if(btnAi) btnAi.classList.remove('active');
         }
 
+        function scrollProductInfoToElement(element) {
+            const container = document.getElementById('product-info');
+            if (!container || !element) return;
+
+            requestAnimationFrame(() => {
+                const containerRect = container.getBoundingClientRect();
+                const elementRect = element.getBoundingClientRect();
+                const targetTop = container.scrollTop + (elementRect.top - containerRect.top) - 12;
+                container.scrollTo({
+                    top: Math.max(0, targetTop),
+                    behavior: 'smooth'
+                });
+            });
+        }
+
         if (btnDetails) {
             btnDetails.addEventListener('click', () => {
                 const isHidden = blockDetails.style.display === 'none' || blockDetails.style.display === '';
@@ -895,6 +910,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (isHidden) {
                     blockDetails.style.display = 'block';
                     btnDetails.classList.add('active');
+                    scrollProductInfoToElement(blockDetails);
                 }
             });
         }
@@ -906,6 +922,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (isHidden) {
                     blockExtrinsic.style.display = 'block';
                     btnExtrinsic.classList.add('active');
+                    scrollProductInfoToElement(blockExtrinsic);
                 }
             });
         }
@@ -917,6 +934,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if (isHidden) {
                     blockAi.style.display = 'block';
                     btnAi.classList.add('active');
+                    scrollProductInfoToElement(blockAi);
                 }
             });
         }
