@@ -24,6 +24,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         const YANDEX_FUNCTION_URL = "https://functions.yandexcloud.net/d4ekgff0csfc77v2nu5q";
 
         const LOCUS_API_URL = "https://functions.yandexcloud.net/d4ehpa8o948vden3i9ba";
+
+        function syncViewportHeightVar() {
+            const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
+            if (viewportHeight > 0) {
+                document.documentElement.style.setProperty('--locus-viewport-height', `${Math.round(viewportHeight)}px`);
+            }
+        }
+
+        syncViewportHeightVar();
+        window.addEventListener('resize', syncViewportHeightVar, { passive: true });
+        window.addEventListener('orientationchange', syncViewportHeightVar, { passive: true });
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', syncViewportHeightVar);
+        }
         
         const CATEGORY_COLORS = { 'Эспрессо': '#9c4c00', 'Фильтр': '#e78b00', 'Ароматизация': '#ad6565', 'Аксессуары': '#538a8b', 'Информация': '#9e9076' };
 
