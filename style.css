@@ -89,14 +89,15 @@
 #coffee-shop-wheel {
     /* Старый шрифт удален, теперь всё берется из корня */
     width: 100%;
-    max-width: 1440px; 
-    margin: 0 auto; 
-    min-height: 100vh; 
+    max-width: 1440px;
+    margin: 0 auto;
+    min-height: 100vh;
     background: var(--locus-bg);
-    display: flex; 
-    flex-direction: column; 
-    position: relative; 
+    display: flex;
+    flex-direction: column;
+    position: relative;
     overflow-x: hidden;
+    padding-bottom: 120px; /* Отступ для фиксированного подвала */
 }
 
 #coffee-shop-wheel a { color: inherit; text-decoration: none; border-bottom: none; }
@@ -1183,13 +1184,19 @@
 
 /* --- FOOTER (ПОДВАЛ) --- */
 .locus-footer {
-    margin-top: auto; /* Всегда прижимает подвал к низу контейнера */
-    padding-top: 20px;
-    padding-bottom: 20px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding-top: 11px; /* Визуальный отступ от контента (~3мм) */
+    padding-bottom: 16px; /* Отступ от нижнего края экрана */
+    padding-left: 16px;
+    padding-right: 16px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    width: 100%;
+    gap: 12px;
+    background: var(--locus-bg);
+    z-index: 1000;
 }
 
 .footer-policy {
@@ -1246,6 +1253,14 @@
         justify-content: center;
         text-align: center;
         gap: 12px;
+    }
+    .locus-footer {
+        padding-bottom: 12px; /* Меньше отступ на мобильных */
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+    #coffee-shop-wheel {
+        padding-bottom: 140px; /* Больше отступ на мобильных, так как подвал может быть выше */
     }
 }
 /* --- ИНТЕРАКТИВНОЕ ОБУЧЕНИЕ (LOCUS TOUR STYLE) --- */
