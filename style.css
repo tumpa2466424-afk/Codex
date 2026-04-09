@@ -1300,8 +1300,8 @@
         justify-content: center;
         text-align: center;
         gap: 2px;
-        font-size: 10px;
-        line-height: 1.25;
+        font-size: 11px;
+        line-height: 1.3;
         white-space: normal;
     }
 
@@ -1312,8 +1312,8 @@
     }
 
     .footer-policy {
-        font-size: 10px;
-        line-height: 1.25;
+        font-size: 11px;
+        line-height: 1.3;
     }
 
     .footer-socials {
