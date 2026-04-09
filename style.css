@@ -127,11 +127,11 @@
 
 /* 3. ИНФО-ПАНЕЛЬ (База для мобилок) */
 .info-area {
-    flex: 1; 
+    flex: 1;
     background: var(--locus-bg);
-    padding: 20px 15px 60px 15px; 
-    display: flex; 
-    flex-direction: column; 
+    padding: 20px 15px 80px 15px;
+    display: flex;
+    flex-direction: column;
     z-index: 2;
 }
 
@@ -154,13 +154,13 @@
         border-right: 1px solid var(--locus-border);
     }
     
-    .info-area { 
+    .info-area {
         flex: 1; /* Текст занимает всё оставшееся пространство */
-        height: 100vh; 
-        padding: 40px 60px 80px 60px; 
+        height: 100vh;
+        padding: 40px 60px 11px 60px; /* 11px снизу = 3мм до подвала */
         overflow-y: auto; /* Включаем независимый скролл для текста */
         overscroll-behavior: contain;
-    } 
+    }
 }
 
         .info-card {
@@ -1183,13 +1183,13 @@
 
 /* --- FOOTER (ПОДВАЛ) --- */
 .locus-footer {
-    margin-top: auto; /* Всегда прижимает подвал к низу контейнера */
-    padding-top: 20px;
-    padding-bottom: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
     width: 100%;
+    padding-top: 11px; /* Визуальный отступ от контента (~3мм) */
+    background: var(--locus-bg);
+    z-index: 1000;
 }
 
 .footer-policy {
