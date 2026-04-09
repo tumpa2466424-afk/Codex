@@ -1195,21 +1195,21 @@
     }
 
     .wheel-area {
-        height: calc(var(--locus-viewport-height, 100vh) * 0.33);
+        height: calc(var(--locus-viewport-height, 100vh) * 0.4);
     }
 
     .info-area {
-        padding: 14px 12px 2mm 12px;
+        padding: 12px 12px 1.5mm 12px;
     }
 
     #default-msg .product-title {
-        margin-top: 18px;
-        font-size: clamp(20px, 6vw, 30px);
+        margin-top: 12px;
+        font-size: clamp(19px, 5.5vw, 28px);
     }
 
-    #default-msg p {
-        font-size: 13px;
-        line-height: 1.45;
+    #default-msg #p-desc-default {
+        font-size: 12px !important;
+        line-height: 1.35 !important;
     }
 }
 
@@ -1293,25 +1293,25 @@
         flex-direction: column;
         justify-content: center;
         text-align: center;
-        gap: 4px;
-        font-size: 10px;
-        line-height: 1.3;
+        gap: 2px;
+        font-size: 9px;
+        line-height: 1.2;
         white-space: normal;
     }
 
     .locus-footer {
-        padding-top: 2mm;
-        padding-bottom: 2mm;
-        gap: 6px;
+        padding-top: 1.5mm;
+        padding-bottom: 1.5mm;
+        gap: 4px;
     }
 
     .footer-policy {
-        font-size: 10px;
-        line-height: 1.25;
+        font-size: 9px;
+        line-height: 1.2;
     }
 
     .footer-socials {
-        gap: 10px;
+        gap: 8px;
     }
 }
 /* --- ИНТЕРАКТИВНОЕ ОБУЧЕНИЕ (LOCUS TOUR STYLE) --- */
