@@ -1200,6 +1200,9 @@
 
     .info-area {
         padding: 13px 12px 2mm 12px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
     }
 
     #default-msg .product-title {
@@ -1221,6 +1224,7 @@
     #product-info {
         padding-bottom: 24px;
         scroll-padding-bottom: 24px;
+        overflow: visible;
     }
 
     #lot-desc-wrapper,
@@ -1228,6 +1232,13 @@
     #extrinsic-stats-block,
     #ai-story-block {
         scroll-margin-bottom: 24px;
+    }
+
+    .locus-footer {
+        position: sticky;
+        bottom: 0;
+        background: var(--locus-bg);
+        z-index: 4;
     }
 }
 
