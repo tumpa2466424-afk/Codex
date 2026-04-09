@@ -889,7 +889,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         }
 
         function scrollProductInfoToElement(element) {
-            const container = document.getElementById('product-info');
+            const container = document.getElementById('info-panel') || document.getElementById('product-info');
             if (!container || !element) return;
 
             requestAnimationFrame(() => {
