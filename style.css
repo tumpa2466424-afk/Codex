@@ -1189,7 +1189,6 @@
     left: 50%;
     transform: translateX(-50%);
     width: 100%;
-    max-width: 1440px;
     padding-top: 11px; /* Визуальный отступ от контента (~3мм) */
     background: var(--locus-bg);
     z-index: 1000;
