@@ -1217,6 +1217,18 @@
         line-height: 1.7 !important;
         margin-bottom: 18px !important;
     }
+
+    #product-info {
+        padding-bottom: 24px;
+        scroll-padding-bottom: 24px;
+    }
+
+    #lot-desc-wrapper,
+    #detailed-stats-block,
+    #extrinsic-stats-block,
+    #ai-story-block {
+        scroll-margin-bottom: 24px;
+    }
 }
 
 #default-msg,
@@ -1227,6 +1239,8 @@
 
 #product-info {
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
 }
 
 #product-info .simple-desc {
