@@ -129,7 +129,7 @@
 .info-area {
     flex: 1; 
     background: var(--locus-bg);
-    padding: 20px 15px 60px 15px; 
+    padding: 20px 15px 0 15px; 
     display: flex; 
     flex-direction: column; 
     z-index: 2;
@@ -1185,7 +1185,7 @@
 .locus-footer {
     margin-top: auto; /* Всегда прижимает подвал к низу контейнера */
     padding-top: 20px;
-    padding-bottom: 20px;
+    padding-bottom: 0;
     display: flex;
     flex-direction: column;
     gap: 20px;
