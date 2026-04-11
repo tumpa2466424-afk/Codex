@@ -339,18 +339,6 @@
                 flex-direction: column-reverse; /* Переворачиваем порядок кнопок (ЛК будет сверху) */
                 align-items: flex-end; /* Прижимаем меню к правому краю, чтобы не лезло к колесу */
             } 
-            .top-controls .icon-btn {
-                justify-content: flex-end;
-                text-align: right;
-            }
-            #btn-open-wholesale,
-            #btn-open-admin,
-            #btn-open-lc {
-                align-self: flex-end;
-            }
-            #btn-open-admin {
-                padding-right: 0;
-            }
             .auth-text { display: none; } 
         }
         .icon-btn { background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; position: relative; }
