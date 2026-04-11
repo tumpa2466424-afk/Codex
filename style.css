@@ -341,6 +341,22 @@
             } 
             .auth-text { display: none; } 
         }
+        @media (max-width: 768px) {
+            .top-controls {
+                align-items: stretch;
+            }
+            .top-controls .icon-btn {
+                width: 100%;
+                justify-content: flex-end;
+                text-align: right;
+                box-sizing: border-box;
+            }
+            #btn-open-admin {
+                width: 100% !important;
+                height: 24px;
+                padding: 0;
+            }
+        }
         .icon-btn { background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; position: relative; }
         .icon-svg { width: 24px; height: 24px; fill: var(--locus-dark); }
         .cart-badge {
