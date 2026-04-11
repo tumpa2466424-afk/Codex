@@ -9335,6 +9335,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 renderWheel();
                 initWheelInteraction();
                 UserSystem.init();
+                scheduleMobileTopControlsOffset();
                 
                 // ЗАПУСКАЕМ УДАЧУ ПРИ УСПЕШНОЙ ЗАГРУЗКЕ
                 if (window.FortuneSystem) window.FortuneSystem.init();
@@ -9380,9 +9381,43 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 document.getElementById('loading-overlay').textContent = "Ошибка загрузки";
                 renderWheel(); 
                 UserSystem.init(); 
+                scheduleMobileTopControlsOffset();
             }
         }
         // АВТООБНОВЛЕНИЕ ГОДА В ПОДВАЛЕ
+        let mobileTopControlsOffsetRaf = 0;
+        function updateMobileTopControlsOffset() {
+            const controls = document.querySelector('.top-controls');
+            const wheel = document.getElementById('wheel-spinner');
+            if (!controls || !wheel) return;
+
+            if (window.innerWidth > 768) {
+                controls.style.removeProperty('right');
+                return;
+            }
+
+            const controlsRect = controls.getBoundingClientRect();
+            const wheelRect = wheel.getBoundingClientRect();
+            const gapPx = Math.max(0, controlsRect.left - wheelRect.right);
+            const thresholdPx = (5 * 96) / 25.4;
+
+            controls.style.right = gapPx > thresholdPx ? '2mm' : '0px';
+        }
+
+        function scheduleMobileTopControlsOffset() {
+            if (mobileTopControlsOffsetRaf) cancelAnimationFrame(mobileTopControlsOffsetRaf);
+            mobileTopControlsOffsetRaf = requestAnimationFrame(() => {
+                mobileTopControlsOffsetRaf = 0;
+                updateMobileTopControlsOffset();
+            });
+        }
+
+        window.addEventListener('resize', scheduleMobileTopControlsOffset);
+        window.addEventListener('orientationchange', scheduleMobileTopControlsOffset);
+        window.addEventListener('load', scheduleMobileTopControlsOffset);
+        window.visualViewport?.addEventListener('resize', scheduleMobileTopControlsOffset);
+        window.visualViewport?.addEventListener('scroll', scheduleMobileTopControlsOffset);
+
         const yearSpan = document.getElementById('current-year');
         if (yearSpan) yearSpan.textContent = new Date().getFullYear();
         window.fetchExternalData = fetchExternalData; // ДЕЛАЕМ ГЛОБАЛЬНОЙ
