@@ -333,11 +333,11 @@
 
             /* --- 2. Настраиваем иконки меню --- */
             .top-controls { 
-                right: 15px; 
-                top: 15px; 
-                gap: 15px; 
+                right: max(2mm, env(safe-area-inset-right)); 
+                top: max(2mm, env(safe-area-inset-top)); 
+                gap: 2mm; 
                 flex-direction: column-reverse; /* Переворачиваем порядок кнопок (ЛК будет сверху) */
-                align-items: center; /* Центрируем иконки и букву "А" ровно друг под другом */
+                align-items: flex-end; /* Прижимаем меню к правому краю, чтобы не лезло к колесу */
             } 
             .auth-text { display: none; } 
         }
