@@ -333,7 +333,7 @@
 
             /* --- 2. Настраиваем иконки меню --- */
             .top-controls { 
-                right: max(1mm, env(safe-area-inset-right)); 
+                right: 0; 
                 top: max(2mm, env(safe-area-inset-top)); 
                 gap: 2mm; 
                 flex-direction: column-reverse; /* Переворачиваем порядок кнопок (ЛК будет сверху) */
@@ -350,7 +350,7 @@
                 text-align: right;
             }
             #btn-open-wholesale {
-                transform: translateX(-2px);
+                transform: translateX(-1px);
             }
             #btn-open-admin {
                 height: 24px;
