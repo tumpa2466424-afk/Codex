@@ -1,4 +1,30 @@
 <div id="coffee-shop-wheel" class="cs-widget-container">
+    <script>
+        window.LOCUS_ASSET_VERSION = '130';
+        window.LOCUS_ASSET_BASE_URL = 'https://tumpa2466424-afk.github.io/Codex/';
+
+        (function configureLocusAssets() {
+            const version = encodeURIComponent(window.LOCUS_ASSET_VERSION || '1');
+            const baseUrl = new URL(window.LOCUS_ASSET_BASE_URL || './', window.location.href);
+            const buildAssetUrl = (fileName) => new URL(`${fileName}?v=${version}`, baseUrl).href;
+            const styleHref = buildAssetUrl('style.css');
+
+            window.LOCUS_APP_MODULE_URL = buildAssetUrl('app.js');
+
+            const existingStyle = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+                .find(link => (link.href || '').includes('/style.css'));
+
+            if (!existingStyle) {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = styleHref;
+                document.head.appendChild(link);
+            } else if (!existingStyle.href.includes(`v=${version}`)) {
+                existingStyle.href = styleHref;
+            }
+        })();
+    </script>
+
     <!-- Тяжелые библиотеки грузятся лениво из app.js только по требованию -->
     <!-- <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/> -->
     <!-- <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script> -->
@@ -681,11 +707,6 @@
             </div>
         </div>
     </div>
-
-    <script>
-  window.LOCUS_APP_MODULE_URL = 'https://tumpa2466424-afk.github.io/Codex/app.js?v=130';
-</script>
-
 
     <script type="module">
         const appModuleUrl = globalThis.LOCUS_APP_MODULE_URL || './app.js';
