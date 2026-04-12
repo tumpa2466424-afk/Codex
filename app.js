@@ -804,14 +804,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     const aiContent = document.getElementById('ai-story-content');
                     const btnRegenAi = document.getElementById('btn-regen-ai');
 
-                    if (r.aiStory && r.aiStory.text) {
-                        let aiHtml = '';
-                        if (r.aiStory.image) aiHtml += `<img src="${r.aiStory.image}" style="width: 100%; max-width: 100%; height: auto; display: block; border-radius: 6px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); object-fit: cover;">`;
-                        aiHtml += `<div style="text-align: justify; text-indent: 15px;">${r.aiStory.text.replace(/\n/g, '<br><br>')}</div>`;
-                        if (aiContent) aiContent.innerHTML = aiHtml;
-                    } else {
-                        if (aiContent) aiContent.innerHTML = '<div style="opacity:0.6; text-align:center; padding:20px;">История для этого лота еще не добавлена.</div>';
-                    }
+                    if (aiContent) aiContent.innerHTML = buildAiStoryHtml(r.aiStory);
 
                     if (btnRegenAi) {
                         if (UserSystem.currentUser && UserSystem.currentUser.email === 'info@locus.coffee') {
@@ -863,6 +856,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         
         const btnAi = document.getElementById('btn-toggle-ai');
         const blockAi = document.getElementById('ai-story-block');
+
+        const buildAiStoryHtml = (story) => {
+            if (!story || !story.text) {
+                return '<div style="opacity:0.6; text-align:center; padding:20px;">История для этого лота еще не добавлена.</div>';
+            }
+
+            let aiHtml = '';
+            if (story.image) {
+                aiHtml += `<img src="${story.image}" style="width: 100%; max-width: 100%; height: auto; display: block; border-radius: 6px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); object-fit: cover;">`;
+            }
+            aiHtml += `<div style="text-align: justify; text-indent: 15px;">${story.text.replace(/\n/g, '<br><br>')}</div>`;
+            aiHtml += `<div style="margin-top: 14px; font-size: 11px; line-height: 1.45; color: rgba(52, 37, 21, 0.62); text-align: left;">Текст и изображение сгенерированы AI, возможны неточности.</div>`;
+            return aiHtml;
+        };
 
         function closeAllDescTabs() {
             if(blockDetails) blockDetails.style.display = 'none';
@@ -943,10 +950,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     const prodInCache = ALL_PRODUCTS_CACHE.find(p => p.sample === currentActiveProduct.sample);
                     if(prodInCache) prodInCache.aiStory = { text: data.text, image: data.image };
 
-                    let html = '';
-                    if (data.image) html += `<img src="${data.image}" style="width: 100%; max-width: 100%; height: auto; display: block; border-radius: 6px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); object-fit: cover;">`;
-                    html += `<div style="text-align: justify; text-indent: 15px;">${data.text.replace(/\n/g, '<br><br>')}</div>`;
-                    content.innerHTML = html;
+                    content.innerHTML = buildAiStoryHtml({ text: data.text, image: data.image });
                     
                 } catch (err) { content.innerHTML = `<div style="color: #B66A58; text-align: center; padding: 20px;">Ошибка генерации: ${err.message}</div>`; }
             });
