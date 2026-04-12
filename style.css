@@ -336,39 +336,53 @@
        - сам бокс не ближе 2 мм к правому краю экрана
        - и не ближе 2 мм к колесу
        - если до колеса можно дать >5 мм, бокс всё равно остаётся прижат к правому краю */
-    .top-controls {
-        position: absolute;
-        top: max(2mm, env(safe-area-inset-top));
-        right: max(2mm, env(safe-area-inset-right));
-        left: auto;
+    /* --- Единый блок настроек мобильного меню --- */
+        .top-controls { 
+            position: fixed; 
+            left: calc(320px + 2mm); 
+            right: 2mm; 
+            top: max(2mm, env(safe-area-inset-top)); 
+            
+            display: flex; 
+            flex-direction: column-reverse; 
+            gap: 2mm; 
+            z-index: 1000; 
+            pointer-events: auto; 
+            align-items: flex-end; 
+        }
+        
+        .top-controls .icon-btn {
+            /* Форсируем одинаковую ширину (теперь это невидимый квадрат) */
+            width: 42px !important; 
+            height: 42px !important;
+            padding: 0 !important; 
+            margin: 0 !important;
+            
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            
+            /* --- ДЕЛАЕМ НЕВИДИМЫМ --- */
+            background: transparent; 
+            border: none;
+            box-shadow: none;
+            
+            flex-shrink: 0;
+            
+            /* Сбрасываем системные стили */
+            appearance: none;
+            -webkit-appearance: none;
+            line-height: 0;
+        }
 
-        display: flex;
-        flex-direction: column-reverse;
-        align-items: flex-end;
-        justify-content: flex-start;
-        gap: 2mm;
-
-        width: max-content;
-        max-width: calc(100vw - max(2mm, env(safe-area-inset-right)) - 2mm);
-
-        padding: 0;
-        margin: 0;
-
-        /* страховка: даже если колесо/контент подлезет,
-           меню не подойдет к нему ближе чем на 2 мм */
-        box-sizing: border-box;
-    }
-
-    .top-controls .icon-btn {
-        display: flex;
-        justify-content: flex-end;
-        align-items: center;
-        align-self: flex-end;
-        text-align: right;
-        width: max-content;
-        max-width: 100%;
-        margin: 0;
-    }
+        /* Гарантируем, что SVG-иконки внутри ведут себя предсказуемо */
+        .top-controls .icon-btn .icon-svg,
+        .top-controls .icon-btn svg,
+        .top-controls .icon-btn img {
+            display: block;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
 
     .auth-text {
         display: none;
