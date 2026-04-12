@@ -333,12 +333,24 @@
 
             /* --- 2. Настраиваем иконки меню --- */
             .top-controls { 
-                right: 0; 
+                /* 1. Ставим железобетонную границу от колеса (Радиус 320px + 2mm) */
+                left: calc(320px + 2mm); 
+                /* 2. Правый край просим держать на 2mm (сработает, если есть место) */
+                right: 2mm; 
+                
                 top: max(2mm, env(safe-area-inset-top)); 
                 gap: 2mm; 
-                flex-direction: column-reverse; /* Переворачиваем порядок кнопок (ЛК будет сверху) */
-                align-items: flex-end; /* Прижимаем меню к правому краю, чтобы не лезло к колесу */
+                flex-direction: column-reverse; 
+                /* 3. Иконки внутри этого адаптивного бокса прижимаем вправо */
+                align-items: flex-end; 
             } 
+            
+            /* Защита, чтобы сами SVG-иконки никогда не сплющивались от недостатка места */
+            .top-controls .icon-btn {
+                flex-shrink: 0;
+                justify-content: flex-end;
+            }
+            
             .auth-text { display: none; } 
         }
         @media (max-width: 768px) {
