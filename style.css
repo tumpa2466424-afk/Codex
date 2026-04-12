@@ -369,7 +369,7 @@
             font-family: Arial, sans-serif;
         }
         .cart-badge {
-            position: absolute; top: -5px; left: -7px;
+            position: absolute; top: -6px; left: -0px;
             background: var(--locus-dark); color: var(--locus-bg);
             font-size: 9px; font-weight: 700; width: 16px; height: 16px;
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
