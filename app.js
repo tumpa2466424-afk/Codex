@@ -8579,6 +8579,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         // --- ИНТЕРАКТИВНОЕ ОБУЧЕНИЕ (ФИНАЛ: КОМПАКТНАЯ КНОПКА И ОТСТУПЫ) ---
         let adminModulePromise = null;
 
+        function resolveSiblingModuleUrl(relativePath) {
+            const currentModuleUrl = new URL(import.meta.url);
+            const siblingModuleUrl = new URL(relativePath, currentModuleUrl);
+            siblingModuleUrl.search = currentModuleUrl.search;
+            return siblingModuleUrl.href;
+        }
+
         function createDeferredAdminMethod(targetObject, methodName) {
             const deferredMethod = async function(...args) {
                 await UserSystem.ensureAdminModule();
@@ -8594,7 +8601,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         UserSystem.ensureAdminModule = async function() {
             if (this.adminModuleReady) return true;
             if (!adminModulePromise) {
-                adminModulePromise = import('./admin.js')
+                adminModulePromise = import(resolveSiblingModuleUrl('./admin.js'))
                     .then(module => module.installAdminFeatures({
                         UserSystem,
                         PromotionSystem,
