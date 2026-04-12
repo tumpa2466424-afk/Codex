@@ -352,6 +352,7 @@
         display: flex;
         align-items: center;
         justify-content: flex-end;
+        align-self: flex-end;
 
         text-align: right;
         line-height: 1;
@@ -378,11 +379,12 @@
 
     /* УБРАТЬ ручной сдвиг */
     #btn-open-wholesale {
-        transform: none;
-        font-size: 11px;
-        line-height: 1;
-        justify-content: flex-end;
-    }
+    display: flex;
+    width: 28px;
+    min-width: 28px;
+    text-align: right;
+    justify-content: flex-end;
+}
 
     #btn-open-admin .icon-admin-letter {
     width: 24px;
