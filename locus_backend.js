@@ -75,7 +75,7 @@ async function sendTransactionalMail(mailOptions, options = {}) {
         const info = await transporter.sendMail(mailOptions);
 
         if (options.logLabel) {
-            console.log(`[mail:${options.logLabel}] sent`, {
+            logDebug(`[mail:${options.logLabel}] sent`, {
                 messageId: info?.messageId || '',
                 accepted: Array.isArray(info?.accepted) ? info.accepted : [],
                 rejected: Array.isArray(info?.rejected) ? info.rejected : [],
@@ -99,7 +99,7 @@ async function sendTransactionalMail(mailOptions, options = {}) {
     } catch (mailErr) {
         console.error('ОШИБКА ПОЧТЫ:', mailErr.message);
         if (options.logLabel) {
-            console.error(`[mail:${options.logLabel}] failed`, {
+            logDebug(`[mail:${options.logLabel}] failed`, {
                 error: mailErr.message,
                 attachmentCount: Array.isArray(mailOptions?.attachments) ? mailOptions.attachments.length : 0,
                 attachments: (Array.isArray(mailOptions?.attachments) ? mailOptions.attachments : []).map(describeAttachmentForLog)
@@ -200,7 +200,7 @@ async function sendAdminNewLotEmail({ sampleName, bouquetDescription, nuanceDesc
     const safeCategoryName = escapeHtml(String(categoryName || '').trim() || 'подходящей категории');
     const attachments = attachment ? [attachment] : [];
 
-    console.log('[notifyNewLot] admin attachment payload', attachments.map(describeAttachmentForLog));
+    logDebug('[notifyNewLot] admin attachment payload', attachments.map(describeAttachmentForLog));
 
     return sendTransactionalMail({
         from: '"Locus Coffee" <info@locus.coffee>',
@@ -1454,7 +1454,7 @@ module.exports.handler = async function (event, context) {
         const rawToken = event.headers?.['x-auth-token'] || event.headers?.['X-Auth-Token'];
         const startedAt = Date.now();
 
-        console.log('[api] request started', {
+        logDebug('[api] request started', {
             action: action || '',
             requestId: context?.requestId || context?.awsRequestId || '',
             hasToken: !!rawToken
@@ -1465,7 +1465,7 @@ module.exports.handler = async function (event, context) {
         let deferredNotifyNewLot = null;
 
         if (action === 'notifyNewLot') {
-            console.log('[notifyNewLot] incoming request', {
+            logDebug('[notifyNewLot] incoming request', {
                 bodyChars: typeof bodyString === 'string' ? bodyString.length : 0,
                 hasAdminAttachmentField: !!(body && body.adminAttachment && typeof body.adminAttachment === 'object'),
                 attachmentBase64Length: String(body?.adminAttachment?.contentBase64 || '').length,
@@ -1476,7 +1476,7 @@ module.exports.handler = async function (event, context) {
 
         if (action === 'generateLotStory') {
             responseData = await handleGenerateLotStoryAction(body, rawToken);
-            console.log('[api] request finished', {
+            logDebug('[api] request finished', {
                 action,
                 durationMs: Date.now() - startedAt,
                 handledOutsideSession: true
@@ -2985,7 +2985,7 @@ module.exports.handler = async function (event, context) {
         }
 
         // Обычный ответ для фронтенда магазина
-        console.log('[api] request finished', {
+        logDebug('[api] request finished', {
             action,
             durationMs: Date.now() - startedAt,
             handledOutsideSession: false
