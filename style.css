@@ -384,9 +384,17 @@
         justify-content: flex-end;
     }
 
-    #btn-open-admin {
-        height: 24px;
-    }
+    #btn-open-admin .icon-admin-letter text {
+    text-anchor: end;
+}
+
+#btn-open-admin .icon-admin-letter {
+    width: 24px;
+}
+
+#btn-open-admin .icon-admin-letter text {
+    x: 20px;
+}
 
     .auth-text {
         display: none;
