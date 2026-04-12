@@ -7811,7 +7811,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 this.localCart.forEach(i => subtotal += (i.price * i.qty));
                 const breakdown = this.getRetailDiscountBreakdown(subtotal);
                 const discountPercent = breakdown.loyaltyPercent;
+                const loyaltyDiscountVal = breakdown.loyaltyDiscountVal;
                 const welcomeBonusPercent = breakdown.welcomeBonusPercent;
+                const welcomeDiscountVal = breakdown.welcomeDiscountVal;
+                const fortuneDiscountVal = breakdown.fortuneDiscountVal;
                 let total = breakdown.totalAfterStoreDiscounts;
 
                 let shippingCost = digitalOnly ? 0 : this.cdekPrice;
