@@ -1293,6 +1293,26 @@ async function saveJsonSetting(session, id, value) {
     });
 }
 
+function buildCountrySpecificImagePrompt(country, region) {
+    const primaryCountry = String(country || '').split(',')[0].trim() || 'the coffee origin country';
+    const normalizedRegion = String(region || '').trim();
+    const regionHint = normalizedRegion
+        ? `If possible, align the terrain, vegetation, atmosphere and relief with the region of ${normalizedRegion} in ${primaryCountry}.`
+        : '';
+
+    return (
+        `Photorealistic documentary landscape of ${primaryCountry}. ` +
+        `The landscape must be unmistakably characteristic of ${primaryCountry}, not a generic tropical coffee scene. ` +
+        `Use real natural cues associated with ${primaryCountry}: recognizable topography, geology, climate, vegetation, atmosphere, color palette, weather patterns and natural light. ` +
+        `${regionHint} ` +
+        `Show coffee trees integrated naturally into the environment, but make the country's unique geography the main subject. ` +
+        `The image should feel geographically specific at a glance and clearly distinct from other coffee-producing countries. ` +
+        `Emphasize characteristic landforms and native ecosystems typical for ${primaryCountry}. ` +
+        `Avoid generic plantation composition, avoid visual clichés, and avoid stock-photo sameness. ` +
+        `Wide scenic composition, natural daylight, realistic textures, high detail, no stylization.`
+    ).replace(/\s+/g, ' ').trim();
+}
+
 async function buildLotStoryAssets(body, qwenKey) {
     const { sample, country, region, farm, producer, variety, processDesc } = body;
     if (!sample) throw new Error('Лот не указан');
@@ -1322,34 +1342,20 @@ async function buildLotStoryAssets(body, qwenKey) {
         throw new Error(textData.error?.message || 'Ошибка API Qwen');
     }
 
-    const normalizedCountryValue = String(country || '').trim();
-    const countryParts = normalizedCountryValue.split(',').map(part => part.trim()).filter(Boolean).slice(0, 2);
-    const singleCountryPrompt = (countryName) => (
-        `Photorealistic wild natural landscape of ${countryName}, native vegetation, realistic terrain, ` +
-        `coffee trees growing naturally in the environment, documentary nature photography, ` +
-        `natural daylight, natural colors, high detail, wide scenic composition.`
-    );
-    const dynamicImgPrompt = countryParts.length >= 2
-        ? (
-            `Photorealistic diagonal split composition. One half shows the wild natural landscape of ${countryParts[0]}, ` +
-            `with native vegetation, realistic terrain, and coffee trees growing naturally in the environment. ` +
-            `The other half shows the wild natural landscape of ${countryParts[1]}, with native vegetation, realistic terrain, ` +
-            `and coffee trees growing naturally in the environment. Documentary nature photography, natural daylight, ` +
-            `natural colors, high detail, clean diagonal composition.`
-        )
-        : singleCountryPrompt(countryParts[0] || 'the coffee origin country');
+    const dynamicImgPrompt = buildCountrySpecificImagePrompt(country, region);
     const negativeImgPrompt = [
         'animals', 'animal', 'birds', 'bird', 'wildlife', 'mammals', 'insects', 'people', 'person', 'human',
         'workers', 'portrait', 'face', 'hands', 'roasted coffee beans', 'coffee beans scattered on the ground',
         'coffee cherries piled on the ground', 'cup', 'cups', 'mug', 'bags', 'sacks', 'basket', 'buildings',
         'house', 'houses', 'road', 'roads', 'car', 'cars', 'city', 'village', 'text', 'letters', 'logo',
-        'watermark', 'fantasy', 'surreal', 'sci-fi', 'illustration', 'painting', 'cartoon', 'blurry', 'low quality'
+        'watermark', 'fantasy', 'surreal', 'sci-fi', 'illustration', 'painting', 'cartoon', 'blurry', 'low quality',
+        'generic tropical landscape', 'generic coffee plantation', 'stock photo plantation', 'symmetrical plantation rows'
     ].join(', ');
 
     let imageUrl = '';
     try {
         const randomSeed = Math.floor(Math.random() * 2147483647);
-        const finalImgPrompt = `${dynamicImgPrompt} Highly realistic, natural scene, realistic textures, no stylization.`;
+        const finalImgPrompt = `${dynamicImgPrompt} Prioritize a strong sense of place and visually distinctive national landscape cues over generic coffee-farm imagery.`;
 
         const imgReq = await fetchWithTimeout('https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
             method: 'POST',
