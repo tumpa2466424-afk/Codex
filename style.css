@@ -359,6 +359,23 @@
         }
         .icon-btn { background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; position: relative; }
         .icon-svg { width: 24px; height: 24px; fill: var(--locus-dark); }
+        #btn-open-cart {
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            flex: 0 0 24px;
+            position: relative;
+            line-height: 0;
+            appearance: none;
+            -webkit-appearance: none;
+            overflow: visible;
+        }
+        #btn-open-cart .icon-svg {
+            display: block;
+            width: 24px;
+            height: 24px;
+            flex: 0 0 24px;
+        }
         .icon-admin-letter {
             display: block;
         }
