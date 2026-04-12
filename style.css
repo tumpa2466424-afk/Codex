@@ -323,124 +323,61 @@
         .brand-logo-center { font-size: 14px; font-weight: 700; letter-spacing: 3px; fill: var(--locus-dark); text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
 
         /* Верхние иконки */
-.top-controls {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    z-index: 100;
-    display: flex;
-    gap: 15px;
-    align-items: center;
-}
+        .top-controls { position: absolute; top: 20px; right: 20px; z-index: 100; display: flex; gap: 15px; align-items: center; }
+        @media (max-width: 768px) { 
+            /* --- 1. Убираем белые поля Тильды по бокам --- */
+            #coffee-shop-wheel {
+                width: 100vw !important;
+                margin-left: calc(50% - 50vw) !important;
+            }
 
-.icon-btn {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    padding: 0;
-    margin: 0;
-}
-
-.icon-svg {
-    width: 24px;
-    height: 24px;
-    fill: var(--locus-dark);
-    display: block;
-    flex: 0 0 24px;
-}
-
-.icon-admin-letter {
-    display: block;
-}
-
-.icon-admin-letter text {
-    fill: var(--locus-dark);
-    font-size: 20px;
-    font-weight: 600;
-    font-family: Arial, sans-serif;
-}
-
-#btn-open-cart {
-    position: relative;
-    padding: 0;
-    line-height: 0;
-    appearance: none;
-    -webkit-appearance: none;
-    overflow: visible;
-}
-
-#btn-open-cart .icon-svg {
-    display: block;
-}
-
-/* Стабильный бейдж корзины */
-.cart-badge {
-    position: absolute;
-    top: 0;
-    right: 0;
-    transform: translate(38%, -28%);
-
-    background: var(--locus-dark);
-    color: var(--locus-bg);
-    font-size: 9px;
-    font-weight: 700;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    line-height: 1;
-    opacity: 0;
-    transition: opacity 0.3s;
-    pointer-events: none;
-}
-
-.cart-badge.show {
-    opacity: 1;
-}
-
-@media (max-width: 768px) {
-    #coffee-shop-wheel {
-        width: 100vw !important;
-        margin-left: calc(50% - 50vw) !important;
-    }
-
-    .top-controls {
-        top: max(2mm, env(safe-area-inset-top));
-        right: max(2mm, env(safe-area-inset-right));
-        gap: 2mm;
-        flex-direction: column-reverse;
-        align-items: flex-end;
-    }
-
-    .top-controls .icon-btn {
-        justify-content: flex-end;
-        text-align: right;
-        width: auto;
-        min-width: 0;
-    }
-
-    /* Можно оставить, если это визуально лучший вариант */
-    #btn-open-wholesale {
-        transform: translateX(-1px);
-    }
-
-    #btn-open-admin {
-        height: 24px;
-        padding: 0;
-    }
-
-    .auth-text {
-        display: none;
-    }
-}
+            /* --- 2. Настраиваем иконки меню --- */
+            .top-controls { 
+                right: 0; 
+                top: max(2mm, env(safe-area-inset-top)); 
+                gap: 2mm; 
+                flex-direction: column-reverse; /* Переворачиваем порядок кнопок (ЛК будет сверху) */
+                align-items: flex-end; /* Прижимаем меню к правому краю, чтобы не лезло к колесу */
+            } 
+            .auth-text { display: none; } 
+        }
+        @media (max-width: 768px) {
+            .top-controls {
+                align-items: flex-end;
+            }
+            .top-controls .icon-btn {
+                justify-content: flex-end;
+                text-align: right;
+            }
+            #btn-open-wholesale {
+                transform: translateX(-1px);
+            }
+            #btn-open-admin {
+                height: 24px;
+                padding: 0;
+            }
+        }
+        .icon-btn { background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; position: relative; }
+        .icon-svg { width: 24px; height: 24px; fill: var(--locus-dark); }
+        .icon-admin-letter {
+            display: block;
+        }
+        .icon-admin-letter text {
+            fill: var(--locus-dark);
+            font-size: 20px;
+            font-weight: 600;
+            font-family: Arial, sans-serif;
+        }
+        .cart-badge {
+            position: absolute; top: -5px; right: -5px;
+            background: var(--locus-dark); color: var(--locus-bg);
+            font-size: 9px; font-weight: 700; width: 16px; height: 16px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .cart-badge.show { opacity: 1; }
+        .auth-text { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; color: var(--locus-dark); display: none; }
+        @media (min-width: 480px) { .auth-text { display: block; margin-left: 5px; } }
 
         /* Модальные окна */
         .locus-modal {
