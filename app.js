@@ -24,6 +24,102 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         const YANDEX_FUNCTION_URL = "https://functions.yandexcloud.net/d4ekgff0csfc77v2nu5q";
 
         const LOCUS_API_URL = "https://functions.yandexcloud.net/d4ehpa8o948vden3i9ba";
+        const CATALOG_DATA_URL = `${YANDEX_FUNCTION_URL}?type=catalog`;
+        const EXTRINSIC_DATA_URL = `${LOCUS_API_URL}?action=getExtrinsicData`;
+        const PDFMAKE_SCRIPT_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js';
+        const PDFMAKE_FONTS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js';
+        const HTML2CANVAS_SCRIPT_URL = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        const externalScriptPromises = new Map();
+        let primedCatalogRequest = null;
+        let primedExtrinsicRequest = null;
+
+        function addResourceHint(href, asValue, crossOrigin = 'anonymous') {
+            if (!href || !document.head) return;
+            const selector = `link[rel="preload"][href="${href}"], link[rel="prefetch"][href="${href}"]`;
+            if (document.head.querySelector(selector)) return;
+
+            const link = document.createElement('link');
+            link.rel = 'preload';
+            link.href = href;
+            link.as = asValue;
+            if (crossOrigin) link.crossOrigin = crossOrigin;
+            document.head.appendChild(link);
+        }
+
+        function loadExternalScript(src) {
+            if (!src) return Promise.reject(new Error('Не указан адрес внешнего скрипта.'));
+            if (externalScriptPromises.has(src)) return externalScriptPromises.get(src);
+
+            const existingScript = Array.from(document.scripts).find(script => script.src === src);
+            if (existingScript?.dataset.loaded === 'true') return Promise.resolve();
+
+            const promise = new Promise((resolve, reject) => {
+                const finish = () => {
+                    const target = Array.from(document.scripts).find(script => script.src === src);
+                    if (target) target.dataset.loaded = 'true';
+                    resolve();
+                };
+
+                const fail = () => {
+                    externalScriptPromises.delete(src);
+                    reject(new Error(`Не удалось загрузить скрипт: ${src}`));
+                };
+
+                if (existingScript) {
+                    existingScript.addEventListener('load', finish, { once: true });
+                    existingScript.addEventListener('error', fail, { once: true });
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = true;
+                script.onload = finish;
+                script.onerror = fail;
+                document.head.appendChild(script);
+            });
+
+            externalScriptPromises.set(src, promise);
+            return promise;
+        }
+
+        async function ensurePdfMakeLoaded() {
+            if (window.pdfMake) return;
+            await loadExternalScript(PDFMAKE_SCRIPT_URL);
+            if (!window.pdfMake?.vfs) {
+                await loadExternalScript(PDFMAKE_FONTS_URL);
+            }
+        }
+
+        async function ensureHtml2CanvasLoaded() {
+            if (window.html2canvas) return;
+            await loadExternalScript(HTML2CANVAS_SCRIPT_URL);
+        }
+
+        function requestCatalogPayload() {
+            return fetch(CATALOG_DATA_URL).then(r => r.json());
+        }
+
+        function requestExtrinsicPayload() {
+            return fetch(EXTRINSIC_DATA_URL).then(r => r.json()).catch(() => ({ success: false, data: [] }));
+        }
+
+        function consumePrimedPayload(kind, factory) {
+            const isCatalog = kind === 'catalog';
+            const primed = isCatalog ? primedCatalogRequest : primedExtrinsicRequest;
+            if (isCatalog) primedCatalogRequest = null;
+            else primedExtrinsicRequest = null;
+            return primed || factory();
+        }
+
+        function primeInitialDataRequests() {
+            addResourceHint(CATALOG_DATA_URL, 'fetch');
+            addResourceHint(EXTRINSIC_DATA_URL, 'fetch');
+            if (!primedCatalogRequest) primedCatalogRequest = requestCatalogPayload();
+            if (!primedExtrinsicRequest) primedExtrinsicRequest = requestExtrinsicPayload();
+        }
+
+        primeInitialDataRequests();
         
         const CATEGORY_COLORS = { 'Эспрессо': '#9c4c00', 'Фильтр': '#e78b00', 'Ароматизация': '#ad6565', 'Аксессуары': '#538a8b', 'Информация': '#9e9076' };
 
@@ -983,7 +1079,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             const svgNS = "http://www.w3.org/2000/svg";
             const svg = document.createElementNS(svgNS, "svg");
             svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
-            spin.appendChild(svg);
+            const segmentFragment = document.createDocumentFragment();
 
             const polarToCartesian = (cX, cY, r, a) => {
                 const rad = (a - 90) * Math.PI / 180.0;
@@ -1064,8 +1160,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     }
                     window.history.replaceState({}, '', url);
                 });
-                svg.appendChild(g);
+                segmentFragment.appendChild(g);
             });
+            svg.appendChild(segmentFragment);
 
             const center = document.createElementNS(svgNS, "circle");
             center.setAttribute("cx", cx); center.setAttribute("cy", cy); center.setAttribute("r", 78);
@@ -1073,6 +1170,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             center.setAttribute("cursor", "pointer");
             center.addEventListener('click', window.resetInfo);
             svg.appendChild(center);
+            spin.appendChild(svg);
             
             const brand = document.createElementNS(svgNS, "text");
             brand.setAttribute("x", cx); brand.setAttribute("y", cy);
@@ -1290,49 +1388,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 } catch(e) { console.error(e); }
             },
             
-            loadMessagesForAdmin: async function() {
-                const container = document.getElementById('admin-messages-list');
-                if(!container) return;
-                container.innerHTML = 'Загрузка...';
-                const token = localStorage.getItem('locus_token');
-                try {
-                    const res = await fetch(LOCUS_API_URL + '?action=getAdminMessages', { headers: { 'X-Auth-Token': token } });
-                    const data = await res.json();
-                    container.innerHTML = '';
-                    if (!data.success) throw new Error(data.error);
-                    
-                    let msgs = data.messages;
-                    if(msgs.length === 0) { container.innerHTML = 'Нет сообщений'; return; }
-
-                    msgs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-                    msgs.forEach(m => {
-                        const isToAdmin = m.direction === 'to_admin';
-                        const el = document.createElement('div');
-                        el.className = 'msg-item';
-                        const replyFormId = `reply-form-${m.id}`;
-                        
-                        el.innerHTML = `
-                            <div class="msg-header">
-                                <span>${new Date(m.timestamp).toLocaleString()}</span>
-                                <span style="font-weight:bold; color:${isToAdmin ? '#B66A58' : 'gray'}">${isToAdmin ? 'От: ' + (m.userEmail || m.userId) : 'Вы ответили'}</span>
-                            </div>
-                            <div class="msg-subject">${m.subject || 'Без темы'}</div>
-                            <div class="msg-body">${m.text}</div>
-                            <div style="display:flex; justify-content:space-between;">
-                                ${isToAdmin ? `<button class="lc-btn" style="width:auto; padding:5px 15px; font-size:10px;" onclick="document.getElementById('${replyFormId}').classList.toggle('active')">Ответить</button>` : '<div></div>'}
-                                <button onclick="MessageSystem.deleteMessage('${m.id}', 'admin')" style="color:#B66A58; border:none; background:none; cursor:pointer;">&times; Удалить</button>
-                            </div>
-                            <div id="${replyFormId}" class="msg-reply-area">
-                                <textarea id="reply-text-${m.id}" class="lc-input" placeholder="Текст ответа..." style="height:60px;"></textarea>
-                                <button class="lc-btn" onclick="MessageSystem.submitReply('${m.id}', '${m.userId}', '${m.subject}')">Отправить</button>
-                            </div>
-                        `;
-                        container.appendChild(el);
-                    });
-                } catch(e) { console.error(e); container.innerHTML = 'Ошибка загрузки'; }
-            },
-            
+            loadMessagesForAdmin: async function(options = {}) { await UserSystem.ensureAdminModule(); return this.loadMessagesForAdmin(options); },
             submitReply: async function(msgId, userId, subject) {
                 const txt = document.getElementById(`reply-text-${msgId}`).value;
                 if(!txt) return;
@@ -1434,72 +1490,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 console.error(e);
             }
         };
-        MessageSystem.loadMessagesForAdmin = async function(options = {}) {
-            const {
-                renderList = true,
-                showLoading = renderList,
-                markAsRead = this.isAdminMessagesTabActive()
-            } = options;
-            const container = document.getElementById('admin-messages-list');
-            if(renderList && !container) return;
-            if(showLoading && container) container.innerHTML = 'Р—Р°РіСЂСѓР·РєР°...';
-            const token = localStorage.getItem('locus_token');
-            try {
-                const res = await fetch(LOCUS_API_URL + '?action=getAdminMessages', { headers: { 'X-Auth-Token': token } });
-                const data = await res.json();
-                if (!data.success) throw new Error(data.error);
-
-                let msgs = Array.isArray(data.messages) ? data.messages : [];
-                msgs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-                const unreadIncomingCount = msgs.filter(m => m.direction === 'to_admin' && m.isRead !== true).length;
-                this.updateAdminUnreadBadge(unreadIncomingCount);
-
-                if (markAsRead && unreadIncomingCount > 0) {
-                    const markSuccess = await this.markAdminMessagesRead();
-                    if (markSuccess) {
-                        msgs = msgs.map(m => m.direction === 'to_admin' ? { ...m, isRead: true } : m);
-                        this.updateAdminUnreadBadge(0);
-                    }
-                }
-
-                if (!renderList) return;
-
-                container.innerHTML = '';
-                if(msgs.length === 0) {
-                    container.innerHTML = 'РќРµС‚ СЃРѕРѕР±С‰РµРЅРёР№';
-                    return;
-                }
-
-                msgs.forEach(m => {
-                    const isToAdmin = m.direction === 'to_admin';
-                    const el = document.createElement('div');
-                    el.className = `msg-item${isToAdmin && m.isRead !== true ? ' is-unread' : ''}`;
-                    const replyFormId = `reply-form-${m.id}`;
-
-                    el.innerHTML = `
-                        <div class="msg-header">
-                            <span>${new Date(m.timestamp).toLocaleString()}</span>
-                            <span style="font-weight:bold; color:${isToAdmin ? '#B66A58' : 'gray'}">${isToAdmin ? 'РћС‚: ' + (m.userEmail || m.userId) : 'Р’С‹ РѕС‚РІРµС‚РёР»Рё'}</span>
-                        </div>
-                        <div class="msg-subject">${m.subject || 'Р‘РµР· С‚РµРјС‹'}</div>
-                        <div class="msg-body">${m.text}</div>
-                        <div style="display:flex; justify-content:space-between;">
-                            ${isToAdmin ? `<button class="lc-btn" style="width:auto; padding:5px 15px; font-size:10px;" onclick="document.getElementById('${replyFormId}').classList.toggle('active')">РћС‚РІРµС‚РёС‚СЊ</button>` : '<div></div>'}
-                            <button onclick="MessageSystem.deleteMessage('${m.id}', 'admin')" style="color:#B66A58; border:none; background:none; cursor:pointer;">&times; РЈРґР°Р»РёС‚СЊ</button>
-                        </div>
-                        <div id="${replyFormId}" class="msg-reply-area">
-                            <textarea id="reply-text-${m.id}" class="lc-input" placeholder="РўРµРєСЃС‚ РѕС‚РІРµС‚Р°..." style="height:60px;"></textarea>
-                            <button class="lc-btn" onclick="MessageSystem.submitReply('${m.id}', '${m.userId}', '${m.subject}')">РћС‚РїСЂР°РІРёС‚СЊ</button>
-                        </div>
-                    `;
-                    container.appendChild(el);
-                });
-            } catch(e) {
-                console.error(e);
-                if (renderList && container) container.innerHTML = 'РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё';
-            }
-        };
+        MessageSystem.loadMessagesForAdmin = async function(options = {}) { await UserSystem.ensureAdminModule(); return this.loadMessagesForAdmin(options); };
         window.MessageSystem = MessageSystem;
         MessageSystem.sendMessageToAdmin = async function(text, subject = '\u0421\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435 \u0441 \u0441\u0430\u0439\u0442\u0430') {
             if (!UserSystem.uid) return alert('\u041d\u0443\u0436\u043d\u043e \u0432\u043e\u0439\u0442\u0438');
@@ -1550,65 +1541,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 console.error(e);
             }
         };
-        MessageSystem.loadMessagesForAdmin = async function(options = {}) {
-            const {
-                renderList = true,
-                showLoading = renderList,
-                markAsRead = this.isAdminMessagesTabActive()
-            } = options;
-            const container = document.getElementById('admin-messages-list');
-            if (renderList && !container) return;
-            if (showLoading && container) container.innerHTML = '\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430...';
-            const token = localStorage.getItem('locus_token');
-            try {
-                const res = await fetch(LOCUS_API_URL + '?action=getAdminMessages', { headers: { 'X-Auth-Token': token } });
-                const data = await res.json();
-                if (!data.success) throw new Error(data.error);
-                let msgs = Array.isArray(data.messages) ? data.messages : [];
-                msgs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-                const unreadIncomingCount = msgs.filter(m => m.direction === 'to_admin' && m.isRead !== true).length;
-                this.updateAdminUnreadBadge(unreadIncomingCount);
-                if (markAsRead && unreadIncomingCount > 0) {
-                    const markSuccess = await this.markAdminMessagesRead();
-                    if (markSuccess) {
-                        msgs = msgs.map(m => m.direction === 'to_admin' ? { ...m, isRead: true } : m);
-                        this.updateAdminUnreadBadge(0);
-                    }
-                }
-                if (!renderList) return;
-                container.innerHTML = '';
-                if (msgs.length === 0) {
-                    container.innerHTML = '\u041d\u0435\u0442 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0439';
-                    return;
-                }
-                msgs.forEach(m => {
-                    const isToAdmin = m.direction === 'to_admin';
-                    const el = document.createElement('div');
-                    el.className = `msg-item${isToAdmin && m.isRead !== true ? ' is-unread' : ''}`;
-                    const replyFormId = `reply-form-${m.id}`;
-                    el.innerHTML = `
-                        <div class="msg-header">
-                            <span>${new Date(m.timestamp).toLocaleString()}</span>
-                            <span style="font-weight:bold; color:${isToAdmin ? '#B66A58' : 'gray'}">${isToAdmin ? '\u041e\u0442: ' + (m.userEmail || m.userId) : '\u0412\u044b \u043e\u0442\u0432\u0435\u0442\u0438\u043b\u0438'}</span>
-                        </div>
-                        <div class="msg-subject">${m.subject || '\u0411\u0435\u0437 \u0442\u0435\u043c\u044b'}</div>
-                        <div class="msg-body">${m.text}</div>
-                        <div style="display:flex; justify-content:space-between;">
-                            ${isToAdmin ? `<button class="lc-btn" style="width:auto; padding:5px 15px; font-size:10px;" onclick="document.getElementById('${replyFormId}').classList.toggle('active')">\u041e\u0442\u0432\u0435\u0442\u0438\u0442\u044c</button>` : '<div></div>'}
-                            <button onclick="MessageSystem.deleteMessage('${m.id}', 'admin')" style="color:#B66A58; border:none; background:none; cursor:pointer;">&times; \u0423\u0434\u0430\u043b\u0438\u0442\u044c</button>
-                        </div>
-                        <div id="${replyFormId}" class="msg-reply-area">
-                            <textarea id="reply-text-${m.id}" class="lc-input" placeholder="\u0422\u0435\u043a\u0441\u0442 \u043e\u0442\u0432\u0435\u0442\u0430..." style="height:60px;"></textarea>
-                            <button class="lc-btn" onclick="MessageSystem.submitReply('${m.id}', '${m.userId}', '${m.subject}')">\u041e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c</button>
-                        </div>
-                    `;
-                    container.appendChild(el);
-                });
-            } catch (e) {
-                console.error(e);
-                if (renderList && container) container.innerHTML = '\u041e\u0448\u0438\u0431\u043a\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438';
-            }
-        };
+        MessageSystem.loadMessagesForAdmin = async function(options = {}) { await UserSystem.ensureAdminModule(); return this.loadMessagesForAdmin(options); };
         window.MessageSystem = MessageSystem;
         // --- КОНЕЦ: СИСТЕМА СООБЩЕНИЙ YDB ---
 
@@ -1631,120 +1564,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
             
             // --- НАЧАЛО: АКЦИИ YDB ---
-            loadActionsList: async function() {
-                const container = document.getElementById('admin-actions-list');
-                if(!container) return;
-                container.innerHTML = 'Загрузка...';
-                const token = localStorage.getItem('locus_token');
-                if(!token) return container.innerHTML = 'Нет доступа';
-
-                try {
-                    const res = await fetch(LOCUS_API_URL + '?action=getActions', { headers: { 'X-Auth-Token': token } });
-                    const data = await res.json();
-                    container.innerHTML = '';
-                    if(!data.success) throw new Error(data.error);
-                    if(data.actions.length === 0) { container.innerHTML = '<div style="opacity:0.5; font-size:12px;">Нет акций</div>'; return; }
-                    
-                    let actions = data.actions;
-                    // Сортировка по дате создания (новые сверху)
-                    actions.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-                    actions.forEach(a => {
-                        const el = document.createElement('div');
-                        el.className = 'promo-list-item';
-                        
-                        let details = `Тип: ${a.type === 'discount' ? 'Скидка' : 'Инфо'}`;
-                        if (a.type === 'discount') details += `<br>Код: <b>${a.promoCode}</b> (${a.discountVal}${a.discountType === 'percent' ? '%' : '₽'})`;
-                        if (a.limit) details += `<br>Лимит показов: ${a.limit}`;
-                        if (a.dateEnd) details += `<br>До: ${a.dateEnd}`;
-
-                        el.innerHTML = `
-                            <div style="flex:1; margin-right:15px;">
-                                <div style="font-weight:bold; font-size:12px;">${a.title}</div>
-                                <div style="font-size:10px; opacity:0.7; margin-top:4px; line-height:1.4;">${details}</div>
-                            </div>
-                            <div style="display:flex; align-items:center; gap:10px;">
-                                <label style="font-size:10px; display:flex; align-items:center; gap:4px;">
-                                    <input type="checkbox" ${a.active ? 'checked' : ''} onchange="PromotionSystem.toggleAction('${a.id}', this.checked, '${a.promoCode || ''}')"> Актив
-                                </label>
-                                <button onclick="PromotionSystem.deleteAction('${a.id}', '${a.promoCode || ''}')" style="color:#B66A58; border:none; background:none; cursor:pointer; font-size:16px;">&times;</button>
-                            </div>
-                        `;
-                        container.appendChild(el);
-                    });
-                } catch(e) { console.error(e); container.innerHTML = 'Ошибка загрузки'; }
-            },
-
-            saveAction: async function() {
-                const title = document.getElementById('action-title').value.trim();
-                const msg = document.getElementById('action-msg').value.trim();
-                const type = document.getElementById('action-type').value;
-                const limit = parseInt(document.getElementById('action-limit').value) || 1;
-                
-                if (!title || !msg) return alert('Заполните Заголовок и Сообщение');
-
-                let promoCode = '';
-                let discountVal = 0;
-                let discountType = 'percent';
-
-                if (type === 'discount') {
-                    promoCode = document.getElementById('action-promo-code').value.toUpperCase().trim();
-                    discountVal = parseFloat(document.getElementById('action-discount-val').value) || 0;
-                    discountType = document.getElementById('action-discount-type').value;
-                    if (!promoCode || !discountVal) return alert('Для скидки укажите Промокод и Размер скидки');
-                }
-
-                const data = {
-                    action: 'saveAction',
-                    title: title, msg: msg, type: type,
-                    promoCode: promoCode, discountVal: discountVal, discountType: discountType,
-                    limit: limit,
-                    dateEnd: document.getElementById('action-date-end').value,
-                    active: document.getElementById('action-is-active').checked,
-                    createdAt: new Date().toISOString()
-                };
-                
-                const token = localStorage.getItem('locus_token');
-                try {
-                    await fetch(LOCUS_API_URL + '?action=saveAction', {
-                        method: 'POST', headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    
-                    alert('Акция сохранена!');
-                    this.loadActionsList();
-                    // Очистка полей
-                    document.getElementById('action-title').value = '';
-                    document.getElementById('action-msg').value = '';
-                    if(type === 'discount') {
-                        document.getElementById('action-promo-code').value = '';
-                        document.getElementById('action-discount-val').value = '';
-                    }
-                } catch(e) { alert('Ошибка: ' + e.message); }
-            },
-            
-            toggleAction: async function(id, status, promoCode) {
-                const token = localStorage.getItem('locus_token');
-                try { 
-                    await fetch(LOCUS_API_URL + '?action=toggleAction', {
-                        method: 'POST', headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'toggleAction', id: id, active: status, promoCode: promoCode })
-                    });
-                } catch(e) { console.error(e); }
-            },
-            
-            deleteAction: async function(id, promoCode) {
-                if(!confirm('Удалить акцию?')) return;
-                const token = localStorage.getItem('locus_token');
-                try { 
-                    await fetch(LOCUS_API_URL + '?action=deleteAction', {
-                        method: 'POST', headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'deleteAction', id: id, promoCode: promoCode })
-                    });
-                    this.loadActionsList(); 
-                } catch(e) { console.error(e); }
-            },
-
+            loadActionsList: async function() { await UserSystem.ensureAdminModule(); return this.loadActionsList(); },
+            saveAction: async function() { await UserSystem.ensureAdminModule(); return this.saveAction(); },
+            toggleAction: async function(id, status, promoCode) { await UserSystem.ensureAdminModule(); return this.toggleAction(id, status, promoCode); },
+            deleteAction: async function(id, promoCode) { await UserSystem.ensureAdminModule(); return this.deleteAction(id, promoCode); },
             checkAndShow: async function() {
                 try {
                     const res = await fetch(LOCUS_API_URL + '?action=getActiveActions');
@@ -4020,7 +3843,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
             renderStickerElementToBlob: async function(stickerEl, side = this.getStickerSideFromElement(stickerEl)) {
                 if (!stickerEl) throw new Error('Макет наклейки не найден.');
-                if (typeof html2canvas === 'undefined') throw new Error('Модуль генерации изображений ещё загружается.');
+                await ensureHtml2CanvasLoaded();
 
                 const exportConfig = this.getStickerExportConfig(side);
                 const targetWidthPx = this.mmToPrintPixels(exportConfig.width);
@@ -4053,7 +3876,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
             renderPackPreviewToBlob: async function(product) {
                 if (!product) throw new Error('Лот не найден.');
-                if (typeof html2canvas === 'undefined') throw new Error('Модуль генерации изображений ещё загружается.');
+                await ensureHtml2CanvasLoaded();
                 let host = null;
                 try {
                     host = this.createPackPreviewExportContainer(product);
@@ -6526,7 +6349,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 }
             },
             
-            generatePDF: function() {
+            generatePDF: async function() {
+                if (!window.pdfMake) {
+                    try {
+                        await ensurePdfMakeLoaded();
+                    } catch (e) {
+                        alert('Не удалось загрузить PDF-модуль: ' + e.message);
+                        return;
+                    }
+                }
                 if(!window.pdfMake) return alert('Библиотека PDF еще не загружена');
                 
                 const tableBody = [
@@ -7029,7 +6860,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             // --- КОНЕЦ: ЗАМЕНА СДЭК И СИНХРОНИЗАЦИИ ---
 
             // --- НАЧАЛО: ИСПРАВЛЕННОЕ ОТКРЫТИЕ ОКОН ---
-            toggleModal: function(show, initialView = 'dashboard') {
+            toggleModal: async function(show, initialView = 'dashboard') {
                 const m = document.getElementById('lc-modal');
                 if(!m) return;
                 
@@ -7054,9 +6885,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         this.switchView('cart'); 
                     } 
                     else if (initialView === 'admin') { 
+                        if (!this.isAdminUser()) return;
                         m.classList.add('admin-wide');
                         m.classList.add('wide');
                         this.switchView('admin'); 
+                        try {
+                            await this.ensureAdminModule();
+                        } catch (e) {
+                            console.error(e);
+                            alert('Не удалось загрузить админ-панель: ' + e.message);
+                            return;
+                        }
                         this.switchAdminTab('catalog');
                         this.loadUsers(); 
                         this.loadPromos(); 
@@ -7172,215 +7011,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             },
 
             // --- НАЧАЛО: АДМИНКА - ЗАГРУЗКА ПОЛЬЗОВАТЕЛЕЙ ИЗ YDB ---
-            loadUsers: async function() {
-                const container = document.getElementById('admin-sec-users');
-                container.innerHTML = '<div class="loader" style="position:relative; top:0; color:var(--locus-dark);">Загрузка базы YDB...</div>';
-
-                const token = localStorage.getItem('locus_token');
-                if(!token) return container.innerHTML = 'Нет доступа';
-
-                try {
-                    const res = await fetch(LOCUS_API_URL + '?action=getAdminUsers', {
-                        headers: { 'X-Auth-Token': token }
-                    });
-                    const data = await res.json();
-                    
-                    if (!data.success) throw new Error(data.error || 'Ошибка загрузки');
-
-                    let totalRevenue = 0;
-                    let totalOrders = 0;
-                    let usersList = [];
-
-                    data.users.forEach(u => {
-                        const history = this.getVisibleHistoryItems(u.history || []);
-                        const spent = u.totalSpent || 0;
-                        totalRevenue += spent;
-                        totalOrders += history.length;
-
-                        let freq = "Нет покупок";
-                        if(history.length === 1) freq = "Новичок (1)";
-                        else if(history.length > 10) freq = "VIP (>10)";
-                        else if(history.length > 3) freq = "Постоянный";
-                        else if(history.length > 1) freq = "Активный";
-
-                        let fav = "-";
-                        if(history.length > 0) {
-                            const counts = {};
-                            history.forEach(h => { 
-                                // Проверяем: это новый формат (Заказ) или старый (отдельная пачка)
-                                if (h.isOrder && Array.isArray(h.items)) {
-                                    h.items.forEach(i => {
-                                        if (i.item) {
-                                            const name = i.item.split(' (')[0];
-                                            counts[name] = (counts[name] || 0) + (i.qty || 1); 
-                                        }
-                                    });
-                                } else if (h.item) { // Старый формат
-                                    const name = h.item.split(' (')[0];
-                                    counts[name] = (counts[name] || 0) + (h.qty || 1); 
-                                }
-                            });
-                            
-                            if (Object.keys(counts).length > 0) {
-                                fav = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
-                            }
-                        }
-
-                        let discount = Math.floor(spent / 3000);
-                        if(discount > 15) discount = 15;
-
-                        usersList.push({
-                            id: u.id,
-                            email: u.email,
-                            spent: spent,
-                            discount: discount,
-                            freq: freq,
-                            fav: fav
-                        });
-                    });
-
-                    usersList.sort((a, b) => b.spent - a.spent);
-                    this.adminUsersMap = Object.fromEntries(usersList.map(u => [u.id, u]));
-
-                    let html = `
-                        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:20px; text-align:center;">
-                            <div style="background:#fff; padding:10px; border:1px solid #E5E1D8; border-radius:8px;">
-                                <div style="font-size:10px; color:gray; text-transform:uppercase;">Оборот</div>
-                                <div style="font-size:16px; font-weight:bold;">${totalRevenue.toLocaleString()} ₽</div>
-                            </div>
-                            <div style="background:#fff; padding:10px; border:1px solid #E5E1D8; border-radius:8px;">
-                                <div style="font-size:10px; color:gray; text-transform:uppercase;">Товаров куплено</div>
-                                <div style="font-size:16px; font-weight:bold;">${totalOrders}</div>
-                            </div>
-                            <div style="background:#fff; padding:10px; border:1px solid #E5E1D8; border-radius:8px;">
-                                <div style="font-size:10px; color:gray; text-transform:uppercase;">Ср. цена товара</div>
-                                <div style="font-size:16px; font-weight:bold;">${totalOrders ? Math.round(totalRevenue/totalOrders) : 0} ₽</div>
-                            </div>
-                        </div>
-                    `;
-
-                    html += `
-                        <div style="overflow-x:auto;">
-                        <table class="admin-table">
-                            <thead>
-                                <tr>
-                                    <th>Клиент</th>
-                                    <th>Скидка</th>
-                                    <th>Любимый сорт</th>
-                                    <th>Статус</th>
-                                    <th>LTV (Сумма)</th>
-                                    <th style="width:42px;"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                    `;
-
-                    usersList.forEach(u => {
-                        const isProtectedUser = this.normalizeEmailAddress(u.email) === 'info@locus.coffee';
-                        html += `
-                            <tr>
-                                <td>
-                                    <div style="font-weight:600;">${u.email}</div>
-                                    <div style="font-size:9px; opacity:0.6;">ID: ...${u.id.slice(-5)}</div>
-                                </td>
-                                <td>${u.discount}%</td>
-                                <td style="font-size:10px;">${u.fav}</td>
-                                <td style="font-size:10px;">${u.freq}</td>
-                                <td style="font-weight:bold;">${u.spent} ₽</td>
-                                <td class="admin-user-actions-cell">
-                                    <button class="cat-btn-icon delete admin-user-delete-btn" type="button" title="${isProtectedUser ? '\u0413\u043b\u0430\u0432\u043d\u044b\u0439 \u0430\u043a\u043a\u0430\u0443\u043d\u0442 \u043d\u0435\u043b\u044c\u0437\u044f \u0443\u0434\u0430\u043b\u0438\u0442\u044c' : '\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f'}" onclick="UserSystem.deleteUser('${u.id}')" ${isProtectedUser ? 'disabled aria-disabled="true"' : ''}>&times;</button>
-                                </td>
-                            </tr>
-                        `;
-                    });
-
-                    html += `</tbody></table></div>`;
-                    container.innerHTML = html;
-                    this.startRetailCountdownTicker();
-
-                } catch(e) {
-                    console.error(e);
-                    container.innerHTML = `<div style="color:#B66A58">Ошибка: ${e.message}</div>`;
-                }
-            },
-            // --- КОНЕЦ: АДМИНКА - ЗАГРУЗКА ПОЛЬЗОВАТЕЛЕЙ ИЗ YDB ---
-            // --- НАЧАЛО: ПРОМОКОДЫ YDB ---
-            loadPromos: async function() {
-                const list = document.getElementById('admin-promo-list');
-                list.innerHTML = 'Загрузка...';
-                const token = localStorage.getItem('locus_token');
-                if(!token) return list.innerHTML = 'Нет доступа';
-
-                try {
-                    const res = await fetch(LOCUS_API_URL + '?action=getPromos', {
-                        headers: { 'X-Auth-Token': token }
-                    });
-                    const data = await res.json();
-                    list.innerHTML = '';
-                    if (!data.success) throw new Error(data.error);
-                    
-                    if(data.promos.length === 0) list.innerHTML = '<div style="opacity:0.5; font-size:12px;">Нет промокодов</div>';
-
-                    data.promos.forEach(p => {
-                        const div = document.createElement('div');
-                        div.className = 'promo-list-item';
-                        div.innerHTML = `
-                            <div>
-                                <strong>${p.id}</strong> 
-                                <span style="font-size:10px; color:gray;">(${p.val} ${p.type === 'percent' ? '%' : 'RUB'})</span>
-                            </div>
-                            <div style="display:flex; gap:10px; align-items:center;">
-                                <input type="checkbox" ${p.active ? 'checked' : ''} onchange="UserSystem.togglePromo('${p.id}', this.checked)">
-                                <button onclick="UserSystem.deletePromo('${p.id}')" style="border:none; background:transparent; color:#B66A58; cursor:pointer;">&times;</button>
-                            </div>
-                        `;
-                        list.appendChild(div);
-                    });
-                } catch(e) { console.error(e); list.innerHTML = 'Ошибка загрузки'; }
-            },
-
-            addPromo: async function() {
-                const code = document.getElementById('new-promo-code').value.toUpperCase().trim();
-                const val = parseFloat(document.getElementById('new-promo-val').value);
-                const type = document.getElementById('new-promo-type').value;
-                if(!code || !val) return alert('Заполните код и значение');
-                
-                const token = localStorage.getItem('locus_token');
-                try {
-                    await fetch(LOCUS_API_URL + '?action=addPromo', {
-                        method: 'POST',
-                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'addPromo', id: code, val: val, type: type, active: true })
-                    });
-                    document.getElementById('new-promo-code').value = '';
-                    this.loadPromos();
-                } catch(e) { alert('Ошибка добавления: ' + e.message); }
-            },
-
-            togglePromo: async function(id, status) {
-                const token = localStorage.getItem('locus_token');
-                try { 
-                    await fetch(LOCUS_API_URL + '?action=togglePromo', {
-                        method: 'POST',
-                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'togglePromo', id: id, active: status })
-                    });
-                } catch(e) { console.error(e); }
-            },
-
-            deletePromo: async function(id) {
-                if(!confirm('\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u0440\u043e\u043c\u043e\u043a\u043e\u0434?')) return;
-                const token = localStorage.getItem('locus_token');
-                try { 
-                    await fetch(LOCUS_API_URL + '?action=deletePromo', {
-                        method: 'POST',
-                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'deletePromo', id: id })
-                    });
-                    this.loadPromos(); 
-                } catch(e) { console.error(e); }
-            },
-
+            loadUsers: async function() { await this.ensureAdminModule(); return this.loadUsers(); },
+            loadPromos: async function() { await this.ensureAdminModule(); return this.loadPromos(); },
+            addPromo: async function() { await this.ensureAdminModule(); return this.addPromo(); },
+            togglePromo: async function(id, status) { await this.ensureAdminModule(); return this.togglePromo(id, status); },
+            deletePromo: async function(id) { await this.ensureAdminModule(); return this.deletePromo(id); },
             deleteUser: async function(userId) {
                 const user = this.adminUsersMap?.[userId];
                 const userEmail = user?.email || '\u0432\u044b\u0431\u0440\u0430\u043d\u043d\u043e\u0433\u043e \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f';
@@ -8942,6 +8577,50 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         });
 
         // --- ИНТЕРАКТИВНОЕ ОБУЧЕНИЕ (ФИНАЛ: КОМПАКТНАЯ КНОПКА И ОТСТУПЫ) ---
+        let adminModulePromise = null;
+
+        function createDeferredAdminMethod(targetObject, methodName) {
+            const deferredMethod = async function(...args) {
+                await UserSystem.ensureAdminModule();
+                const resolvedMethod = targetObject[methodName];
+                if (resolvedMethod === deferredMethod) {
+                    throw new Error(`Админ-модуль не инициализировал метод ${methodName}.`);
+                }
+                return resolvedMethod.apply(this, args);
+            };
+            return deferredMethod;
+        }
+
+        UserSystem.ensureAdminModule = async function() {
+            if (this.adminModuleReady) return true;
+            if (!adminModulePromise) {
+                adminModulePromise = import('./admin.js')
+                    .then(module => module.installAdminFeatures({
+                        UserSystem,
+                        PromotionSystem,
+                        MessageSystem,
+                        LOCUS_API_URL
+                    }))
+                    .then(() => {
+                        this.adminModuleReady = true;
+                        return true;
+                    })
+                    .catch(error => {
+                        adminModulePromise = null;
+                        throw error;
+                    });
+            }
+            return adminModulePromise;
+        };
+
+        ['loadUsers', 'loadPromos', 'addPromo', 'togglePromo', 'deletePromo'].forEach(methodName => {
+            UserSystem[methodName] = createDeferredAdminMethod(UserSystem, methodName);
+        });
+
+        ['loadActionsList', 'saveAction', 'toggleAction', 'deleteAction'].forEach(methodName => {
+            PromotionSystem[methodName] = createDeferredAdminMethod(PromotionSystem, methodName);
+        });
+
         const TourSystem = {
             steps: [
                 {
@@ -9183,8 +8862,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             try {
                 // 1. Загружаем каталог и внешние данные параллельно для быстрого старта
                 const [catRes, extRes] = await Promise.all([
-                    fetch(YANDEX_FUNCTION_URL + "?type=catalog").then(r => r.json()),
-                    fetch(LOCUS_API_URL + "?action=getExtrinsicData").then(r => r.json()).catch(() => ({success: false, data: []}))
+                    consumePrimedPayload('catalog', requestCatalogPayload),
+                    consumePrimedPayload('extrinsic', requestExtrinsicPayload)
                 ]);
                 
                 if (!catRes.success) throw new Error(catRes.error || "Ошибка загрузки каппингов");
@@ -9444,3 +9123,4 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 alert('Ошибка экспорта наклейки: ' + e.message);
             }
         };
+
