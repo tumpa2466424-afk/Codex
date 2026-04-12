@@ -682,7 +682,13 @@
         </div>
     </div>
 
+    <script>
+  window.LOCUS_APP_MODULE_URL = 'https://tumpa2466424-afk.github.io/Codex/app.js?v=130';
+</script>
+
+
     <script type="module">
-        import './app.js';
+        const appModuleUrl = globalThis.LOCUS_APP_MODULE_URL || './app.js';
+        import(appModuleUrl);
     </script>
 </div>
