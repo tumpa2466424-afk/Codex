@@ -26,6 +26,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         const LOCUS_API_URL = "https://functions.yandexcloud.net/d4ehpa8o948vden3i9ba";
         const CATALOG_DATA_URL = `${YANDEX_FUNCTION_URL}?type=catalog`;
         const EXTRINSIC_DATA_URL = `${LOCUS_API_URL}?action=getExtrinsicData`;
+        const FREE_SHIPPING_THRESHOLD = 5000;
         const PDFMAKE_SCRIPT_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js';
         const PDFMAKE_FONTS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js';
         const HTML2CANVAS_SCRIPT_URL = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
@@ -4773,6 +4774,35 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 };
             },
 
+            getActivePromoDiscountValue: function(baseTotal) {
+                if (!this.activePromo) return 0;
+                if (this.activePromo.type === 'percent') {
+                    return Math.floor(baseTotal * (this.activePromo.val / 100));
+                }
+                return this.activePromo.val;
+            },
+
+            getCurrentNewLotDiscountValue: function() {
+                const isNewLotDiscountUsed = this.currentUser && this.currentUser.history && this.currentUser.history.some(h =>
+                    h && h.isSystemMeta && h.systemType === 'NEW_LOT_DISCOUNT_USED' && h.sampleName === this.newLotDiscount?.sampleName
+                );
+
+                if (!this.newLotDiscount || isNewLotDiscountUsed) return 0;
+
+                const newLotItem = this.localCart.find(i => i.item.includes(this.newLotDiscount.sampleName));
+                if (!newLotItem) return 0;
+
+                return Math.floor(newLotItem.price * 0.1);
+            },
+
+            isRetailFreeShippingEligible: function(subtotal) {
+                const breakdown = this.getRetailDiscountBreakdown(subtotal);
+                const promoDiscountVal = this.getActivePromoDiscountValue(breakdown.totalAfterStoreDiscounts);
+                const newLotDiscountVal = this.getCurrentNewLotDiscountValue();
+                const discountedMerchandiseTotal = Math.max(0, breakdown.totalAfterStoreDiscounts - promoDiscountVal - newLotDiscountVal);
+                return discountedMerchandiseTotal >= FREE_SHIPPING_THRESHOLD;
+            },
+
             getOrderCreatedAtMs: function(order) {
                 if (!order) return 0;
 
@@ -6699,15 +6729,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             calculateDeliveryCost: function(basePrice) {
                 let subtotal = 0;
                 this.localCart.forEach(i => subtotal += (i.price * i.qty));
-                let loyaltyDiscountVal = 0;
-                if(this.currentUser) {
-                    const discountPercent = Math.min(Math.floor(this.currentUser.totalSpent / 3000), 15);
-                    loyaltyDiscountVal = Math.floor(subtotal * (discountPercent / 100));
-                }
-                const totalAfterLoyalty = subtotal - loyaltyDiscountVal;
-
-                if (totalAfterLoyalty >= 3000) this.cdekPrice = 0;
-                else this.cdekPrice = basePrice;
+                const isFreeShippingEligible = this.isRetailFreeShippingEligible(subtotal);
+                this.cdekPrice = isFreeShippingEligible ? 0 : Math.max(0, Number(basePrice) || 0);
                 this.updateCartTotals();
             },
             // --- КОНЕЦ: СДЭК И РУЧНОЙ ВВОД ---
@@ -7601,18 +7624,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 totalAfterLoyalty -= fortuneDiscountVal; // Вычитаем удачу из Итого
 
                 // --- СКИДКА НА НОВИНКУ ---
-                let newLotDiscountVal = 0;
-                const isNewLotDiscountUsed = this.currentUser && this.currentUser.history && this.currentUser.history.some(h => 
-                    h && h.isSystemMeta && h.systemType === 'NEW_LOT_DISCOUNT_USED' && h.sampleName === this.newLotDiscount?.sampleName
-                );
-                
-                if (this.newLotDiscount && !isNewLotDiscountUsed) {
-                    const newLotItem = this.localCart.find(i => i.item.includes(this.newLotDiscount.sampleName));
-                    if (newLotItem) {
-                        // Скидка 10% на первую пачку лота
-                        newLotDiscountVal = Math.floor(newLotItem.price * 0.1);
-                    }
-                }
+                let newLotDiscountVal = this.getCurrentNewLotDiscountValue();
                 this.currentNewLotDiscountVal = newLotDiscountVal; // Для сохранения в placeOrder
 
                 let rowNewLot = document.getElementById('row-new-lot-discount');
@@ -7683,19 +7695,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     }
                 }
 
+                let promoDiscountVal = this.getActivePromoDiscountValue(totalAfterLoyalty);
+                const isFreeShippingEligible = !digitalOnly && this.isRetailFreeShippingEligible(subtotal);
+
                 if (digitalOnly) {
                     this.cdekPrice = 0;
-                } else if (totalAfterLoyalty >= 3000) {
-                    this.cdekPrice = 0;
-                }
-
-                let promoDiscountVal = 0;
-                if (this.activePromo) {
-                    if (this.activePromo.type === 'percent') {
-                        promoDiscountVal = Math.floor(totalAfterLoyalty * (this.activePromo.val / 100));
-                    } else {
-                        promoDiscountVal = this.activePromo.val;
-                    }
+                } else if (this.cdekInfo && typeof this.cdekInfo.rawPrice !== 'undefined') {
+                    this.cdekPrice = isFreeShippingEligible ? 0 : Math.max(0, Number(this.cdekInfo.rawPrice) || 0);
                 }
 
                 let finalTotal = totalAfterLoyalty - promoDiscountVal - newLotDiscountVal + (digitalOnly ? 0 : (this.cdekPrice || 0));
@@ -7710,8 +7716,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 if(shipValEl) {
                     if (digitalOnly) {
                         shipValEl.textContent = 'Не требуется';
-                    } else if (this.cdekPrice === 0 && totalAfterLoyalty >= 3000) {
-                        shipValEl.innerHTML = `<span style="color:#187a30; font-weight:bold;">Бесплатно</span>`;
+                    } else if (isFreeShippingEligible) {
+                        shipValEl.innerHTML = `<span style="color:#187a30; font-weight:bold;">Бесплатно от ${FREE_SHIPPING_THRESHOLD} ₽</span>`;
                     } else if (this.cdekPrice > 0) {
                         shipValEl.textContent = this.cdekPrice + ' ₽';
                     } else {
@@ -7815,17 +7821,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const welcomeBonusPercent = breakdown.welcomeBonusPercent;
                 const welcomeDiscountVal = breakdown.welcomeDiscountVal;
                 const fortuneDiscountVal = breakdown.fortuneDiscountVal;
+                const isFreeShippingEligible = !digitalOnly && this.isRetailFreeShippingEligible(subtotal);
                 let total = breakdown.totalAfterStoreDiscounts;
+                const promoDiscountVal = this.getActivePromoDiscountValue(total);
+                const newLotDiscountVal = this.getCurrentNewLotDiscountValue();
 
-                let shippingCost = digitalOnly ? 0 : this.cdekPrice;
-                if (!digitalOnly && total >= 3000) shippingCost = 0;
+                this.currentNewLotDiscountVal = newLotDiscountVal;
 
-                if(this.activePromo) {
-                    let promoD = 0;
-                    if(this.activePromo.type === 'percent') promoD = Math.floor(total * (this.activePromo.val / 100));
-                    else promoD = this.activePromo.val;
-                    total -= promoD;
-                }
+                total -= promoDiscountVal;
+                total -= newLotDiscountVal;
+
+                let shippingCost = digitalOnly ? 0 : (isFreeShippingEligible ? 0 : this.cdekPrice);
 
                 total += shippingCost;
                 if(total < 1) total = 1;
@@ -7844,16 +7850,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                         items: JSON.parse(JSON.stringify(this.localCart)) // Копируем товары из корзины
                     };
 
-                    let promoDiscountVal = 0;
-                    if (this.activePromo) {
-                        if (this.activePromo.type === 'percent') {
-                            promoDiscountVal = Math.floor(breakdown.totalAfterStoreDiscounts * (this.activePromo.val / 100));
-                        } else {
-                            promoDiscountVal = this.activePromo.val;
-                        }
-                    }
-
-                    const newLotDiscountVal = this.currentNewLotDiscountVal || 0;
         const pricingBreakdown = {
             subtotal: subtotal,
             loyaltyPercent: discountPercent,
