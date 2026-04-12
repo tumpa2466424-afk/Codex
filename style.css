@@ -333,24 +333,40 @@
 
             /* --- 2. Настраиваем иконки меню --- */
             .top-controls { 
-                /* 1. Ставим железобетонную границу от колеса (Радиус 320px + 2mm) */
-                left: calc(320px + 2mm); 
-                /* 2. Правый край просим держать на 2mm (сработает, если есть место) */
-                right: 2mm; 
-                
-                top: max(2mm, env(safe-area-inset-top)); 
-                gap: 2mm; 
-                flex-direction: column-reverse; 
-                /* 3. Иконки внутри этого адаптивного бокса прижимаем вправо */
-                align-items: flex-end; 
-            } 
+            position: fixed; 
+            /* Левая граница — это край колеса (320px) + 2мм защиты */
+            left: calc(320px + 2mm); 
+            /* Правая граница — 2мм от края экрана */
+            right: 2mm; 
             
-            /* Защита, чтобы сами SVG-иконки никогда не сплющивались от недостатка места */
-            .top-controls .icon-btn {
-                flex-shrink: 0;
-                justify-content: flex-end;
-            }
+            top: max(2mm, env(safe-area-inset-top)); 
+            display: flex; 
+            flex-direction: column-reverse; 
+            gap: 2mm; 
+            z-index: 1000; 
+            pointer-events: auto; 
+            /* Прижимаем кнопки к правому краю этого "резинового" контейнера */
+            align-items: flex-end; 
+        }
+        
+        /* Выравнивание самих иконок (решение проблемы "красной линии") */
+        .top-controls .icon-btn {
+            /* Форсируем одинаковую ширину и обнуляем паддинги */
+            width: 42px !important; 
+            height: 42px !important;
+            padding: 0 !important; 
+            margin: 0 !important;
             
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            
+            background: var(--locus-white);
+            border: 1px solid var(--locus-border);
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
             .auth-text { display: none; } 
         }
         @media (max-width: 768px) {
