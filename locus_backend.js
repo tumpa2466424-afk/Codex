@@ -1295,23 +1295,23 @@ async function saveJsonSetting(session, id, value) {
 
 async function buildLotStoryAssets(body, qwenKey) {
     const { sample, country, region, farm, producer, variety, processDesc } = body;
-    if (!sample) throw new Error('Р›РѕС‚ РЅРµ СѓРєР°Р·Р°РЅ');
+    if (!sample) throw new Error('Лот не указан');
 
-    const lotInfo = `Р›РѕС‚: ${sample}. РЎС‚СЂР°РЅР°: ${country || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}, Р РµРіРёРѕРЅ: ${region || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}, Р¤РµСЂРјР°/РљРѕРѕРїРµСЂР°С‚РёРІ: ${farm || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}, РџСЂРѕРёР·РІРѕРґРёС‚РµР»СЊ: ${producer || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}, Р Р°Р·РЅРѕРІРёРґРЅРѕСЃС‚СЊ: ${variety || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}, РћР±СЂР°Р±РѕС‚РєР°: ${processDesc || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}`;
+    const lotInfo = `Лот: ${sample}. Страна: ${country || 'Неизвестно'}, Регион: ${region || 'Неизвестно'}, Ферма/Кооператив: ${farm || 'Неизвестно'}, Производитель: ${producer || 'Неизвестно'}, Разновидность: ${variety || 'Неизвестно'}, Обработка: ${processDesc || 'Неизвестно'}`;
 
-    const textPrompt = `РўС‹ вЂ” РїСЂРѕС„РµСЃСЃРёРѕРЅР°Р»СЊРЅС‹Р№ Q-РіСЂРµР№РґРµСЂ Рё РєРѕС„РµР№РЅС‹Р№ РёСЃС‚РѕСЂРёРє. РќР°РїРёС€Рё СЌРЅС†РёРєР»РѕРїРµРґРёС‡РЅРѕРµ РѕРїРёСЃР°РЅРёРµ Р»РѕС‚Р° РєРѕС„Рµ РЅР° РѕСЃРЅРѕРІРµ СЃР»РµРґСѓСЋС‰РёС… РґР°РЅРЅС‹С…: ${lotInfo}. 
-РЎРўР РћР“РР• РџР РђР’РР›Рђ: 
-1. РСЃРїРѕР»СЊР·СѓР№ РўРћР›Р¬РљРћ СЂРµР°Р»СЊРЅС‹Рµ РёСЃС‚РѕСЂРёС‡РµСЃРєРёРµ Рё РіРµРѕРіСЂР°С„РёС‡РµСЃРєРёРµ С„Р°РєС‚С‹.
-2. РўРµРєСЃС‚ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ СЃРѕСЃС‚Р°РІР»РµРЅ РїРѕСЃР»РµРґРѕРІР°С‚РµР»СЊРЅРѕ: СЂР°СЃСЃРєР°Р¶Рё Рѕ СЃС‚СЂР°РЅРµ РІС‹СЂР°С‰РёРІР°РЅРёСЏ, СЂРµРіРёРѕРЅРµ РІС‹СЂР°С‰РёРІР°РЅРёСЏ, Р·Р°С‚РµРј Рѕ С‚РµСЂСЂСѓР°СЂРµ, Р·Р°С‚РµРј Рѕ С„РµСЂРјРµ, РІР»Р°РґРµР»СЊС†Рµ С„РµСЂРјС‹, РІС‹СЂР°С‰РёРІР°РµРјРѕРј РІРёРґРµ Рё СЃРѕСЂС‚Рµ РєРѕС„Рµ, Р° С‚Р°Рє Р¶Рµ РѕР± РѕСЃРѕР±РµРЅРЅРѕСЃС‚СЏС… РѕР±СЂР°Р±РѕС‚РєРё РєРѕС„РµР№РЅРѕР№ СЏРіРѕРґС‹.
-3. Р•СЃР»Рё СЃС‚Р°С‚СѓСЃ РёРЅС„РѕСЂРјР°С†РёРё "РќРµРёР·РІРµСЃС‚РЅРѕ", РЅРµ РїРёС€Рё Рѕ С‚РѕРј, С‡С‚Рѕ СЌС‚Рѕ РЅРµРёР·РІРµСЃС‚РЅРѕ, РїРёС€Рё С‚РѕР»СЊРєРѕ Рѕ С‚РѕРј, С‡С‚Рѕ СѓРєР°Р·Р°РЅРѕ, РєР°Рє РёР·РІРµСЃС‚РЅРѕРµ.
-4. РљРђРўР•Р“РћР РР§Р•РЎРљР Р—РђРџР Р•Р©Р•РќРћ РІС‹РґСѓРјС‹РІР°С‚СЊ С„Р°РЅС‚Р°СЃС‚РёС‡РµСЃРєРёРµ РёСЃС‚РѕСЂРёРё, РЅРµСЃСѓС‰РµСЃС‚РІСѓСЋС‰РёРµ Р»РµРіРµРЅРґС‹, РёРјРµРЅР° Рё Р»СЋР±СѓСЋ РґСЂСѓРіСѓСЋ РёРЅС„РѕСЂРјР°С†РёСЋ РґР»СЏ С‚РµРєСЃС‚Р°.
-5. РўРµРєСЃС‚ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ СЃРІСЏР·РЅС‹Рј, РїРѕР·РЅР°РІР°С‚РµР»СЊРЅС‹Рј, РјР°РєСЃРёРјСѓРј 20 РїСЂРµРґР»РѕР¶РµРЅРёР№, РЅР° СЂСѓСЃСЃРєРѕРј СЏР·С‹РєРµ, Р±РµР· С„РѕСЂРјР°С‚РёСЂРѕРІР°РЅРёСЏ markdown.
-6. Р’РЅРёРјР°С‚РµР»СЊРЅРѕ РїСЂРѕРІРµСЂСЊ С‚РµРєСЃС‚ РЅР° РѕСЂС„РѕРіСЂР°С„РёС‡РµСЃРєРёРµ, СЃРёРЅС‚Р°РєСЃРёС‡РµСЃРєРёРµ, РіСЂР°РјРјР°С‚РёС‡РµСЃРєРёРµ РѕС€РёР±РєРё Рё РїСЂР°РІРёР»СЊРЅС‹Рµ РїР°РґРµР¶Рё РїСЂРёРјРµРЅРёС‚РµР»СЊРЅРѕ Рє СЂСѓСЃСЃРєРѕРјСѓ СЏР·С‹РєСѓ.`;
+    const textPrompt = `Ты — профессиональный Q-грейдер и кофейный историк. Напиши энциклопедичное описание лота кофе на основе следующих данных: ${lotInfo}. 
+СТРОГИЕ ПРАВИЛА: 
+1. Используй ТОЛЬКО реальные исторические и географические факты.
+2. Текст должен быть составлен последовательно: расскажи о стране выращивания, регионе выращивания, затем о терруаре, затем о ферме, владельце фермы, выращиваемом виде и сорте кофе, а так же об особенностях обработки кофейной ягоды.
+3. Если статус информации "Неизвестно", не пиши о том, что это неизвестно, пиши только о том, что указано, как известное.
+4. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выдумывать фантастические истории, несуществующие легенды, имена и любую другую информацию для текста.
+5. Текст должен быть связным, познавательным, максимум 20 предложений, на русском языке, без форматирования markdown.
+6. Внимательно проверь текст на орфографические, синтаксические, грамматические ошибки и правильные падежи применительно к русскому языку.`;
 
     const textReq = await fetchWithTimeout('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${qwenKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'qwen-turbo', messages: [{ role: 'user', content: textPrompt }] })
+        body: JSON.stringify({ model: 'qwen-plus-2025-07-28', messages: [{ role: 'user', content: textPrompt }] })
     }, 30000);
     const textData = await textReq.json();
 
@@ -1319,7 +1319,7 @@ async function buildLotStoryAssets(body, qwenKey) {
     if (textData.choices && textData.choices[0]) {
         generatedText = textData.choices[0].message.content;
     } else {
-        throw new Error(textData.error?.message || 'РћС€РёР±РєР° API Qwen');
+        throw new Error(textData.error?.message || 'Ошибка API Qwen');
     }
 
     const normalizedCountryValue = String(country || '').trim();
@@ -1383,7 +1383,7 @@ async function buildLotStoryAssets(body, qwenKey) {
                 message: imgTask?.message,
                 hasImageUrl: !!tempAlibabaUrl
             });
-            generatedText += '\n\n[Р”РРђР“РќРћРЎРўРРљРђ: РўР°Р№РјР°СѓС‚ РђР»РёР±Р°Р±С‹. РљР°СЂС‚РёРЅРєР° РЅРµ СѓСЃРїРµР»Р° СЃРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊСЃСЏ Р·Р° 60 СЃРµРєСѓРЅРґ.]';
+            generatedText += '\n\n[ДИАГНОСТИКА: Таймаут Алибабы. Картинка не успела сгенерироваться за 60 секунд.]';
         }
 
         if (tempAlibabaUrl) {
@@ -1391,7 +1391,7 @@ async function buildLotStoryAssets(body, qwenKey) {
             const imgbbKey = process.env.IMGBB_API_KEY;
 
             if (!imgbbKey) {
-                generatedText += '\n\n[Р”РРђР“РќРћРЎРўРРљРђ: РљР»СЋС‡ IMGBB_API_KEY РЅРµ РґРѕР±Р°РІР»РµРЅ!]';
+                generatedText += '\n\n[ДИАГНОСТИКА: Ключ IMGBB_API_KEY не добавлен!]';
             } else {
                 try {
                     const dlRes = await fetchWithTimeout(tempAlibabaUrl, {}, 30000);
@@ -1426,10 +1426,10 @@ async function buildLotStoryAssets(body, qwenKey) {
 
 async function handleGenerateLotStoryAction(body, rawToken) {
     const decoded = verifyToken(rawToken);
-    if (decoded.email !== 'info@locus.coffee') throw new Error('Р”РѕСЃС‚СѓРї Р·Р°РїСЂРµС‰РµРЅ. РўРѕР»СЊРєРѕ РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ РјРѕР¶РµС‚ РіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ РёСЃС‚РѕСЂРёРё.');
+    if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен. Только Администратор может генерировать истории.');
 
     const qwenKey = process.env.QWEN_API_KEY;
-    if (!qwenKey) throw new Error('API РєР»СЋС‡ Qwen РЅРµ РЅР°СЃС‚СЂРѕРµРЅ РЅР° СЃРµСЂРІРµСЂРµ');
+    if (!qwenKey) throw new Error('API ключ Qwen не настроен на сервере');
 
     const story = await buildLotStoryAssets(body, qwenKey);
 
@@ -2635,237 +2635,6 @@ module.exports.handler = async function (event, context) {
                 responseData = { success: true, data: extList, ai_stories: aiStories };
             }
             // --- КОНЕЦ: КАТАЛОГ EXTRINSIC ДАННЫХ ---
-            // --- НАЧАЛО: ГЕНЕРАЦИЯ ИСТОРИИ ЛОТА ЧЕРЕЗ QWEN AI ---
-            else if (action === 'generateLotStory') {
-                const decoded = verifyToken(rawToken);
-                if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен. Только Администратор может генерировать истории.');
-
-                const qwenKey = process.env.QWEN_API_KEY;
-                if (!qwenKey) throw new Error('API ключ Qwen не настроен на сервере');
-
-                const { sample, country, region, farm, producer, variety, processDesc } = body;
-                if (!sample) throw new Error('Лот не указан');
-                
-                const lotInfo = `Лот: ${sample}. Страна: ${country || 'Неизвестно'}, Регион: ${region || 'Неизвестно'}, Ферма/Кооператив: ${farm || 'Неизвестно'}, Производитель: ${producer || 'Неизвестно'}, Разновидность: ${variety || 'Неизвестно'}, Обработка: ${processDesc || 'Неизвестно'}`;
-
-                // 1. ГЕНЕРАЦИЯ ТЕКСТА ИСТОРИИ
-                const textPrompt = `Ты — профессиональный Q-грейдер и кофейный историк. Напиши энциклопедичное описание лота кофе на основе следующих данных: ${lotInfo}. 
-СТРОГИЕ ПРАВИЛА: 
-1. Используй ТОЛЬКО реальные исторические и географические факты.
-2. Текст должен быть составлен последовательно: расскажи о стране выращивания, регионе выращивания, затем о терруаре, затем о ферме, владельце фермы, выращиваемом виде и сорте кофе, а так же об особенностях обработки кофейной ягоды.
-3. Если статус информации "Неизвестно", не пиши о том, что это неизвестно, пиши только о том, что указано, как известное.
-4. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выдумывать фантастические истории, несуществующие легенды, имена и любую другую информацию для текста.
-5. Текст должен быть связным, познавательным, максимум 20 предложений, на русском языке, без форматирования markdown.
-6. Внимательно проверь текст на орфографические, синтаксические, грамматические ошибки и правильные падежи применительно к русскому языку.`;
-
-                const textReq = await fetch('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${qwenKey}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: 'qwen-turbo', messages: [{ role: 'user', content: textPrompt }] })
-                });
-                const textData = await textReq.json();
-                
-                let generatedText = '';
-                if (textData.choices && textData.choices[0]) {
-                    generatedText = textData.choices[0].message.content;
-                } else {
-                    throw new Error(textData.error?.message || "Ошибка API Qwen");
-                }
-
-                // 2. ПРОСТОЙ И ЖЕСТКИЙ ПРОМПТ ДЛЯ КАРТИНКИ БЕЗ ФАНТАЗИЙ
-                const normalizedCountryValue = String(country || '').trim();
-                const countryParts = normalizedCountryValue
-                    .split(',')
-                    .map(part => part.trim())
-                    .filter(Boolean)
-                    .slice(0, 2);
-                const singleCountryPrompt = (countryName) => (
-                    `Photorealistic wild natural landscape of ${countryName}, native vegetation, realistic terrain, ` +
-                    `coffee trees growing naturally in the environment, documentary nature photography, ` +
-                    `natural daylight, natural colors, high detail, wide scenic composition.`
-                );
-                const dynamicImgPrompt = countryParts.length >= 2
-                    ? (
-                        `Photorealistic diagonal split composition. One half shows the wild natural landscape of ${countryParts[0]}, ` +
-                        `with native vegetation, realistic terrain, and coffee trees growing naturally in the environment. ` +
-                        `The other half shows the wild natural landscape of ${countryParts[1]}, with native vegetation, realistic terrain, ` +
-                        `and coffee trees growing naturally in the environment. Documentary nature photography, natural daylight, ` +
-                        `natural colors, high detail, clean diagonal composition.`
-                    )
-                    : singleCountryPrompt(countryParts[0] || 'the coffee origin country');
-                const negativeImgPrompt = [
-                    'animals',
-                    'animal',
-                    'birds',
-                    'bird',
-                    'wildlife',
-                    'mammals',
-                    'insects',
-                    'people',
-                    'person',
-                    'human',
-                    'workers',
-                    'portrait',
-                    'face',
-                    'hands',
-                    'roasted coffee beans',
-                    'coffee beans scattered on the ground',
-                    'coffee cherries piled on the ground',
-                    'cup',
-                    'cups',
-                    'mug',
-                    'bags',
-                    'sacks',
-                    'basket',
-                    'buildings',
-                    'house',
-                    'houses',
-                    'road',
-                    'roads',
-                    'car',
-                    'cars',
-                    'city',
-                    'village',
-                    'text',
-                    'letters',
-                    'logo',
-                    'watermark',
-                    'fantasy',
-                    'surreal',
-                    'sci-fi',
-                    'illustration',
-                    'painting',
-                    'cartoon',
-                    'blurry',
-                    'low quality'
-                ].join(', ');
-
-                // 3. ГЕНЕРАЦИЯ УНИКАЛЬНОЙ КАРТИНКИ
-                let imageUrl = '';
-                try {
-                    const randomSeed = Math.floor(Math.random() * 2147483647);
-                    const finalImgPrompt = `${dynamicImgPrompt} Highly realistic, natural scene, realistic textures, no stylization.`;
-                    
-                    const imgReq = await fetch('https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${qwenKey}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            model: 'qwen-image-max',
-                            input: {
-                                messages: [
-                                    { role: 'user', content: [{ text: finalImgPrompt }] }
-                                ]
-                            },
-                            parameters: {
-                                size: '1328*1328',
-                                seed: randomSeed,
-                                prompt_extend: true,
-                                negative_prompt: negativeImgPrompt,
-                                watermark: false
-                            }
-                        })
-                    });
-                    const imgTask = await imgReq.json();
-                    
-                    let tempAlibabaUrl = imgTask?.output?.choices?.[0]?.message?.content?.find(item => item?.image || item?.url)?.image
-                        || imgTask?.output?.choices?.[0]?.message?.content?.find(item => item?.image || item?.url)?.url
-                        || '';
-
-                    if (false) {
-                        const taskId = imgTask.output.task_id;
-                        for (let i = 0; i < 30; i++) { 
-                            await new Promise(r => setTimeout(r, 2000));
-                            const pollRes = await fetch(`https://dashscope-intl.aliyuncs.com/api/v1/tasks/${taskId}`, { headers: { 'Authorization': `Bearer ${qwenKey}` } });
-                            const pollData = await pollRes.json();
-                            
-                            if (pollData.output?.task_status === 'SUCCEEDED') {
-                                if (pollData.output.choices && pollData.output.choices[0]?.message?.content) {
-                                    const imgItem = pollData.output.choices[0].message.content.find(item => item.image || item.url);
-                                    if (imgItem) tempAlibabaUrl = imgItem.image || imgItem.url || '';
-                                } else if (pollData.output.results && pollData.output.results[0]) {
-                                    tempAlibabaUrl = pollData.output.results[0].url || pollData.output.results[0].image_url || '';
-                                }
-                                break;
-                            } else if (pollData.output?.task_status === 'FAILED') {
-                                generatedText += "\n\n[ДИАГНОСТИКА: Ошибка рендера Алибабы: " + JSON.stringify(pollData) + "]";
-                                break; 
-                            }
-                        }
-                    } else if (false) {
-                        const imgItem = imgTask.output.choices[0]?.message?.content?.find(item => item.image || item.url);
-                        if (imgItem) tempAlibabaUrl = imgItem.image || imgItem.url || '';
-                    }
-
-                    if (!imgReq.ok || imgTask?.code || !tempAlibabaUrl) {
-                        logDebug('Qwen-Image-Max response diagnostics:', {
-                            httpStatus: imgReq.status,
-                            code: imgTask?.code,
-                            message: imgTask?.message,
-                            hasImageUrl: !!tempAlibabaUrl
-                        });
-                        generatedText += "\n\n[ДИАГНОСТИКА: Таймаут Алибабы. Картинка не успела сгенерироваться за 60 секунд.]";
-                    }
-
-                    // 4. ПЕРЕСОХРАНЕНИЕ НА IMGBB
-                    if (tempAlibabaUrl) {
-                        imageUrl = tempAlibabaUrl; 
-                        const imgbbKey = process.env.IMGBB_API_KEY;
-                        
-                        if (!imgbbKey) {
-                            generatedText += "\n\n[ДИАГНОСТИКА: Ключ IMGBB_API_KEY не добавлен!]";
-                        } else {
-                            try {
-                                const dlRes = await fetch(tempAlibabaUrl);
-                                const blob = await dlRes.blob(); 
-
-                                const formData = new FormData();
-                                formData.append('key', imgbbKey);
-                                formData.append('image', blob, 'locus_coffee.png');
-
-                                const imgbbRes = await fetch('https://api.imgbb.com/1/upload', {
-                                    method: 'POST',
-                                    body: formData
-                                });
-                                const imgbbData = await imgbbRes.json();
-                                
-                                if (imgbbData && imgbbData.success) {
-                                    imageUrl = imgbbData.data.url; 
-                                } else {
-                                    generatedText += "\n\n[ДИАГНОСТИКА ImgBB Ошибка: " + JSON.stringify(imgbbData) + "]";
-                                }
-                            } catch (imgbbErr) {
-                                generatedText += "\n\n[ДИАГНОСТИКА ImgBB Сеть: " + imgbbErr.message + "]";
-                            }
-                        }
-                    }
-                } catch(e) { 
-                    generatedText += "\n\n[ДИАГНОСТИКА Картинки: " + e.message + "]";
-                }
-
-                // 5. БЕЗОПАСНОЕ СОХРАНЕНИЕ В БАЗУ YDB
-                const aiQuery = `SELECT config FROM settings WHERE id = 'ai_stories';`;
-                const { resultSets: aiRes } = await session.executeQuery(aiQuery);
-                let aiStories = {}; 
-                try {
-                    if (aiRes && aiRes[0] && aiRes[0].rows.length > 0) {
-                        const aiRow = rowToObj(aiRes[0].columns, aiRes[0].rows[0]); 
-                        let rawAi = aiRow.config;
-                        if (typeof rawAi === 'object' && rawAi !== null && rawAi.value !== undefined) rawAi = rawAi.value;
-                        if (Buffer.isBuffer(rawAi)) rawAi = rawAi.toString('utf8');
-                        if (rawAi instanceof Uint8Array) rawAi = Buffer.from(rawAi).toString('utf8'); 
-                        const parsed = typeof rawAi === 'string' ? JSON.parse(rawAi) : rawAi;
-                        if (parsed && typeof parsed === 'object') aiStories = parsed;
-                    }
-                } catch(e) {}
-
-                if (!aiStories || typeof aiStories !== 'object') aiStories = {};
-                aiStories[sample.trim()] = { text: generatedText, image: imageUrl };
-
-                const saveAiQuery = `DECLARE $id AS Utf8; DECLARE $config AS JsonDocument; UPSERT INTO settings (id, config) VALUES ($id, $config);`;
-                await session.executeQuery(saveAiQuery, { '$id': TypedValues.utf8('ai_stories'), '$config': TypedValues.jsonDocument(JSON.stringify(aiStories)) });
-
-                responseData = { success: true, text: generatedText, image: imageUrl };
-            }
             // --- НАЧАЛО: РАССЫЛКА И СКИДКА НА НОВЫЙ ЛОТ ---
             else if (action === 'notifyNewLot') {
                 const sampleName = String(notifyNewLotContext?.sampleName || '').trim();
