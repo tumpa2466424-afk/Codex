@@ -1224,38 +1224,241 @@ async function finalizeRetailPayment(session, invId) {
     return { found: true, orderId, status: 'paid', historyUpdated: !hasOrderInHistory };
 }
 
-module.exports.handler = async function (event, context) {
-    const headers = {
+function buildCorsHeaders() {
+    return {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Auth-Token',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
     };
+}
+
+function parseEventBody(event) {
+    let bodyString = event.body;
+    if (bodyString && event.isBase64Encoded) bodyString = Buffer.from(bodyString, 'base64').toString('utf8');
+
+    let body = {};
+    if (bodyString) {
+        try {
+            body = JSON.parse(bodyString);
+        } catch (parseError) {
+            try {
+                body = Object.fromEntries(new URLSearchParams(bodyString).entries());
+            } catch (formError) {
+                console.error('Body parse error:', parseError.message);
+                if (DEBUG_LOGS_ENABLED && parseError?.stack) console.error(parseError.stack);
+                throw parseError;
+            }
+        }
+    }
+
+    return { bodyString, body };
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+async function loadJsonSetting(session, id) {
+    const query = `DECLARE $id AS Utf8; SELECT config FROM settings WHERE id = $id;`;
+    const { resultSets } = await session.executeQuery(query, { '$id': TypedValues.utf8(id) });
+
+    if (!resultSets[0] || resultSets[0].rows.length === 0) return {};
+
+    const row = rowToObj(resultSets[0].columns, resultSets[0].rows[0]);
+    let raw = row.config;
+    if (typeof raw === 'object' && raw !== null && raw.value !== undefined) raw = raw.value;
+    if (Buffer.isBuffer(raw)) raw = raw.toString('utf8');
+    if (raw instanceof Uint8Array) raw = Buffer.from(raw).toString('utf8');
+
+    try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+async function saveJsonSetting(session, id, value) {
+    const query = `DECLARE $id AS Utf8; DECLARE $config AS JsonDocument; UPSERT INTO settings (id, config) VALUES ($id, $config);`;
+    await session.executeQuery(query, {
+        '$id': TypedValues.utf8(id),
+        '$config': TypedValues.jsonDocument(JSON.stringify(value))
+    });
+}
+
+async function buildLotStoryAssets(body, qwenKey) {
+    const { sample, country, region, farm, producer, variety, processDesc } = body;
+    if (!sample) throw new Error('Р›РѕС‚ РЅРµ СѓРєР°Р·Р°РЅ');
+
+    const lotInfo = `Р›РѕС‚: ${sample}. РЎС‚СЂР°РЅР°: ${country || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}, Р РµРіРёРѕРЅ: ${region || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}, Р¤РµСЂРјР°/РљРѕРѕРїРµСЂР°С‚РёРІ: ${farm || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}, РџСЂРѕРёР·РІРѕРґРёС‚РµР»СЊ: ${producer || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}, Р Р°Р·РЅРѕРІРёРґРЅРѕСЃС‚СЊ: ${variety || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}, РћР±СЂР°Р±РѕС‚РєР°: ${processDesc || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}`;
+
+    const textPrompt = `РўС‹ вЂ” РїСЂРѕС„РµСЃСЃРёРѕРЅР°Р»СЊРЅС‹Р№ Q-РіСЂРµР№РґРµСЂ Рё РєРѕС„РµР№РЅС‹Р№ РёСЃС‚РѕСЂРёРє. РќР°РїРёС€Рё СЌРЅС†РёРєР»РѕРїРµРґРёС‡РЅРѕРµ РѕРїРёСЃР°РЅРёРµ Р»РѕС‚Р° РєРѕС„Рµ РЅР° РѕСЃРЅРѕРІРµ СЃР»РµРґСѓСЋС‰РёС… РґР°РЅРЅС‹С…: ${lotInfo}. 
+РЎРўР РћР“РР• РџР РђР’РР›Рђ: 
+1. РСЃРїРѕР»СЊР·СѓР№ РўРћР›Р¬РљРћ СЂРµР°Р»СЊРЅС‹Рµ РёСЃС‚РѕСЂРёС‡РµСЃРєРёРµ Рё РіРµРѕРіСЂР°С„РёС‡РµСЃРєРёРµ С„Р°РєС‚С‹.
+2. РўРµРєСЃС‚ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ СЃРѕСЃС‚Р°РІР»РµРЅ РїРѕСЃР»РµРґРѕРІР°С‚РµР»СЊРЅРѕ: СЂР°СЃСЃРєР°Р¶Рё Рѕ СЃС‚СЂР°РЅРµ РІС‹СЂР°С‰РёРІР°РЅРёСЏ, СЂРµРіРёРѕРЅРµ РІС‹СЂР°С‰РёРІР°РЅРёСЏ, Р·Р°С‚РµРј Рѕ С‚РµСЂСЂСѓР°СЂРµ, Р·Р°С‚РµРј Рѕ С„РµСЂРјРµ, РІР»Р°РґРµР»СЊС†Рµ С„РµСЂРјС‹, РІС‹СЂР°С‰РёРІР°РµРјРѕРј РІРёРґРµ Рё СЃРѕСЂС‚Рµ РєРѕС„Рµ, Р° С‚Р°Рє Р¶Рµ РѕР± РѕСЃРѕР±РµРЅРЅРѕСЃС‚СЏС… РѕР±СЂР°Р±РѕС‚РєРё РєРѕС„РµР№РЅРѕР№ СЏРіРѕРґС‹.
+3. Р•СЃР»Рё СЃС‚Р°С‚СѓСЃ РёРЅС„РѕСЂРјР°С†РёРё "РќРµРёР·РІРµСЃС‚РЅРѕ", РЅРµ РїРёС€Рё Рѕ С‚РѕРј, С‡С‚Рѕ СЌС‚Рѕ РЅРµРёР·РІРµСЃС‚РЅРѕ, РїРёС€Рё С‚РѕР»СЊРєРѕ Рѕ С‚РѕРј, С‡С‚Рѕ СѓРєР°Р·Р°РЅРѕ, РєР°Рє РёР·РІРµСЃС‚РЅРѕРµ.
+4. РљРђРўР•Р“РћР РР§Р•РЎРљР Р—РђРџР Р•Р©Р•РќРћ РІС‹РґСѓРјС‹РІР°С‚СЊ С„Р°РЅС‚Р°СЃС‚РёС‡РµСЃРєРёРµ РёСЃС‚РѕСЂРёРё, РЅРµСЃСѓС‰РµСЃС‚РІСѓСЋС‰РёРµ Р»РµРіРµРЅРґС‹, РёРјРµРЅР° Рё Р»СЋР±СѓСЋ РґСЂСѓРіСѓСЋ РёРЅС„РѕСЂРјР°С†РёСЋ РґР»СЏ С‚РµРєСЃС‚Р°.
+5. РўРµРєСЃС‚ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ СЃРІСЏР·РЅС‹Рј, РїРѕР·РЅР°РІР°С‚РµР»СЊРЅС‹Рј, РјР°РєСЃРёРјСѓРј 20 РїСЂРµРґР»РѕР¶РµРЅРёР№, РЅР° СЂСѓСЃСЃРєРѕРј СЏР·С‹РєРµ, Р±РµР· С„РѕСЂРјР°С‚РёСЂРѕРІР°РЅРёСЏ markdown.
+6. Р’РЅРёРјР°С‚РµР»СЊРЅРѕ РїСЂРѕРІРµСЂСЊ С‚РµРєСЃС‚ РЅР° РѕСЂС„РѕРіСЂР°С„РёС‡РµСЃРєРёРµ, СЃРёРЅС‚Р°РєСЃРёС‡РµСЃРєРёРµ, РіСЂР°РјРјР°С‚РёС‡РµСЃРєРёРµ РѕС€РёР±РєРё Рё РїСЂР°РІРёР»СЊРЅС‹Рµ РїР°РґРµР¶Рё РїСЂРёРјРµРЅРёС‚РµР»СЊРЅРѕ Рє СЂСѓСЃСЃРєРѕРјСѓ СЏР·С‹РєСѓ.`;
+
+    const textReq = await fetchWithTimeout('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${qwenKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'qwen-turbo', messages: [{ role: 'user', content: textPrompt }] })
+    }, 30000);
+    const textData = await textReq.json();
+
+    let generatedText = '';
+    if (textData.choices && textData.choices[0]) {
+        generatedText = textData.choices[0].message.content;
+    } else {
+        throw new Error(textData.error?.message || 'РћС€РёР±РєР° API Qwen');
+    }
+
+    const normalizedCountryValue = String(country || '').trim();
+    const countryParts = normalizedCountryValue.split(',').map(part => part.trim()).filter(Boolean).slice(0, 2);
+    const singleCountryPrompt = (countryName) => (
+        `Photorealistic wild natural landscape of ${countryName}, native vegetation, realistic terrain, ` +
+        `coffee trees growing naturally in the environment, documentary nature photography, ` +
+        `natural daylight, natural colors, high detail, wide scenic composition.`
+    );
+    const dynamicImgPrompt = countryParts.length >= 2
+        ? (
+            `Photorealistic diagonal split composition. One half shows the wild natural landscape of ${countryParts[0]}, ` +
+            `with native vegetation, realistic terrain, and coffee trees growing naturally in the environment. ` +
+            `The other half shows the wild natural landscape of ${countryParts[1]}, with native vegetation, realistic terrain, ` +
+            `and coffee trees growing naturally in the environment. Documentary nature photography, natural daylight, ` +
+            `natural colors, high detail, clean diagonal composition.`
+        )
+        : singleCountryPrompt(countryParts[0] || 'the coffee origin country');
+    const negativeImgPrompt = [
+        'animals', 'animal', 'birds', 'bird', 'wildlife', 'mammals', 'insects', 'people', 'person', 'human',
+        'workers', 'portrait', 'face', 'hands', 'roasted coffee beans', 'coffee beans scattered on the ground',
+        'coffee cherries piled on the ground', 'cup', 'cups', 'mug', 'bags', 'sacks', 'basket', 'buildings',
+        'house', 'houses', 'road', 'roads', 'car', 'cars', 'city', 'village', 'text', 'letters', 'logo',
+        'watermark', 'fantasy', 'surreal', 'sci-fi', 'illustration', 'painting', 'cartoon', 'blurry', 'low quality'
+    ].join(', ');
+
+    let imageUrl = '';
+    try {
+        const randomSeed = Math.floor(Math.random() * 2147483647);
+        const finalImgPrompt = `${dynamicImgPrompt} Highly realistic, natural scene, realistic textures, no stylization.`;
+
+        const imgReq = await fetchWithTimeout('https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${qwenKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'qwen-image-max',
+                input: {
+                    messages: [
+                        { role: 'user', content: [{ text: finalImgPrompt }] }
+                    ]
+                },
+                parameters: {
+                    size: '1328*1328',
+                    seed: randomSeed,
+                    prompt_extend: true,
+                    negative_prompt: negativeImgPrompt,
+                    watermark: false
+                }
+            })
+        }, 45000);
+        const imgTask = await imgReq.json();
+
+        let tempAlibabaUrl = imgTask?.output?.choices?.[0]?.message?.content?.find(item => item?.image || item?.url)?.image
+            || imgTask?.output?.choices?.[0]?.message?.content?.find(item => item?.image || item?.url)?.url
+            || '';
+
+        if (!imgReq.ok || imgTask?.code || !tempAlibabaUrl) {
+            logDebug('Qwen-Image-Max response diagnostics:', {
+                httpStatus: imgReq.status,
+                code: imgTask?.code,
+                message: imgTask?.message,
+                hasImageUrl: !!tempAlibabaUrl
+            });
+            generatedText += '\n\n[Р”РРђР“РќРћРЎРўРРљРђ: РўР°Р№РјР°СѓС‚ РђР»РёР±Р°Р±С‹. РљР°СЂС‚РёРЅРєР° РЅРµ СѓСЃРїРµР»Р° СЃРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊСЃСЏ Р·Р° 60 СЃРµРєСѓРЅРґ.]';
+        }
+
+        if (tempAlibabaUrl) {
+            imageUrl = tempAlibabaUrl;
+            const imgbbKey = process.env.IMGBB_API_KEY;
+
+            if (!imgbbKey) {
+                generatedText += '\n\n[Р”РРђР“РќРћРЎРўРРљРђ: РљР»СЋС‡ IMGBB_API_KEY РЅРµ РґРѕР±Р°РІР»РµРЅ!]';
+            } else {
+                try {
+                    const dlRes = await fetchWithTimeout(tempAlibabaUrl, {}, 30000);
+                    const blob = await dlRes.blob();
+
+                    const formData = new FormData();
+                    formData.append('key', imgbbKey);
+                    formData.append('image', blob, 'locus_coffee.png');
+
+                    const imgbbRes = await fetchWithTimeout('https://api.imgbb.com/1/upload', {
+                        method: 'POST',
+                        body: formData
+                    }, 30000);
+                    const imgbbData = await imgbbRes.json();
+
+                    if (imgbbData && imgbbData.success) {
+                        imageUrl = imgbbData.data.url;
+                    } else {
+                        generatedText += `\n\n[DIAGNOSTICS ImgBB error: ${JSON.stringify(imgbbData)}]`;
+                    }
+                } catch (imgbbErr) {
+                    generatedText += `\n\n[DIAGNOSTICS ImgBB network: ${imgbbErr.message}]`;
+                }
+            }
+        }
+    } catch (e) {
+        generatedText += `\n\n[DIAGNOSTICS image pipeline: ${e.message}]`;
+    }
+
+    return { sampleName: sample.trim(), text: generatedText, image: imageUrl };
+}
+
+async function handleGenerateLotStoryAction(body, rawToken) {
+    const decoded = verifyToken(rawToken);
+    if (decoded.email !== 'info@locus.coffee') throw new Error('Р”РѕСЃС‚СѓРї Р·Р°РїСЂРµС‰РµРЅ. РўРѕР»СЊРєРѕ РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ РјРѕР¶РµС‚ РіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ РёСЃС‚РѕСЂРёРё.');
+
+    const qwenKey = process.env.QWEN_API_KEY;
+    if (!qwenKey) throw new Error('API РєР»СЋС‡ Qwen РЅРµ РЅР°СЃС‚СЂРѕРµРЅ РЅР° СЃРµСЂРІРµСЂРµ');
+
+    const story = await buildLotStoryAssets(body, qwenKey);
+
+    await withSessionRetry(async (session) => {
+        const aiStories = await loadJsonSetting(session, 'ai_stories');
+        aiStories[story.sampleName] = { text: story.text, image: story.image };
+        await saveJsonSetting(session, 'ai_stories', aiStories);
+    });
+
+    return { success: true, text: story.text, image: story.image };
+}
+
+module.exports.handler = async function (event, context) {
+    const headers = buildCorsHeaders();
 
     if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
     try {
         await getDriver();
-
-        let bodyString = event.body;
-        if (bodyString && event.isBase64Encoded) bodyString = Buffer.from(bodyString, 'base64').toString('utf8');
-
-        let body = {};
-        if (bodyString) {
-            try {
-                body = JSON.parse(bodyString);
-            } catch (parseError) {
-                try {
-                    body = Object.fromEntries(new URLSearchParams(bodyString).entries());
-                } catch (formError) {
-                    console.error('Body parse error:', parseError.message);
-                    if (DEBUG_LOGS_ENABLED && parseError?.stack) console.error(parseError.stack);
-                    throw parseError;
-                }
-            }
-        }
+        const { bodyString, body } = parseEventBody(event);
         const action = event.queryStringParameters?.action || body.action;
-        
         const rawToken = event.headers?.['x-auth-token'] || event.headers?.['X-Auth-Token'];
+        const startedAt = Date.now();
+
+        console.log('[api] request started', {
+            action: action || '',
+            requestId: context?.requestId || context?.awsRequestId || '',
+            hasToken: !!rawToken
+        });
 
         let responseData = {};
         let notifyNewLotContext = null;
@@ -1269,6 +1472,16 @@ module.exports.handler = async function (event, context) {
                 sampleName: String(body?.sampleName || '').trim()
             });
             notifyNewLotContext = await buildNotifyNewLotContext(rawToken, body);
+        }
+
+        if (action === 'generateLotStory') {
+            responseData = await handleGenerateLotStoryAction(body, rawToken);
+            console.log('[api] request finished', {
+                action,
+                durationMs: Date.now() - startedAt,
+                handledOutsideSession: true
+            });
+            return { statusCode: 200, headers, body: JSON.stringify(responseData) };
         }
 
         const runWithSession = RETRYABLE_SESSION_ACTIONS.has(action) ? withSessionRetry : withSingleSession;
@@ -2772,6 +2985,11 @@ module.exports.handler = async function (event, context) {
         }
 
         // Обычный ответ для фронтенда магазина
+        console.log('[api] request finished', {
+            action,
+            durationMs: Date.now() - startedAt,
+            handledOutsideSession: false
+        });
         return { statusCode: 200, headers, body: JSON.stringify(responseData) };
 
     } catch (error) {
