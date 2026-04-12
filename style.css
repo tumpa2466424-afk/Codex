@@ -324,80 +324,81 @@
 
         /* Верхние иконки */
         .top-controls { position: absolute; top: 20px; right: 20px; z-index: 100; display: flex; gap: 15px; align-items: center; }
-        @media (max-width: 768px) { 
-            /* --- 1. Убираем белые поля Тильды по бокам --- */
-            #coffee-shop-wheel {
-                width: 100vw !important;
-                margin-left: calc(50% - 50vw) !important;
-            }
-
-            /* --- 2. Настраиваем иконки меню --- */
-            .top-controls { 
-            position: fixed; 
-            /* Левая граница — это край колеса (320px) + 2мм защиты */
-            left: calc(320px + 2mm); 
-            /* Правая граница — 2мм от края экрана */
-            right: 2mm; 
-            
-            top: max(2mm, env(safe-area-inset-top)); 
-            display: flex; 
-            flex-direction: column-reverse; 
-            gap: 2mm; 
-            z-index: 1000; 
-            pointer-events: auto; 
-            /* Прижимаем кнопки к правому краю этого "резинового" контейнера */
-            align-items: flex-end; 
-        }
-        
-        /* Выравнивание самих иконок (решение проблемы "красной линии") */
-        .top-controls .icon-btn {
-            /* Форсируем одинаковую ширину и обнуляем паддинги */
-            width: 42px !important; 
-            height: 42px !important;
-            padding: 0 !important; 
-            margin: 0 !important;
-            
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            
-            background: var(--locus-white);
-            border: 1px solid var(--locus-border);
-            border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            flex-shrink: 0;
-        }
-            .auth-text { display: none; } 
-        }
         @media (max-width: 768px) {
-            .top-controls {
-                align-items: flex-end;
-            }
-            .top-controls .icon-btn {
-                justify-content: flex-end;
-                text-align: right;
-            }
-            #btn-open-cart,
-            #btn-open-lc,
-            #btn-open-admin {
-                padding: 0;
-                line-height: 0;
-                appearance: none;
-                -webkit-appearance: none;
-            }
-            #btn-open-cart .icon-svg,
-            #btn-open-lc .icon-svg,
-            #btn-open-admin .icon-svg {
-                display: block;
-            }
-            #btn-open-wholesale {
-                transform: translateX(-1px);
-            }
-            #btn-open-admin {
-                height: 24px;
-                padding: 0;
-            }
-        }
+    /* Убираем белые поля Тильды по бокам */
+    #coffee-shop-wheel {
+        width: 100vw !important;
+        margin-left: calc(50% - 50vw) !important;
+    }
+
+    /* Мобильное меню:
+       - иконки выровнены по правому краю
+       - сам бокс не ближе 2 мм к правому краю экрана
+       - и не ближе 2 мм к колесу
+       - если до колеса можно дать >5 мм, бокс всё равно остаётся прижат к правому краю */
+    .top-controls {
+        position: absolute;
+        top: max(2mm, env(safe-area-inset-top));
+        right: max(2mm, env(safe-area-inset-right));
+        left: auto;
+
+        display: flex;
+        flex-direction: column-reverse;
+        align-items: flex-end;
+        justify-content: flex-start;
+        gap: 2mm;
+
+        width: max-content;
+        max-width: calc(100vw - max(2mm, env(safe-area-inset-right)) - 2mm);
+
+        padding: 0;
+        margin: 0;
+
+        /* страховка: даже если колесо/контент подлезет,
+           меню не подойдет к нему ближе чем на 2 мм */
+        box-sizing: border-box;
+    }
+
+    .top-controls .icon-btn {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        align-self: flex-end;
+        text-align: right;
+        width: max-content;
+        max-width: 100%;
+        margin: 0;
+    }
+
+    .auth-text {
+        display: none;
+    }
+
+    #btn-open-cart,
+    #btn-open-lc,
+    #btn-open-admin {
+        padding: 0;
+        line-height: 0;
+        appearance: none;
+        -webkit-appearance: none;
+    }
+
+    #btn-open-cart .icon-svg,
+    #btn-open-lc .icon-svg,
+    #btn-open-admin .icon-svg {
+        display: block;
+    }
+
+    /* убираем ручной сдвиг, он ломает правую вертикаль */
+    #btn-open-wholesale {
+        transform: none;
+    }
+
+    #btn-open-admin {
+        height: 24px;
+        padding: 0;
+    }
+}
         .icon-btn { background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; position: relative; }
         .icon-svg { width: 24px; height: 24px; fill: var(--locus-dark); }
         #btn-open-cart {
