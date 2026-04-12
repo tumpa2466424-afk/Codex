@@ -384,16 +384,15 @@
         justify-content: flex-end;
     }
 
-    #btn-open-admin .icon-admin-letter text {
-    text-anchor: end;
-}
-
-#btn-open-admin .icon-admin-letter {
+    #btn-open-admin .icon-admin-letter {
     width: 24px;
+    height: 24px;
+    display: block;
 }
 
 #btn-open-admin .icon-admin-letter text {
-    x: 20px;
+    x: 21px;
+    y: 12px;
 }
 
     .auth-text {
@@ -417,11 +416,14 @@
             display: block;
         }
         .icon-admin-letter text {
-            fill: var(--locus-dark);
-            font-size: 20px;
-            font-weight: 600;
-            font-family: Arial, sans-serif;
-        }
+    fill: var(--locus-dark);
+    font-size: 20px;
+    font-weight: 600;
+    font-family: Arial, sans-serif;
+
+    text-anchor: end;
+    dominant-baseline: middle;
+}
         .cart-badge {
             position: absolute; top: -4px; left: 6px;
             background: var(--locus-dark); color: var(--locus-bg);
