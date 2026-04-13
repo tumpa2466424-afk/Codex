@@ -128,11 +128,11 @@
 /* 3. ИНФО-ПАНЕЛЬ (База для мобилок) */
 .lot-intensity-radar {
     position: absolute;
-    top: 50%;
-    right: 16px;
-    width: min(300px, calc(100% - 24px));
-    transform: translateY(-50%) scale(0.96);
-    transform-origin: center;
+    top: 16px;
+    left: 16px;
+    width: min(360px, calc(100% - 24px));
+    transform: scale(0.96);
+    transform-origin: top left;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.18s ease, transform 0.18s ease;
@@ -141,11 +141,11 @@
 
 .lot-intensity-radar.visible {
     opacity: 1;
-    transform: translateY(-50%) scale(1);
+    transform: scale(1);
 }
 
 .lot-intensity-radar-card {
-    padding: 12px 14px 10px;
+    padding: 14px 16px 12px;
     border-radius: 18px;
     background: rgba(244, 241, 234, 0.92);
     border: 1px solid rgba(105, 58, 5, 0.18);
@@ -154,13 +154,23 @@
 }
 
 .lot-intensity-radar-title {
-    margin-bottom: 8px;
-    font-size: 12px;
+    margin-bottom: 3px;
+    font-size: 13px;
     font-weight: 700;
     line-height: 1.2;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--locus-dark);
+}
+
+.lot-intensity-radar-subtitle {
+    margin-bottom: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: rgba(105, 58, 5, 0.72);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
 }
 
 .lot-intensity-radar-body {
@@ -191,7 +201,7 @@
 
 .lot-radar-axis-label {
     fill: var(--locus-dark);
-    font-size: 9.8px;
+    font-size: 9.2px;
     font-weight: 600;
     letter-spacing: 0.1px;
 }
@@ -263,30 +273,30 @@
 
 @media (max-width: 767px) {
     .lot-intensity-radar {
-        left: 50%;
-        right: auto;
-        top: 50%;
-        width: min(290px, calc(100% - 20px));
-        transform: translate(-50%, -50%) scale(0.96);
+        width: min(340px, calc(100% - 16px));
     }
 
     .lot-intensity-radar.visible {
-        transform: translate(-50%, -50%) scale(1);
+        transform: scale(1);
     }
 
     .lot-intensity-radar-card {
-        padding: 10px 10px 8px;
+        padding: 12px 12px 10px;
         border-radius: 16px;
     }
 
     .lot-intensity-radar-title {
-        text-align: center;
-        font-size: 10px;
+        font-size: 11px;
+        margin-bottom: 3px;
+    }
+
+    .lot-intensity-radar-subtitle {
+        font-size: 9px;
         margin-bottom: 6px;
     }
 
     .lot-radar-axis-label {
-        font-size: 8.8px;
+        font-size: 8.4px;
     }
 }
 
