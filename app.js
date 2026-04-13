@@ -498,6 +498,211 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         let currentWeight = 250;
         let currentGrind = "Зерно";
 
+        const LOT_RADAR_AXES = [
+            { key: 'roast', label: ['Степень', 'обжарки'] },
+            { key: 'smellInt', label: ['Интенсивность', 'запаха'] },
+            { key: 'flavorInt', label: ['Интенсивность', 'букета'] },
+            { key: 'sweetInt', label: ['Интенсивность', 'сладости'] },
+            { key: 'bodyInt', label: ['Интенсивность', 'тактильности'] },
+            { key: 'aromaInt', label: ['Интенсивность', 'аромата'] },
+            { key: 'atInt', label: ['Интенсивность', 'послевкусия'] },
+            { key: 'acidInt', label: ['Интенсивность', 'кислотности'] }
+        ];
+        const lotRadarState = {
+            overlay: null,
+            hideTimer: null,
+            longPressTimer: null,
+            longPressActive: false,
+            suppressClick: false,
+            pressLotId: '',
+            pressRotation: 0
+        };
+
+        function clampLotRadarValue(value) {
+            const numeric = Math.round(parseFloat(value));
+            if (!Number.isFinite(numeric)) return 0;
+            return Math.max(0, Math.min(15, numeric));
+        }
+
+        function getLotRadarMetrics(raw) {
+            return LOT_RADAR_AXES.map(axis => ({
+                ...axis,
+                value: clampLotRadarValue(raw?.[axis.key])
+            }));
+        }
+
+        function getLotRadarTextAnchor(x, centerX, tolerance = 14) {
+            if (x > centerX + tolerance) return 'start';
+            if (x < centerX - tolerance) return 'end';
+            return 'middle';
+        }
+
+        function getLotRadarOverlay() {
+            if (lotRadarState.overlay?.isConnected) return lotRadarState.overlay;
+
+            const host = document.getElementById('wheel-zone');
+            if (!host) return null;
+
+            const overlay = document.createElement('div');
+            overlay.id = 'lot-intensity-radar';
+            overlay.className = 'lot-intensity-radar';
+            overlay.innerHTML = `
+                <div class="lot-intensity-radar-card">
+                    <div class="lot-intensity-radar-title"></div>
+                    <div class="lot-intensity-radar-body"></div>
+                </div>
+            `;
+
+            host.appendChild(overlay);
+            lotRadarState.overlay = overlay;
+            return overlay;
+        }
+
+        function buildLotRadarSvg(raw) {
+            const metrics = getLotRadarMetrics(raw);
+            const size = 320;
+            const center = size / 2;
+            const outerRadius = 102;
+            const labelRadius = 138;
+            const tickStep = outerRadius / 15;
+            const angleStep = (Math.PI * 2) / metrics.length;
+            const startAngle = -Math.PI / 2;
+
+            const axisMarkup = [];
+            const polygonPoints = [];
+            const pointMarkup = [];
+
+            metrics.forEach((metric, index) => {
+                const angle = startAngle + (index * angleStep);
+                const cos = Math.cos(angle);
+                const sin = Math.sin(angle);
+                const axisEndX = center + (cos * outerRadius);
+                const axisEndY = center + (sin * outerRadius);
+
+                axisMarkup.push(`<line class="lot-radar-axis" x1="${center}" y1="${center}" x2="${axisEndX.toFixed(1)}" y2="${axisEndY.toFixed(1)}"></line>`);
+
+                for (let step = 1; step <= 15; step++) {
+                    const tickRadius = tickStep * step;
+                    const tickX = center + (cos * tickRadius);
+                    const tickY = center + (sin * tickRadius);
+                    const perpendicularAngle = angle + (Math.PI / 2);
+                    const tickHalf = step % 5 === 0 || step === 15 ? 4.5 : 2.75;
+                    const dx = Math.cos(perpendicularAngle) * tickHalf;
+                    const dy = Math.sin(perpendicularAngle) * tickHalf;
+                    const tickClass = step % 5 === 0 || step === 15 ? 'lot-radar-tick lot-radar-tick-major' : 'lot-radar-tick';
+                    axisMarkup.push(`<line class="${tickClass}" x1="${(tickX - dx).toFixed(1)}" y1="${(tickY - dy).toFixed(1)}" x2="${(tickX + dx).toFixed(1)}" y2="${(tickY + dy).toFixed(1)}"></line>`);
+                }
+
+                const labelX = center + (cos * labelRadius);
+                const labelY = center + (sin * labelRadius);
+                const labelAnchor = getLotRadarTextAnchor(labelX, center);
+                const labelStartY = labelY - (((metric.label.length - 1) * 12) / 2);
+                const labelMarkup = metric.label.map((line, lineIndex) => (
+                    `<tspan x="${labelX.toFixed(1)}" y="${(labelStartY + (lineIndex * 12)).toFixed(1)}">${line}</tspan>`
+                )).join('');
+                axisMarkup.push(`<text class="lot-radar-axis-label" text-anchor="${labelAnchor}" dominant-baseline="middle">${labelMarkup}</text>`);
+
+                const pointRadius = tickStep * metric.value;
+                const pointX = center + (cos * pointRadius);
+                const pointY = center + (sin * pointRadius);
+                polygonPoints.push(`${pointX.toFixed(1)},${pointY.toFixed(1)}`);
+
+                const valueRadius = metric.value <= 1 ? 18 : Math.min(outerRadius + 10, pointRadius + 14);
+                const valueX = center + (cos * valueRadius);
+                const valueY = center + (sin * valueRadius);
+                const valueAnchor = getLotRadarTextAnchor(valueX, center, 10);
+
+                pointMarkup.push(`<circle class="lot-radar-point" cx="${pointX.toFixed(1)}" cy="${pointY.toFixed(1)}" r="4.2"></circle>`);
+                pointMarkup.push(`<text class="lot-radar-value" x="${valueX.toFixed(1)}" y="${valueY.toFixed(1)}" text-anchor="${valueAnchor}" dominant-baseline="middle">${metric.value}</text>`);
+            });
+
+            return `
+                <svg class="lot-intensity-radar-svg" viewBox="0 0 ${size} ${size}" aria-hidden="true">
+                    <polygon class="lot-radar-shape-fill" points="${polygonPoints.join(' ')}"></polygon>
+                    <polygon class="lot-radar-shape-stroke" points="${polygonPoints.join(' ')}"></polygon>
+                    ${axisMarkup.join('')}
+                    <circle class="lot-radar-core" cx="${center}" cy="${center}" r="6"></circle>
+                    ${pointMarkup.join('')}
+                </svg>
+            `;
+        }
+
+        function clearLotRadarHideTimer() {
+            if (lotRadarState.hideTimer) {
+                clearTimeout(lotRadarState.hideTimer);
+                lotRadarState.hideTimer = null;
+            }
+        }
+
+        function showLotRadarOverlay(raw) {
+            if (!raw?.sample) return;
+            const overlay = getLotRadarOverlay();
+            if (!overlay) return;
+
+            clearLotRadarHideTimer();
+
+            const titleEl = overlay.querySelector('.lot-intensity-radar-title');
+            const bodyEl = overlay.querySelector('.lot-intensity-radar-body');
+            if (titleEl) titleEl.textContent = raw.sample;
+            if (bodyEl) bodyEl.innerHTML = buildLotRadarSvg(raw);
+
+            overlay.classList.add('visible');
+        }
+
+        function hideLotRadarOverlay(immediate = false) {
+            const overlay = lotRadarState.overlay || document.getElementById('lot-intensity-radar');
+            if (!overlay) return;
+
+            clearLotRadarHideTimer();
+
+            const hide = () => overlay.classList.remove('visible');
+            if (immediate) {
+                hide();
+                return;
+            }
+
+            lotRadarState.hideTimer = window.setTimeout(hide, 80);
+        }
+
+        function clearLotRadarLongPressTimer() {
+            if (lotRadarState.longPressTimer) {
+                clearTimeout(lotRadarState.longPressTimer);
+                lotRadarState.longPressTimer = null;
+            }
+        }
+
+        function startLotRadarLongPress(seg) {
+            if (!seg?.raw?.sample) return;
+
+            clearLotRadarLongPressTimer();
+            lotRadarState.longPressActive = false;
+            lotRadarState.pressLotId = String(seg.raw.id || seg.raw.sample || '');
+            lotRadarState.pressRotation = rotation;
+
+            lotRadarState.longPressTimer = window.setTimeout(() => {
+                const lotId = String(seg.raw.id || seg.raw.sample || '');
+                if (!lotId || lotId !== lotRadarState.pressLotId) return;
+                if (Math.abs(rotation - lotRadarState.pressRotation) > 4) return;
+
+                lotRadarState.longPressActive = true;
+                lotRadarState.suppressClick = true;
+                showLotRadarOverlay(seg.raw);
+            }, 320);
+        }
+
+        function stopLotRadarLongPress() {
+            clearLotRadarLongPressTimer();
+            lotRadarState.pressLotId = '';
+
+            if (!lotRadarState.longPressActive) return;
+
+            hideLotRadarOverlay(true);
+            lotRadarState.longPressActive = false;
+            window.setTimeout(() => {
+                lotRadarState.suppressClick = false;
+            }, 350);
+        }
+
         function getAngle(clientX, clientY) {
             if (!zone) return 0;
             const rect = zone.getBoundingClientRect();
@@ -508,6 +713,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
         const moveH = (clientX, clientY) => {
             if (!isDragging) return;
+            hideLotRadarOverlay(true);
             const curA = getAngle(clientX, clientY);
             const delta = curA - lastAngle;
             rotation += delta;
@@ -547,6 +753,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             pInfo.classList.remove('active');
             setTimeout(() => { pInfo.style.display = 'none'; dMsg.style.display = 'block'; setTimeout(() => dMsg.classList.add('active'), 50); }, 250);
             currentActiveProduct = null;
+            hideLotRadarOverlay(true);
             // ОЧИЩАЕМ АДРЕСНУЮ СТРОКУ ОТ ССЫЛКИ НА ЛОТ
             const url = new URL(window.location);
             url.searchParams.delete('lot');
@@ -1142,6 +1349,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 g.appendChild(path); g.appendChild(text);
                 g.addEventListener('click', () => {
+                    if (lotRadarState.suppressClick) return;
                     if (Math.abs(velocity) > 0.5) return;
                     if (seg.raw?.externalUrl) {
                         openExternalProductUrl(seg.raw);
@@ -1161,6 +1369,25 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     }
                     window.history.replaceState({}, '', url);
                 });
+                if (seg.raw?.sample) {
+                    g.addEventListener('mouseenter', () => {
+                        if (isDragging || lotRadarState.longPressActive) return;
+                        if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+                        showLotRadarOverlay(seg.raw);
+                    });
+                    g.addEventListener('mouseleave', () => {
+                        if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+                        if (lotRadarState.longPressActive) return;
+                        hideLotRadarOverlay();
+                    });
+                    g.addEventListener('pointerdown', (event) => {
+                        if (event.pointerType === 'mouse') return;
+                        startLotRadarLongPress(seg);
+                    });
+                    g.addEventListener('pointerup', stopLotRadarLongPress);
+                    g.addEventListener('pointercancel', stopLotRadarLongPress);
+                    g.addEventListener('pointerleave', stopLotRadarLongPress);
+                }
                 segmentFragment.appendChild(g);
             });
             svg.appendChild(segmentFragment);
