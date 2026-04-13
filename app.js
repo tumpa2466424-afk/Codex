@@ -527,15 +527,8 @@
         function getLotRadarLabelPosition(angle, center, radius) {
             const cos = Math.cos(angle);
             const sin = Math.sin(angle);
-            let x = center + (cos * radius);
-            let y = center + (sin * radius);
-
-            if (Math.abs(cos) > 0.42) {
-                x -= Math.sign(cos) * 24;
-            }
-            if (Math.abs(sin) > 0.62) {
-                y -= Math.sign(sin) * 8;
-            }
+            const x = center + (cos * radius) + (cos * 6);
+            const y = center + (sin * radius) + (sin * 6);
 
             return { x, y };
         }
@@ -567,7 +560,7 @@
             const size = 360;
             const center = size / 2;
             const outerRadius = 110;
-            const labelRadius = 104;
+            const labelRadius = 122;
             const tickStep = outerRadius / 15;
             const angleStep = (Math.PI * 2) / metrics.length;
             const startAngle = -Math.PI / 2;
@@ -642,24 +635,11 @@
             const host = document.getElementById('info-panel');
             if (!overlay || !host) return;
 
-            const hostRect = host.getBoundingClientRect();
-            const overlayRect = overlay.getBoundingClientRect();
-            const productInfo = document.getElementById('product-info');
-            const packPreview = document.querySelector('#product-info .product-pack-preview');
-            const packVisible = !!(packPreview && packPreview.offsetParent !== null);
-            const isDesktop = window.matchMedia('(min-width: 768px)').matches;
-            const maxLeft = Math.max(8, hostRect.width - overlayRect.width - 8);
-            const desiredLeft = packVisible
-                ? (packPreview.getBoundingClientRect().left - hostRect.left) + ((packPreview.getBoundingClientRect().width - overlayRect.width) / 2)
-                : (isDesktop ? (hostRect.width - overlayRect.width - 32) : ((hostRect.width - overlayRect.width) / 2));
-            const desiredTop = packVisible
-                ? (packPreview.getBoundingClientRect().top - hostRect.top) + ((packPreview.getBoundingClientRect().height - overlayRect.height) / 2)
-                : (productInfo?.classList.contains('active') ? 22 : (isDesktop ? 34 : 18));
-            const top = Math.max(8, Math.min(hostRect.height - overlayRect.height - 8, desiredTop));
-            const left = Math.max(8, Math.min(maxLeft, desiredLeft));
+            const centerLeft = host.clientWidth / 2;
+            const centerTop = host.scrollTop + (host.clientHeight / 2);
 
-            overlay.style.left = `${left}px`;
-            overlay.style.top = `${top}px`;
+            overlay.style.left = `${Math.max(8, centerLeft)}px`;
+            overlay.style.top = `${Math.max(8, centerTop)}px`;
             overlay.style.right = 'auto';
         }
 
@@ -1358,6 +1338,9 @@
                 if (seg.raw && seg.raw.sample) {
                     g.setAttribute('data-lot', seg.raw.sample);
                 }
+                if (seg.raw?.sample && isLotRadarEligible(seg.raw)) {
+                    g.setAttribute('data-radar-eligible', 'true');
+                }
                 
                 const path = document.createElementNS(svgNS, "path");
                 path.setAttribute("d", describeArc(cx, cy, iR, oR, seg.start, seg.end));
@@ -1493,7 +1476,14 @@
                 zone.addEventListener('mousedown', e => { if (window.fortuneLocked) return; isDragging = true; velocity = 0; lastAngle = getAngle(e.clientX, e.clientY); lastTime = Date.now(); });
                 window.addEventListener('mousemove', e => moveH(e.clientX, e.clientY));
                 window.addEventListener('mouseup', () => isDragging = false);
-                zone.addEventListener('touchstart', e => { if (window.fortuneLocked) return; isDragging = true; velocity = 0; lastAngle = getAngle(e.touches[0].clientX, e.touches[0].clientY); lastTime = Date.now(); }, {passive: false});
+                zone.addEventListener('touchstart', e => {
+                    if (window.fortuneLocked) return;
+                    if (e.target?.closest?.('[data-radar-eligible="true"]')) return;
+                    isDragging = true;
+                    velocity = 0;
+                    lastAngle = getAngle(e.touches[0].clientX, e.touches[0].clientY);
+                    lastTime = Date.now();
+                }, {passive: false});
                 window.addEventListener('touchmove', e => moveH(e.touches[0].clientX, e.touches[0].clientY), {passive: false});
                 window.addEventListener('touchend', () => isDragging = false);
                 document.addEventListener('pointerdown', (event) => {
