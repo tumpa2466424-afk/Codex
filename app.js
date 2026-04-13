@@ -533,6 +533,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         }
 
         function isLotRadarEligible(raw) {
+            if (raw?.radarEligible === true) return true;
             const category = String(raw?.category || '').toLowerCase();
             return category.includes('эспрессо') || category.includes('фильтр');
         }
@@ -9278,7 +9279,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                                     const mid = Math.ceil(words.length / 2);
                                     wheelLabel = words.slice(0, mid).join(' ') + '\n' + words.slice(mid).join(' ');
                                 }
-                                target.children.push({ label: wheelLabel, color: petalColor, depth: 1, raw: raw });
+                                target.children.push({
+                                    label: wheelLabel,
+                                    color: petalColor,
+                                    depth: 1,
+                                    raw: {
+                                        ...raw,
+                                        radarEligible: targetCategoryLabel === 'ЭСПРЕССО' || targetCategoryLabel === 'ФИЛЬТР'
+                                    }
+                                });
                             }
                         }
                     }
