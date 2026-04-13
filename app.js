@@ -542,7 +542,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
         }
 
-        function getLotRadarTextAnchor(x, centerX, tolerance = 14) {
+        function getLotRadarTextAnchor(x, centerX, tolerance = 8) {
             if (x > centerX + tolerance) return 'start';
             if (x < centerX - tolerance) return 'end';
             return 'middle';
@@ -572,10 +572,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
         function buildLotRadarSvg(raw) {
             const metrics = getLotRadarMetrics(raw);
-            const size = 360;
+            const size = 340;
             const center = size / 2;
-            const outerRadius = 114;
-            const labelRadius = 154;
+            const outerRadius = 110;
+            const labelRadius = 126;
             const tickStep = outerRadius / 15;
             const angleStep = (Math.PI * 2) / metrics.length;
             const startAngle = -Math.PI / 2;
@@ -646,18 +646,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             }
         }
 
-        function positionLotRadarOverlay(anchorEl) {
+        function positionLotRadarOverlay() {
             const overlay = lotRadarState.overlay;
             const host = document.getElementById('wheel-zone');
-            if (!overlay || !host || !anchorEl) return;
+            if (!overlay || !host) return;
 
             const hostRect = host.getBoundingClientRect();
-            const anchorRect = anchorEl.getBoundingClientRect();
             const overlayRect = overlay.getBoundingClientRect();
-            const spacing = 14;
             const maxLeft = Math.max(8, hostRect.width - overlayRect.width - 8);
-            const desiredLeft = anchorRect.right - hostRect.left + spacing;
-            const desiredTop = anchorRect.top - hostRect.top + (anchorRect.height / 2) - (overlayRect.height / 2);
+            const desiredLeft = hostRect.width - overlayRect.width - 14;
+            const desiredTop = (hostRect.height - overlayRect.height) / 2;
             const top = Math.max(8, Math.min(hostRect.height - overlayRect.height - 8, desiredTop));
             const left = Math.max(8, Math.min(maxLeft, desiredLeft));
 
@@ -681,7 +679,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             lotRadarState.pinned = !!options.pin;
 
             overlay.classList.add('visible');
-            if (anchorEl) positionLotRadarOverlay(anchorEl);
+            positionLotRadarOverlay();
         }
 
         function hideLotRadarOverlay(immediate = false) {
