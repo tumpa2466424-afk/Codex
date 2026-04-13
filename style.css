@@ -128,11 +128,12 @@
 /* 3. ИНФО-ПАНЕЛЬ (База для мобилок) */
 .lot-intensity-radar {
     position: absolute;
-    top: 16px;
-    left: 16px;
-    width: min(328px, calc(100% - 24px));
+    top: 26px;
+    right: 20px;
+    left: auto;
+    width: min(404px, calc(100% - 80px));
     transform: scale(0.96);
-    transform-origin: top left;
+    transform-origin: top center;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.18s ease, transform 0.18s ease;
@@ -145,12 +146,13 @@
 }
 
 .lot-intensity-radar-card {
-    padding: 14px 14px 12px;
+    padding: 14px 16px 12px;
     border-radius: 18px;
     background: rgba(244, 241, 234, 0.92);
     border: 1px solid rgba(105, 58, 5, 0.18);
     box-shadow: 0 18px 40px rgba(105, 58, 5, 0.16);
     backdrop-filter: blur(10px);
+    overflow: hidden;
 }
 
 .lot-intensity-radar-title {
@@ -201,7 +203,7 @@
 
 .lot-radar-axis-label {
     fill: var(--locus-dark);
-    font-size: 8.4px;
+    font-size: 6.8px;
     font-weight: 600;
     letter-spacing: 0.1px;
 }
@@ -225,7 +227,7 @@
 
 .lot-radar-value {
     fill: var(--locus-dark);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
 }
 
@@ -240,6 +242,7 @@
     padding: 20px 15px 60px 15px; 
     display: flex; 
     flex-direction: column; 
+    position: relative;
     z-index: 2;
 }
 
@@ -273,11 +276,16 @@
 
 @media (max-width: 767px) {
     .lot-intensity-radar {
-        width: min(304px, calc(100% - 16px));
+        top: 18px;
+        right: 50%;
+        left: auto;
+        width: min(344px, calc(100% - 20px));
+        transform: translateX(50%) scale(0.96);
+        transform-origin: top center;
     }
 
     .lot-intensity-radar.visible {
-        transform: scale(1);
+        transform: translateX(50%) scale(1);
     }
 
     .lot-intensity-radar-card {
@@ -296,7 +304,7 @@
     }
 
     .lot-radar-axis-label {
-        font-size: 7.9px;
+        font-size: 6.4px;
     }
 }
 
