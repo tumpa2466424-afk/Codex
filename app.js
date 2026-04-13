@@ -499,14 +499,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         let currentGrind = "Зерно";
 
         const LOT_RADAR_AXES = [
-            { key: 'roast', label: ['Степень', 'обжарки'] },
-            { key: 'smellInt', label: ['Интенсивность', 'запаха'] },
-            { key: 'flavorInt', label: ['Интенсивность', 'букета'] },
-            { key: 'sweetInt', label: ['Интенсивность', 'сладости'] },
-            { key: 'bodyInt', label: ['Интенсивность', 'тактильности'] },
-            { key: 'aromaInt', label: ['Интенсивность', 'аромата'] },
-            { key: 'atInt', label: ['Интенсивность', 'послевкусия'] },
-            { key: 'acidInt', label: ['Интенсивность', 'кислотности'] }
+            { key: 'roast', label: ['Обжарка'] },
+            { key: 'smellInt', label: ['Запах'] },
+            { key: 'flavorInt', label: ['Букет'] },
+            { key: 'sweetInt', label: ['Сладость'] },
+            { key: 'bodyInt', label: ['Тактильность'] },
+            { key: 'aromaInt', label: ['Аромат'] },
+            { key: 'atInt', label: ['Послевкусие'] },
+            { key: 'acidInt', label: ['Кислотность'] }
         ];
         const lotRadarState = {
             overlay: null,
@@ -514,6 +514,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             longPressTimer: null,
             longPressActive: false,
             suppressClick: false,
+            pinned: false,
             pressLotId: '',
             pressRotation: 0
         };
@@ -529,6 +530,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 ...axis,
                 value: clampLotRadarValue(raw?.[axis.key])
             }));
+        }
+
+        function isLotRadarEligible(raw) {
+            const category = String(raw?.category || '').toLowerCase();
+            return category.includes('эспрессо') || category.includes('фильтр');
+        }
+
+        function isFinePointerRadarMode() {
+            return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
         }
 
         function getLotRadarTextAnchor(x, centerX, tolerance = 14) {
@@ -549,6 +559,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             overlay.innerHTML = `
                 <div class="lot-intensity-radar-card">
                     <div class="lot-intensity-radar-title"></div>
+                    <div class="lot-intensity-radar-subtitle">Диаграмма интенсивностей</div>
                     <div class="lot-intensity-radar-body"></div>
                 </div>
             `;
@@ -560,10 +571,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
         function buildLotRadarSvg(raw) {
             const metrics = getLotRadarMetrics(raw);
-            const size = 320;
+            const size = 360;
             const center = size / 2;
-            const outerRadius = 102;
-            const labelRadius = 138;
+            const outerRadius = 114;
+            const labelRadius = 154;
             const tickStep = outerRadius / 15;
             const angleStep = (Math.PI * 2) / metrics.length;
             const startAngle = -Math.PI / 2;
@@ -634,8 +645,28 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             }
         }
 
-        function showLotRadarOverlay(raw) {
-            if (!raw?.sample) return;
+        function positionLotRadarOverlay(anchorEl) {
+            const overlay = lotRadarState.overlay;
+            const host = document.getElementById('wheel-zone');
+            if (!overlay || !host || !anchorEl) return;
+
+            const hostRect = host.getBoundingClientRect();
+            const anchorRect = anchorEl.getBoundingClientRect();
+            const overlayRect = overlay.getBoundingClientRect();
+            const spacing = 14;
+            const maxLeft = Math.max(8, hostRect.width - overlayRect.width - 8);
+            const desiredLeft = anchorRect.right - hostRect.left + spacing;
+            const desiredTop = anchorRect.top - hostRect.top + (anchorRect.height / 2) - (overlayRect.height / 2);
+            const top = Math.max(8, Math.min(hostRect.height - overlayRect.height - 8, desiredTop));
+            const left = Math.max(8, Math.min(maxLeft, desiredLeft));
+
+            overlay.style.left = `${left}px`;
+            overlay.style.top = `${top}px`;
+            overlay.style.right = 'auto';
+        }
+
+        function showLotRadarOverlay(raw, anchorEl = null, options = {}) {
+            if (!raw?.sample || !isLotRadarEligible(raw)) return;
             const overlay = getLotRadarOverlay();
             if (!overlay) return;
 
@@ -646,7 +677,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             if (titleEl) titleEl.textContent = raw.sample;
             if (bodyEl) bodyEl.innerHTML = buildLotRadarSvg(raw);
 
+            lotRadarState.pinned = !!options.pin;
+
             overlay.classList.add('visible');
+            if (anchorEl) positionLotRadarOverlay(anchorEl);
         }
 
         function hideLotRadarOverlay(immediate = false) {
@@ -654,6 +688,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             if (!overlay) return;
 
             clearLotRadarHideTimer();
+            lotRadarState.pinned = false;
 
             const hide = () => overlay.classList.remove('visible');
             if (immediate) {
@@ -686,7 +721,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
                 lotRadarState.longPressActive = true;
                 lotRadarState.suppressClick = true;
-                showLotRadarOverlay(seg.raw);
+                showLotRadarOverlay(seg.raw, seg.radarAnchor || null, { pin: true });
             }, 320);
         }
 
@@ -696,7 +731,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
             if (!lotRadarState.longPressActive) return;
 
-            hideLotRadarOverlay(true);
             lotRadarState.longPressActive = false;
             window.setTimeout(() => {
                 lotRadarState.suppressClick = false;
@@ -1332,6 +1366,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 path.setAttribute("fill", seg.color);
                 path.setAttribute("stroke", "var(--locus-bg)"); 
                 path.setAttribute("stroke-width", "1.5");
+                seg.radarAnchor = path;
                 
                 const mid = (seg.start + seg.end) / 2;
                 const textPos = polarToCartesian(cx, cy, iR + (oR - iR)/2, mid);
@@ -1369,15 +1404,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     }
                     window.history.replaceState({}, '', url);
                 });
-                if (seg.raw?.sample) {
+                if (seg.raw?.sample && isLotRadarEligible(seg.raw)) {
                     g.addEventListener('mouseenter', () => {
                         if (isDragging || lotRadarState.longPressActive) return;
-                        if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
-                        showLotRadarOverlay(seg.raw);
+                        if (!isFinePointerRadarMode()) return;
+                        showLotRadarOverlay(seg.raw, seg.radarAnchor || path);
                     });
                     g.addEventListener('mouseleave', () => {
-                        if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
-                        if (lotRadarState.longPressActive) return;
+                        if (!isFinePointerRadarMode()) return;
+                        if (lotRadarState.longPressActive || lotRadarState.pinned) return;
                         hideLotRadarOverlay();
                     });
                     g.addEventListener('pointerdown', (event) => {
@@ -1463,6 +1498,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 zone.addEventListener('touchstart', e => { if (window.fortuneLocked) return; isDragging = true; velocity = 0; lastAngle = getAngle(e.touches[0].clientX, e.touches[0].clientY); lastTime = Date.now(); }, {passive: false});
                 window.addEventListener('touchmove', e => moveH(e.touches[0].clientX, e.touches[0].clientY), {passive: false});
                 window.addEventListener('touchend', () => isDragging = false);
+                document.addEventListener('pointerdown', (event) => {
+                    if (!lotRadarState.pinned) return;
+                    if (isFinePointerRadarMode()) return;
+                    if (zone.contains(event.target)) return;
+                    hideLotRadarOverlay(true);
+                });
             }
         }
         
