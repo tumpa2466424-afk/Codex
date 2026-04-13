@@ -603,10 +603,9 @@
                 const pointY = center + (sin * pointRadius);
                 polygonPoints.push(`${pointX.toFixed(1)},${pointY.toFixed(1)}`);
 
-                const valueOffset = 17;
-                const valueX = pointX + (Math.cos(perpendicularAngle) * valueOffset) + (cos * 5);
-                const valueY = pointY + (Math.sin(perpendicularAngle) * valueOffset) + (sin * 5);
-                const valueAnchor = getLotRadarTextAnchor(valueX, center, 6);
+                const valueX = pointX + 10;
+                const valueY = pointY + 9;
+                const valueAnchor = 'start';
 
                 pointMarkup.push(`<circle class="lot-radar-point" cx="${pointX.toFixed(1)}" cy="${pointY.toFixed(1)}" r="4.2"></circle>`);
                 pointMarkup.push(`<text class="lot-radar-value" x="${valueX.toFixed(1)}" y="${valueY.toFixed(1)}" text-anchor="${valueAnchor}" dominant-baseline="middle">${metric.value}</text>`);
@@ -667,9 +666,12 @@
 
             clearLotRadarHideTimer();
             lotRadarState.pinned = false;
+            lotRadarState.longPressActive = false;
+            lotRadarState.pressLotId = '';
 
             const hide = () => overlay.classList.remove('visible');
             if (immediate) {
+                lotRadarState.suppressClick = false;
                 hide();
                 return;
             }
@@ -1403,6 +1405,12 @@
                     g.addEventListener('pointerup', stopLotRadarLongPress);
                     g.addEventListener('pointercancel', stopLotRadarLongPress);
                     g.addEventListener('pointerleave', stopLotRadarLongPress);
+                    g.addEventListener('touchstart', (event) => {
+                        event.stopPropagation();
+                        startLotRadarLongPress(seg);
+                    }, { passive: true });
+                    g.addEventListener('touchend', stopLotRadarLongPress, { passive: true });
+                    g.addEventListener('touchcancel', stopLotRadarLongPress, { passive: true });
                 }
                 segmentFragment.appendChild(g);
             });
