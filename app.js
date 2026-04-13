@@ -1,28 +1,5 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, increment, addDoc, collection, deleteDoc, getDocs, query, orderBy, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-        // // --- ИНИЦИАЛИЗАЦИЯ FIREBASE ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyDoqPrYFegCZRyTlrqbZe7VZoChdW_lS4g",
-            authDomain: "locus-coffee.firebaseapp.com",
-            projectId: "locus-coffee",
-            storageBucket: "locus-coffee.firebasestorage.app",
-            messagingSenderId: "539438290999",
-            appId: "1:539438290999:web:eb6d5a2090d811bcf2c7b2",
-            measurementId: "G-WT6BE6YS1F"
-        };
-
-        let app, auth, db;
-        try {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-        } catch (e) { console.error("Ошибка инициализации Firebase:", e); }
-
         // Обновленная ссылка на Yandex Cloud Function вместо Google Sheets
         const YANDEX_FUNCTION_URL = "https://functions.yandexcloud.net/d4ekgff0csfc77v2nu5q";
-
         const LOCUS_API_URL = "https://functions.yandexcloud.net/d4ehpa8o948vden3i9ba";
         const CATALOG_DATA_URL = `${YANDEX_FUNCTION_URL}?type=catalog`;
         const EXTRINSIC_DATA_URL = `${LOCUS_API_URL}?action=getExtrinsicData`;
@@ -33,7 +10,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
         const externalScriptPromises = new Map();
         let primedCatalogRequest = null;
         let primedExtrinsicRequest = null;
-
         function addResourceHint(href, asValue, crossOrigin = 'anonymous') {
             if (!href || !document.head) return;
             const selector = `link[rel="preload"][href="${href}"], link[rel="prefetch"][href="${href}"]`;
@@ -505,7 +481,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             { key: 'sweetInt', label: ['Сладость'] },
             { key: 'bodyInt', label: ['Тактильность'] },
             { key: 'aromaInt', label: ['Аромат'] },
-            { key: 'atInt', label: ['Послевкусие'] },
+            { key: 'atInt', label: ['\u041f\u043e\u0441\u043b\u0435', '\u0432\u043a\u0443\u0441\u0438\u0435'] },
             { key: 'acidInt', label: ['Кислотность'] }
         ];
         const lotRadarState = {
@@ -548,10 +524,26 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             return 'middle';
         }
 
+        function getLotRadarLabelPosition(angle, center, radius) {
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            let x = center + (cos * radius);
+            let y = center + (sin * radius);
+
+            if (Math.abs(cos) > 0.42) {
+                x -= Math.sign(cos) * 24;
+            }
+            if (Math.abs(sin) > 0.62) {
+                y -= Math.sign(sin) * 8;
+            }
+
+            return { x, y };
+        }
+
         function getLotRadarOverlay() {
             if (lotRadarState.overlay?.isConnected) return lotRadarState.overlay;
 
-            const host = document.getElementById('wheel-zone');
+            const host = document.getElementById('info-panel');
             if (!host) return null;
 
             const overlay = document.createElement('div');
@@ -572,10 +564,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
         function buildLotRadarSvg(raw) {
             const metrics = getLotRadarMetrics(raw);
-            const size = 340;
+            const size = 360;
             const center = size / 2;
             const outerRadius = 110;
-            const labelRadius = 126;
+            const labelRadius = 104;
             const tickStep = outerRadius / 15;
             const angleStep = (Math.PI * 2) / metrics.length;
             const startAngle = -Math.PI / 2;
@@ -588,6 +580,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const angle = startAngle + (index * angleStep);
                 const cos = Math.cos(angle);
                 const sin = Math.sin(angle);
+                const perpendicularAngle = angle + (Math.PI / 2);
                 const axisEndX = center + (cos * outerRadius);
                 const axisEndY = center + (sin * outerRadius);
 
@@ -597,7 +590,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     const tickRadius = tickStep * step;
                     const tickX = center + (cos * tickRadius);
                     const tickY = center + (sin * tickRadius);
-                    const perpendicularAngle = angle + (Math.PI / 2);
                     const tickHalf = step % 5 === 0 || step === 15 ? 4.5 : 2.75;
                     const dx = Math.cos(perpendicularAngle) * tickHalf;
                     const dy = Math.sin(perpendicularAngle) * tickHalf;
@@ -605,8 +597,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                     axisMarkup.push(`<line class="${tickClass}" x1="${(tickX - dx).toFixed(1)}" y1="${(tickY - dy).toFixed(1)}" x2="${(tickX + dx).toFixed(1)}" y2="${(tickY + dy).toFixed(1)}"></line>`);
                 }
 
-                const labelX = center + (cos * labelRadius);
-                const labelY = center + (sin * labelRadius);
+                const { x: labelX, y: labelY } = getLotRadarLabelPosition(angle, center, labelRadius);
                 const labelAnchor = getLotRadarTextAnchor(labelX, center);
                 const labelStartY = labelY - (((metric.label.length - 1) * 12) / 2);
                 const labelMarkup = metric.label.map((line, lineIndex) => (
@@ -619,10 +610,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 const pointY = center + (sin * pointRadius);
                 polygonPoints.push(`${pointX.toFixed(1)},${pointY.toFixed(1)}`);
 
-                const valueRadius = metric.value <= 1 ? 18 : Math.min(outerRadius + 10, pointRadius + 14);
-                const valueX = center + (cos * valueRadius);
-                const valueY = center + (sin * valueRadius);
-                const valueAnchor = getLotRadarTextAnchor(valueX, center, 10);
+                const valueOffset = 17;
+                const valueX = pointX + (Math.cos(perpendicularAngle) * valueOffset) + (cos * 5);
+                const valueY = pointY + (Math.sin(perpendicularAngle) * valueOffset) + (sin * 5);
+                const valueAnchor = getLotRadarTextAnchor(valueX, center, 6);
 
                 pointMarkup.push(`<circle class="lot-radar-point" cx="${pointX.toFixed(1)}" cy="${pointY.toFixed(1)}" r="4.2"></circle>`);
                 pointMarkup.push(`<text class="lot-radar-value" x="${valueX.toFixed(1)}" y="${valueY.toFixed(1)}" text-anchor="${valueAnchor}" dominant-baseline="middle">${metric.value}</text>`);
@@ -648,14 +639,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 
         function positionLotRadarOverlay() {
             const overlay = lotRadarState.overlay;
-            const host = document.getElementById('wheel-zone');
+            const host = document.getElementById('info-panel');
             if (!overlay || !host) return;
 
             const hostRect = host.getBoundingClientRect();
             const overlayRect = overlay.getBoundingClientRect();
+            const productInfo = document.getElementById('product-info');
+            const packPreview = document.querySelector('#product-info .product-pack-preview');
+            const packVisible = !!(packPreview && packPreview.offsetParent !== null);
+            const isDesktop = window.matchMedia('(min-width: 768px)').matches;
             const maxLeft = Math.max(8, hostRect.width - overlayRect.width - 8);
-            const desiredLeft = hostRect.width - overlayRect.width - 14;
-            const desiredTop = (hostRect.height - overlayRect.height) / 2;
+            const desiredLeft = packVisible
+                ? (packPreview.getBoundingClientRect().left - hostRect.left) + ((packPreview.getBoundingClientRect().width - overlayRect.width) / 2)
+                : (isDesktop ? (hostRect.width - overlayRect.width - 32) : ((hostRect.width - overlayRect.width) / 2));
+            const desiredTop = packVisible
+                ? (packPreview.getBoundingClientRect().top - hostRect.top) + ((packPreview.getBoundingClientRect().height - overlayRect.height) / 2)
+                : (productInfo?.classList.contains('active') ? 22 : (isDesktop ? 34 : 18));
             const top = Math.max(8, Math.min(hostRect.height - overlayRect.height - 8, desiredTop));
             const left = Math.max(8, Math.min(maxLeft, desiredLeft));
 
@@ -1884,7 +1883,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
                 this.activeAction = nextPromo;
                 this.showPopup(nextPromo);
 
-                // Безопасное извлечение ID пользователя без Firebase
+                // Безопасное извлечение ID пользователя без legacy auth
                 let userKeyPart = 'guest';
                 const token = localStorage.getItem('locus_token');
                 if(token) {
@@ -9405,3 +9404,4 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
             }
         };
 
+/*
