@@ -126,6 +126,104 @@
 }
 
 /* 3. ИНФО-ПАНЕЛЬ (База для мобилок) */
+.lot-intensity-radar {
+    position: absolute;
+    top: 50%;
+    right: 16px;
+    width: min(300px, calc(100% - 24px));
+    transform: translateY(-50%) scale(0.96);
+    transform-origin: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 25;
+}
+
+.lot-intensity-radar.visible {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+}
+
+.lot-intensity-radar-card {
+    padding: 12px 14px 10px;
+    border-radius: 18px;
+    background: rgba(244, 241, 234, 0.92);
+    border: 1px solid rgba(105, 58, 5, 0.18);
+    box-shadow: 0 18px 40px rgba(105, 58, 5, 0.16);
+    backdrop-filter: blur(10px);
+}
+
+.lot-intensity-radar-title {
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--locus-dark);
+}
+
+.lot-intensity-radar-body {
+    width: 100%;
+}
+
+.lot-intensity-radar-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+.lot-radar-axis {
+    stroke: rgba(105, 58, 5, 0.42);
+    stroke-width: 1.4;
+}
+
+.lot-radar-tick {
+    stroke: rgba(105, 58, 5, 0.22);
+    stroke-width: 1;
+}
+
+.lot-radar-tick-major {
+    stroke: rgba(105, 58, 5, 0.34);
+    stroke-width: 1.2;
+}
+
+.lot-radar-axis-label {
+    fill: var(--locus-dark);
+    font-size: 9.8px;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+}
+
+.lot-radar-shape-fill {
+    fill: rgba(105, 58, 5, 0.12);
+}
+
+.lot-radar-shape-stroke {
+    fill: none;
+    stroke: var(--locus-dark);
+    stroke-width: 2.4;
+    stroke-linejoin: round;
+}
+
+.lot-radar-point {
+    fill: var(--locus-dark);
+    stroke: rgba(244, 241, 234, 0.95);
+    stroke-width: 1.5;
+}
+
+.lot-radar-value {
+    fill: var(--locus-dark);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.lot-radar-core {
+    fill: var(--locus-dark);
+    opacity: 0.88;
+}
+
 .info-area {
     flex: 1; 
     background: var(--locus-bg);
@@ -161,6 +259,35 @@
         overflow-y: auto; /* Включаем независимый скролл для текста */
         overscroll-behavior: contain;
     } 
+}
+
+@media (max-width: 767px) {
+    .lot-intensity-radar {
+        left: 50%;
+        right: auto;
+        top: 50%;
+        width: min(290px, calc(100% - 20px));
+        transform: translate(-50%, -50%) scale(0.96);
+    }
+
+    .lot-intensity-radar.visible {
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    .lot-intensity-radar-card {
+        padding: 10px 10px 8px;
+        border-radius: 16px;
+    }
+
+    .lot-intensity-radar-title {
+        text-align: center;
+        font-size: 10px;
+        margin-bottom: 6px;
+    }
+
+    .lot-radar-axis-label {
+        font-size: 8.8px;
+    }
 }
 
         .info-card {
