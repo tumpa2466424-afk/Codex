@@ -130,7 +130,7 @@
     position: absolute;
     top: 16px;
     left: 16px;
-    width: min(360px, calc(100% - 24px));
+    width: min(328px, calc(100% - 24px));
     transform: scale(0.96);
     transform-origin: top left;
     opacity: 0;
@@ -145,7 +145,7 @@
 }
 
 .lot-intensity-radar-card {
-    padding: 14px 16px 12px;
+    padding: 14px 14px 12px;
     border-radius: 18px;
     background: rgba(244, 241, 234, 0.92);
     border: 1px solid rgba(105, 58, 5, 0.18);
@@ -155,7 +155,7 @@
 
 .lot-intensity-radar-title {
     margin-bottom: 3px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
     line-height: 1.2;
     text-transform: uppercase;
@@ -165,7 +165,7 @@
 
 .lot-intensity-radar-subtitle {
     margin-bottom: 8px;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 600;
     line-height: 1.2;
     color: rgba(105, 58, 5, 0.72);
@@ -201,7 +201,7 @@
 
 .lot-radar-axis-label {
     fill: var(--locus-dark);
-    font-size: 9.2px;
+    font-size: 8.4px;
     font-weight: 600;
     letter-spacing: 0.1px;
 }
@@ -273,7 +273,7 @@
 
 @media (max-width: 767px) {
     .lot-intensity-radar {
-        width: min(340px, calc(100% - 16px));
+        width: min(304px, calc(100% - 16px));
     }
 
     .lot-intensity-radar.visible {
@@ -296,7 +296,7 @@
     }
 
     .lot-radar-axis-label {
-        font-size: 8.4px;
+        font-size: 7.9px;
     }
 }
 
