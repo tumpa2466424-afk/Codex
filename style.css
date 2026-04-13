@@ -128,12 +128,12 @@
 /* 3. ИНФО-ПАНЕЛЬ (База для мобилок) */
 .lot-intensity-radar {
     position: absolute;
-    top: 26px;
-    right: 20px;
-    left: auto;
+    top: 50%;
+    left: 50%;
+    right: auto;
     width: min(404px, calc(100% - 80px));
-    transform: scale(0.96);
-    transform-origin: top center;
+    transform: translate(-50%, -50%) scale(0.96);
+    transform-origin: center center;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.18s ease, transform 0.18s ease;
@@ -142,7 +142,7 @@
 
 .lot-intensity-radar.visible {
     opacity: 1;
-    transform: scale(1);
+    transform: translate(-50%, -50%) scale(1);
 }
 
 .lot-intensity-radar-card {
@@ -276,16 +276,11 @@
 
 @media (max-width: 767px) {
     .lot-intensity-radar {
-        top: 18px;
-        right: 50%;
-        left: auto;
         width: min(344px, calc(100% - 20px));
-        transform: translateX(50%) scale(0.96);
-        transform-origin: top center;
     }
 
     .lot-intensity-radar.visible {
-        transform: translateX(50%) scale(1);
+        transform: translate(-50%, -50%) scale(1);
     }
 
     .lot-intensity-radar-card {
