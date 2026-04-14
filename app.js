@@ -474,6 +474,7 @@
         let currentWeight = 250;
         let currentGrind = "Зерно";
 
+        const LOT_RADAR_ENABLED = globalThis.LOCUS_ENABLE_LOT_RADAR !== false;
         const LOT_RADAR_AXES = [
             { key: 'roast', label: ['Обжарка'] },
             { key: 'smellInt', label: ['Запах'] },
@@ -545,6 +546,7 @@
         }
 
         function getLotRadarOverlay() {
+            if (!LOT_RADAR_ENABLED) return null;
             if (lotRadarState.overlay?.isConnected) return lotRadarState.overlay;
 
             const host = document.getElementById('info-panel');
@@ -567,6 +569,7 @@
         }
 
         function buildLotRadarSvg(raw) {
+            if (!LOT_RADAR_ENABLED) return '';
             const metrics = getLotRadarMetrics(raw);
             const size = 360;
             const center = size / 2;
@@ -634,6 +637,7 @@
         }
 
         function clearLotRadarHideTimer() {
+            if (!LOT_RADAR_ENABLED) return;
             if (lotRadarState.hideTimer) {
                 clearTimeout(lotRadarState.hideTimer);
                 lotRadarState.hideTimer = null;
@@ -641,6 +645,7 @@
         }
 
         function positionLotRadarOverlay() {
+            if (!LOT_RADAR_ENABLED) return;
             const overlay = lotRadarState.overlay;
             const host = document.getElementById('info-panel');
             if (!overlay || !host) return;
@@ -654,6 +659,7 @@
         }
 
         function showLotRadarOverlay(raw, anchorEl = null, options = {}) {
+            if (!LOT_RADAR_ENABLED) return;
             if (!raw?.sample || !isLotRadarEligible(raw)) return;
             const overlay = getLotRadarOverlay();
             if (!overlay) return;
@@ -672,6 +678,7 @@
         }
 
         function hideLotRadarOverlay(immediate = false) {
+            if (!LOT_RADAR_ENABLED) return;
             const overlay = lotRadarState.overlay || document.getElementById('lot-intensity-radar');
             if (!overlay) return;
 
@@ -691,6 +698,7 @@
         }
 
         function clearLotRadarLongPressTimer() {
+            if (!LOT_RADAR_ENABLED) return;
             if (lotRadarState.longPressTimer) {
                 clearTimeout(lotRadarState.longPressTimer);
                 lotRadarState.longPressTimer = null;
@@ -698,6 +706,7 @@
         }
 
         function startLotRadarLongPress(seg) {
+            if (!LOT_RADAR_ENABLED) return;
             if (!seg?.raw?.sample) return;
 
             clearLotRadarLongPressTimer();
@@ -717,6 +726,7 @@
         }
 
         function stopLotRadarLongPress() {
+            if (!LOT_RADAR_ENABLED) return;
             clearLotRadarLongPressTimer();
             lotRadarState.pressLotId = '';
 
@@ -738,7 +748,7 @@
 
         const moveH = (clientX, clientY) => {
             if (!isDragging) return;
-            hideLotRadarOverlay(true);
+            if (LOT_RADAR_ENABLED) hideLotRadarOverlay(true);
             const curA = getAngle(clientX, clientY);
             const delta = curA - lastAngle;
             rotation += delta;
@@ -778,7 +788,7 @@
             pInfo.classList.remove('active');
             setTimeout(() => { pInfo.style.display = 'none'; dMsg.style.display = 'block'; setTimeout(() => dMsg.classList.add('active'), 50); }, 250);
             currentActiveProduct = null;
-            hideLotRadarOverlay(true);
+            if (LOT_RADAR_ENABLED) hideLotRadarOverlay(true);
             // ОЧИЩАЕМ АДРЕСНУЮ СТРОКУ ОТ ССЫЛКИ НА ЛОТ
             const url = new URL(window.location);
             url.searchParams.delete('lot');
@@ -1351,7 +1361,7 @@
                 if (seg.raw && seg.raw.sample) {
                     g.setAttribute('data-lot', seg.raw.sample);
                 }
-                if (seg.raw?.sample && isLotRadarEligible(seg.raw)) {
+                if (LOT_RADAR_ENABLED && seg.raw?.sample && isLotRadarEligible(seg.raw)) {
                     g.setAttribute('data-radar-eligible', 'true');
                 }
                 
@@ -1360,7 +1370,7 @@
                 path.setAttribute("fill", seg.color);
                 path.setAttribute("stroke", "var(--locus-bg)"); 
                 path.setAttribute("stroke-width", "1.5");
-                if (seg.raw?.sample && isLotRadarEligible(seg.raw)) {
+                if (LOT_RADAR_ENABLED && seg.raw?.sample && isLotRadarEligible(seg.raw)) {
                     path.setAttribute('data-radar-eligible', 'true');
                 }
                 seg.radarAnchor = path;
@@ -1371,7 +1381,7 @@
                 text.setAttribute("x", textPos.x); text.setAttribute("y", textPos.y);
                 text.setAttribute("text-anchor", "middle");
                 text.setAttribute("transform", `rotate(${mid - 90}, ${textPos.x}, ${textPos.y})`);
-                if (seg.raw?.sample && isLotRadarEligible(seg.raw)) {
+                if (LOT_RADAR_ENABLED && seg.raw?.sample && isLotRadarEligible(seg.raw)) {
                     text.setAttribute('data-radar-eligible', 'true');
                 }
                 
@@ -1404,7 +1414,7 @@
                     }
                     window.history.replaceState({}, '', url);
                 });
-                if (seg.raw?.sample && isLotRadarEligible(seg.raw)) {
+                if (LOT_RADAR_ENABLED && seg.raw?.sample && isLotRadarEligible(seg.raw)) {
                     g.addEventListener('mouseenter', () => {
                         if (isDragging || lotRadarState.longPressActive) return;
                         if (!isFinePointerRadarMode()) return;
@@ -1512,6 +1522,7 @@
                 window.addEventListener('touchmove', e => moveH(e.touches[0].clientX, e.touches[0].clientY), {passive: false});
                 window.addEventListener('touchend', () => isDragging = false);
                 document.addEventListener('pointerdown', (event) => {
+                    if (!LOT_RADAR_ENABLED) return;
                     if (!lotRadarState.pinned) return;
                     if (isFinePointerRadarMode()) return;
                     if (zone.contains(event.target)) return;
