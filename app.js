@@ -524,6 +524,17 @@
             return 'middle';
         }
 
+        function isLotRadarTarget(target) {
+            let node = target;
+            while (node) {
+                if (node.getAttribute && node.getAttribute('data-radar-eligible') === 'true') {
+                    return true;
+                }
+                node = node.parentNode;
+            }
+            return false;
+        }
+
         function getLotRadarLabelPosition(angle, center, radius) {
             const cos = Math.cos(angle);
             const sin = Math.sin(angle);
@@ -1349,6 +1360,9 @@
                 path.setAttribute("fill", seg.color);
                 path.setAttribute("stroke", "var(--locus-bg)"); 
                 path.setAttribute("stroke-width", "1.5");
+                if (seg.raw?.sample && isLotRadarEligible(seg.raw)) {
+                    path.setAttribute('data-radar-eligible', 'true');
+                }
                 seg.radarAnchor = path;
                 
                 const mid = (seg.start + seg.end) / 2;
@@ -1357,6 +1371,9 @@
                 text.setAttribute("x", textPos.x); text.setAttribute("y", textPos.y);
                 text.setAttribute("text-anchor", "middle");
                 text.setAttribute("transform", `rotate(${mid - 90}, ${textPos.x}, ${textPos.y})`);
+                if (seg.raw?.sample && isLotRadarEligible(seg.raw)) {
+                    text.setAttribute('data-radar-eligible', 'true');
+                }
                 
                 seg.label.split('\n').forEach((l, i) => {
                     const tspan = document.createElementNS(svgNS, "tspan");
@@ -1486,7 +1503,7 @@
                 window.addEventListener('mouseup', () => isDragging = false);
                 zone.addEventListener('touchstart', e => {
                     if (window.fortuneLocked) return;
-                    if (e.target?.closest?.('[data-radar-eligible="true"]')) return;
+                    if (isLotRadarTarget(e.target)) return;
                     isDragging = true;
                     velocity = 0;
                     lastAngle = getAngle(e.touches[0].clientX, e.touches[0].clientY);
@@ -1498,6 +1515,7 @@
                     if (!lotRadarState.pinned) return;
                     if (isFinePointerRadarMode()) return;
                     if (zone.contains(event.target)) return;
+                    isDragging = false;
                     hideLotRadarOverlay(true);
                 });
             }
