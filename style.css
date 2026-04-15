@@ -236,6 +236,44 @@
     opacity: 0.88;
 }
 
+.wheel-return-tab {
+    position: fixed;
+    top: 50%;
+    right: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 14px 10px 14px 12px;
+    border: none;
+    border-radius: 18px 0 0 18px;
+    background: rgba(105, 58, 5, 0.94);
+    color: var(--locus-white);
+    box-shadow: 0 12px 24px rgba(105, 58, 5, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%) translateX(14px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 45;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.wheel-return-tab-icon {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.wheel-return-tab-text {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1;
+}
+
 .info-area {
     flex: 1; 
     background: var(--locus-bg);
@@ -275,6 +313,16 @@
 }
 
 @media (max-width: 767px) {
+    .wheel-return-tab {
+        display: inline-flex;
+    }
+
+    .wheel-return-tab.visible {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(-50%) translateX(0);
+    }
+
     .lot-intensity-radar {
         width: min(344px, calc(100% - 20px));
     }
