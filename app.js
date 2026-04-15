@@ -9402,14 +9402,62 @@
             });
         }
 
+        let wheelReturnTabRaf = 0;
+        function updateWheelReturnTabVisibility() {
+            const tab = document.getElementById('btn-scroll-to-wheel');
+            const wheel = document.getElementById('wheel-zone');
+            const modal = document.getElementById('lc-modal');
+            if (!tab || !wheel) return;
+
+            const isMobile = window.innerWidth <= 767;
+            const modalActive = !!modal?.classList.contains('active');
+            if (!isMobile || modalActive) {
+                tab.classList.remove('visible');
+                return;
+            }
+
+            const rect = wheel.getBoundingClientRect();
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+            const wheelHiddenAbove = rect.top < 0 && rect.bottom < Math.max(120, viewportHeight * 0.42);
+            tab.classList.toggle('visible', wheelHiddenAbove);
+        }
+
+        function scheduleWheelReturnTabVisibility() {
+            if (wheelReturnTabRaf) cancelAnimationFrame(wheelReturnTabRaf);
+            wheelReturnTabRaf = requestAnimationFrame(() => {
+                wheelReturnTabRaf = 0;
+                updateWheelReturnTabVisibility();
+            });
+        }
+
+        function initWheelReturnTab() {
+            const tab = document.getElementById('btn-scroll-to-wheel');
+            const wheel = document.getElementById('wheel-zone');
+            if (!tab || !wheel || tab.dataset.initialized === 'true') return;
+
+            tab.dataset.initialized = 'true';
+            tab.addEventListener('click', () => {
+                wheel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+
+            window.addEventListener('scroll', scheduleWheelReturnTabVisibility, { passive: true });
+            window.addEventListener('resize', scheduleWheelReturnTabVisibility);
+            window.addEventListener('orientationchange', scheduleWheelReturnTabVisibility);
+            window.visualViewport?.addEventListener('resize', scheduleWheelReturnTabVisibility);
+            window.visualViewport?.addEventListener('scroll', scheduleWheelReturnTabVisibility);
+            scheduleWheelReturnTabVisibility();
+        }
+
         window.addEventListener('resize', scheduleMobileTopControlsOffset);
         window.addEventListener('orientationchange', scheduleMobileTopControlsOffset);
         window.addEventListener('load', scheduleMobileTopControlsOffset);
         window.visualViewport?.addEventListener('resize', scheduleMobileTopControlsOffset);
         window.visualViewport?.addEventListener('scroll', scheduleMobileTopControlsOffset);
+        window.addEventListener('load', scheduleWheelReturnTabVisibility);
 
         const yearSpan = document.getElementById('current-year');
         if (yearSpan) yearSpan.textContent = new Date().getFullYear();
+        initWheelReturnTab();
         window.fetchExternalData = fetchExternalData; // ДЕЛАЕМ ГЛОБАЛЬНОЙ
         fetchExternalData();
         // ==========================================
