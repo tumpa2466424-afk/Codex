@@ -2024,6 +2024,9 @@
             retailCountdownPendingUpdates: {},
             articleUnlockCache: {},
             articleUnlockRequestPending: false,
+            supportSystemsInitialized: false,
+            promoSessionChecked: false,
+            uiBindingsInitialized: false,
 
             init: function() {
                 const savedCart = localStorage.getItem('locus_cart');
@@ -2032,8 +2035,11 @@
                 
                 this.fetchUSDRate();
                 this.fetchPricingSettings();
-                PromotionSystem.init();
-                MessageSystem.init();
+                if (!this.supportSystemsInitialized) {
+                    PromotionSystem.init();
+                    MessageSystem.init();
+                    this.supportSystemsInitialized = true;
+                }
 
                 const token = localStorage.getItem('locus_token');
                 if (token) {
@@ -2069,64 +2075,71 @@
                     const btnAdmin = document.getElementById('btn-open-admin');
                     if(btnAdmin) btnAdmin.style.display = 'none';
                 }
-                PromotionSystem.checkAndShow();
+                if (!this.promoSessionChecked) {
+                    PromotionSystem.checkAndShow();
+                    this.promoSessionChecked = true;
+                }
                 
-                const safeListen = (id, fn) => { const el = document.getElementById(id); if(el) el.addEventListener('click', fn); };
-                safeListen('btn-open-lc', () => this.toggleModal(true, 'dashboard'));
-                safeListen('btn-open-cart', () => {
-                    this.toggleModal(true, 'cart');
-                    this.verifyActivePromo(); // Проверка при открытии корзины
-                    this.initCDEK();
-                });
-                safeListen('btn-open-wholesale', () => {
-                    this.renderWholesaleTable();
-                    this.toggleModal(true, 'wholesale');
-                });
-                safeListen('btn-unlock-article', () => this.unlockArticle());
-                safeListen('btn-close-lc', () => this.toggleModal(false));
-                safeListen('link-to-reg', () => this.switchView('register'));
-                safeListen('link-to-login', () => this.switchView('login'));
-                safeListen('link-to-forgot', () => this.switchView('forgot-password'));
-                safeListen('link-to-login-from-forgot', () => this.switchView('login'));
-                safeListen('link-to-login-from-reset', () => this.switchView('login'));
-                safeListen('btn-action-reg', () => this.register());
-                safeListen('btn-action-login', () => this.login());
-                safeListen('btn-action-forgot', () => this.requestPasswordReset());
-                safeListen('btn-action-reset', () => this.submitPasswordReset());
-                safeListen('btn-gen-password', () => this.fillGeneratedPassword('reg-pass'));
-                safeListen('btn-gen-reset-password', () => this.fillGeneratedPassword('reset-pass', 'reset-pass-confirm'));
-                this.setupPasswordVisibilityToggles();
-                safeListen('btn-logout', () => this.logout());
-                safeListen('btn-checkout', () => this.placeOrder());
-                safeListen('btn-apply-promo', () => this.applyPromo());
+                if (!this.uiBindingsInitialized) {
+                    const safeListen = (id, fn) => { const el = document.getElementById(id); if(el) el.addEventListener('click', fn); };
+                    safeListen('btn-open-lc', () => this.toggleModal(true, 'dashboard'));
+                    safeListen('btn-open-cart', () => {
+                        this.toggleModal(true, 'cart');
+                        this.verifyActivePromo(); // Проверка при открытии корзины
+                        this.initCDEK();
+                    });
+                    safeListen('btn-open-wholesale', () => {
+                        this.renderWholesaleTable();
+                        this.toggleModal(true, 'wholesale');
+                    });
+                    safeListen('btn-unlock-article', () => this.unlockArticle());
+                    safeListen('btn-close-lc', () => this.toggleModal(false));
+                    safeListen('link-to-reg', () => this.switchView('register'));
+                    safeListen('link-to-login', () => this.switchView('login'));
+                    safeListen('link-to-forgot', () => this.switchView('forgot-password'));
+                    safeListen('link-to-login-from-forgot', () => this.switchView('login'));
+                    safeListen('link-to-login-from-reset', () => this.switchView('login'));
+                    safeListen('btn-action-reg', () => this.register());
+                    safeListen('btn-action-login', () => this.login());
+                    safeListen('btn-action-forgot', () => this.requestPasswordReset());
+                    safeListen('btn-action-reset', () => this.submitPasswordReset());
+                    safeListen('btn-gen-password', () => this.fillGeneratedPassword('reg-pass'));
+                    safeListen('btn-gen-reset-password', () => this.fillGeneratedPassword('reset-pass', 'reset-pass-confirm'));
+                    this.setupPasswordVisibilityToggles();
+                    safeListen('btn-logout', () => this.logout());
+                    safeListen('btn-checkout', () => this.placeOrder());
+                    safeListen('btn-apply-promo', () => this.applyPromo());
 
-                const btnCart = document.getElementById('btn-cart');
-                if(btnCart) btnCart.addEventListener('click', (e) => {
-                    e.preventDefault(); e.stopImmediatePropagation();
-                    if(this.currentUser && this.uid) {
-                        const titleEl = document.getElementById('p-title');
-                        const title = titleEl ? titleEl.textContent.trim() : 'Unknown';
-                        this.addToCart(title, currentWeight, currentGrind);
-                    } else {
-                        alert('Войдите в ЛК чтобы сделать покупку.');
-                        this.toggleModal(true, 'login');
-                    }
-                });
-                
-                const btnSub = document.getElementById('btn-subscription');
-                if(btnSub) btnSub.addEventListener('click', (e) => {
-                    e.preventDefault(); e.stopImmediatePropagation();
-                    if(this.currentUser && this.uid) {
-                        const titleEl = document.getElementById('p-title');
-                        const title = titleEl ? titleEl.textContent.trim() : 'Unknown';
-                        // Исправлено: передаем текущий помол
-                        this.addToSubscription(title, currentWeight, currentGrind);
-                    } else {
-                        alert('Войдите в ЛК для подписки.');
-                        this.toggleModal(true, 'login');
-                    }
-                });
-                this.fetchNewLotDiscount();
+                    const btnCart = document.getElementById('btn-cart');
+                    if(btnCart) btnCart.addEventListener('click', (e) => {
+                        e.preventDefault(); e.stopImmediatePropagation();
+                        if(this.currentUser && this.uid) {
+                            const titleEl = document.getElementById('p-title');
+                            const title = titleEl ? titleEl.textContent.trim() : 'Unknown';
+                            this.addToCart(title, currentWeight, currentGrind);
+                        } else {
+                            alert('Войдите в ЛК чтобы сделать покупку.');
+                            this.toggleModal(true, 'login');
+                        }
+                    });
+                    
+                    const btnSub = document.getElementById('btn-subscription');
+                    if(btnSub) btnSub.addEventListener('click', (e) => {
+                        e.preventDefault(); e.stopImmediatePropagation();
+                        if(this.currentUser && this.uid) {
+                            const titleEl = document.getElementById('p-title');
+                            const title = titleEl ? titleEl.textContent.trim() : 'Unknown';
+                            // Исправлено: передаем текущий помол
+                            this.addToSubscription(title, currentWeight, currentGrind);
+                        } else {
+                            alert('Войдите в ЛК для подписки.');
+                            this.toggleModal(true, 'login');
+                        }
+                    });
+
+                    this.fetchNewLotDiscount();
+                    this.uiBindingsInitialized = true;
+                }
                 
             },
 
