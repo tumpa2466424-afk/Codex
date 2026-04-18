@@ -6430,6 +6430,7 @@
                             LOCUS_API_URL,
                             PALETTE_CONFIG,
                             muteColor,
+                            getScale,
                             getAllProductsCache: () => ALL_PRODUCTS_CACHE,
                             getShopData: () => SHOP_DATA
                         })
