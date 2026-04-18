@@ -8,6 +8,7 @@ export function installAdminCatalog(context) {
         PALETTE_CONFIG,
         muteColor,
         getScale,
+        getCurrentActiveProduct,
         getAllProductsCache,
         getShopData
     } = context;
@@ -16,6 +17,7 @@ export function installAdminCatalog(context) {
 
     const allProductsCache = () => (typeof getAllProductsCache === 'function' ? (getAllProductsCache() || []) : []);
     const shopData = () => (typeof getShopData === 'function' ? (getShopData() || []) : []);
+    const currentActiveProduct = () => (typeof getCurrentActiveProduct === 'function' ? getCurrentActiveProduct() : null);
 
     Object.assign(CatalogSystem, {
             switchTab: function(tabName) {
@@ -1211,8 +1213,9 @@ export function installAdminCatalog(context) {
 
                     if (adminProduct) Object.assign(adminProduct, localUpdate);
 
-                    if (currentActiveProduct && currentActiveProduct.sample === targetSample) {
-                        Object.assign(currentActiveProduct, localUpdate);
+                    const activeProduct = currentActiveProduct();
+                    if (activeProduct && activeProduct.sample === targetSample) {
+                        Object.assign(activeProduct, localUpdate);
                     }
 
                     this.cancelEdit(id);
