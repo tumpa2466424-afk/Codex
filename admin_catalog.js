@@ -7,6 +7,7 @@ export function installAdminCatalog(context) {
         LOCUS_API_URL,
         PALETTE_CONFIG,
         muteColor,
+        getScale,
         getAllProductsCache,
         getShopData
     } = context;
