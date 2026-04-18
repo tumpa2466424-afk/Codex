@@ -6431,6 +6431,7 @@
                             PALETTE_CONFIG,
                             muteColor,
                             getScale,
+                            getCurrentActiveProduct: () => currentActiveProduct,
                             getAllProductsCache: () => ALL_PRODUCTS_CACHE,
                             getShopData: () => SHOP_DATA
                         })
