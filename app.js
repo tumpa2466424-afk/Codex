@@ -5050,6 +5050,7 @@
 
             updateCartTotals: function() {
                 const digitalOnly = this.hasOnlyDigitalCartItems();
+                const isPickup = !digitalOnly && !!document.getElementById('self-pickup-checkbox')?.checked;
                 this.syncCartCheckoutMode();
                 let subtotal = 0;
                 this.localCart.forEach(i => subtotal += (i.price * i.qty));
@@ -5140,6 +5141,8 @@
 
                 if (digitalOnly) {
                     this.cdekPrice = 0;
+                } else if (isPickup) {
+                    this.cdekPrice = 0;
                 } else if (this.cdekInfo && typeof this.cdekInfo.rawPrice !== 'undefined') {
                     this.cdekPrice = isFreeShippingEligible ? 0 : Math.max(0, Number(this.cdekInfo.rawPrice) || 0);
                 }
@@ -5155,7 +5158,8 @@
                 const shipValEl = document.getElementById('cart-shipping-val');
                 if(shipValEl) {
                     if (digitalOnly) {
-                        shipValEl.textContent = 'Не требуется';
+                        shipValEl.textContent = 'Не требуется';                    } else if (isPickup) {
+                        shipValEl.textContent = '0 \u20BD';
                     } else if (isFreeShippingEligible) {
                         shipValEl.innerHTML = `<span style="color:#187a30; font-weight:bold;">Бесплатно от ${FREE_SHIPPING_THRESHOLD} ₽</span>`;
                     } else if (this.cdekPrice > 0) {
