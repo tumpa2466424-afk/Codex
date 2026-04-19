@@ -5169,11 +5169,13 @@
 
                 const promoRow = document.getElementById('row-promo-discount');
                 const promoValEl = document.getElementById('cart-promo-val');
-                if (this.activePromo) {
-                    promoRow.style.display = 'flex';
-                    promoValEl.textContent = `-${promoDiscountVal} ₽ (${this.activePromo.code})`;
-                } else {
-                    promoRow.style.display = 'none';
+                if (promoRow) {
+                    if (this.activePromo) {
+                        promoRow.style.display = 'flex';
+                        if (promoValEl) promoValEl.textContent = `-${promoDiscountVal} \u20BD (${this.activePromo.code})`;
+                    } else {
+                        promoRow.style.display = 'none';
+                    }
                 }
             },
 
@@ -5388,7 +5390,7 @@
                         await this.fetchUserData(); 
                         
                         this.updateUIState();
-                        this.switchView('dashboard');
+                        await this.switchView('dashboard');
                         this.renderDashboard(); // ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА ЛК
                         
                         if (!this.hasPendingWelcomePopup()) {
@@ -5421,7 +5423,7 @@
                         await this.fetchUserData(); 
                         
                         this.updateUIState();
-                        this.switchView('dashboard');
+                        await this.switchView('dashboard');
                         this.renderDashboard(); // ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА ЛК
                         
                         // Мгновенное появление кнопки админки без перезагрузки
