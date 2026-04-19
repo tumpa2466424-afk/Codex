@@ -477,7 +477,7 @@ function parseAdminNewLotAttachment(adminAttachmentInput) {
     };
 }
 
-async function buildNotifyNewLotContext(rawToken, body) {
+async function buildNotifyNewLotContext(rawToken, body, options = {}) {
     const decoded = verifyToken(rawToken);
     if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
 
@@ -528,8 +528,8 @@ async function buildNotifyNewLotContext(rawToken, body) {
         });
     }
 
-    if (!adminAttachment) {
-        console.error(`notifyNewLot: вложение для администратора не пришло для лота "${sampleName}"`);
+    if (!adminAttachment && !options.allowMissingAttachment) {
+        console.error(`notifyNewLot: \u0432\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u0434\u043b\u044f \u0430\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0430\u0442\u043e\u0440\u0430 \u043d\u0435 \u043f\u0440\u0438\u0448\u043b\u043e \u0434\u043b\u044f \u043b\u043e\u0442\u0430 "${sampleName}"`);
     }
 
     return {
@@ -540,6 +540,25 @@ async function buildNotifyNewLotContext(rawToken, body) {
         adminAttachment,
         adminDataSource
     };
+}
+
+async function collectNotifyNewLotTargetEmails(session) {
+    const usersQuery = `SELECT email, history FROM users;`;
+    const { resultSets } = await session.executeQuery(usersQuery);
+    const targetEmails = [];
+
+    if (resultSets[0].rows.length > 0) {
+        resultSets[0].rows.forEach(row => {
+            const u = rowToObj(resultSets[0].columns, row);
+            const hist = getRawArray(u.history);
+            const notifyEntry = hist.find(h => h && h.isSystemMeta && h.systemType === 'NOTIFY_NEW_LOTS');
+            if (notifyEntry && notifyEntry.enabled && isValidEmailAddress(u.email)) {
+                targetEmails.push(u.email);
+            }
+        });
+    }
+
+    return targetEmails;
 }
 
 async function proxyCatalogEdit(updatedData) {
@@ -690,6 +709,7 @@ const RETRYABLE_SESSION_ACTIONS = new Set([
     'robokassaCallback',
     'robokassaSuccess',
     'notifyNewLot',
+    'notifyNewLotDryRun',
     'getNewLotDiscount'
 ]);
 
@@ -1470,18 +1490,50 @@ module.exports.handler = async function (event, context) {
         let notifyNewLotContext = null;
         let deferredNotifyNewLot = null;
 
-        if (action === 'notifyNewLot') {
+        if (action === 'notifyNewLot' || action === 'notifyNewLotAdminPreview' || action === 'notifyNewLotDryRun') {
             logDebug('[notifyNewLot] incoming request', {
                 bodyChars: typeof bodyString === 'string' ? bodyString.length : 0,
                 hasAdminAttachmentField: !!(body && body.adminAttachment && typeof body.adminAttachment === 'object'),
                 attachmentBase64Length: String(body?.adminAttachment?.contentBase64 || '').length,
                 sampleName: String(body?.sampleName || '').trim()
             });
-            notifyNewLotContext = await buildNotifyNewLotContext(rawToken, body);
+            notifyNewLotContext = await buildNotifyNewLotContext(rawToken, body, {
+                allowMissingAttachment: action === 'notifyNewLotDryRun'
+            });
         }
 
         if (action === 'generateLotStory') {
             responseData = await handleGenerateLotStoryAction(body, rawToken);
+            logDebug('[api] request finished', {
+                action,
+                durationMs: Date.now() - startedAt,
+                handledOutsideSession: true
+            });
+            return { statusCode: 200, headers, body: JSON.stringify(responseData) };
+        }
+
+        if (action === 'notifyNewLotAdminPreview') {
+            const adminMailResult = await sendAdminNewLotEmail({
+                sampleName: notifyNewLotContext?.sampleName,
+                bouquetDescription: notifyNewLotContext?.bouquetDescription,
+                nuanceDescription: notifyNewLotContext?.nuanceDescription,
+                categoryName: notifyNewLotContext?.categoryName,
+                attachment: notifyNewLotContext?.adminAttachment
+            });
+            if (!adminMailResult || adminMailResult.ok === false) {
+                throw new Error('Не удалось отправить тестовое письмо администратору');
+            }
+
+            responseData = {
+                success: true,
+                previewOnly: true,
+                adminMailSent: true,
+                adminDataSource: notifyNewLotContext?.adminDataSource || '',
+                adminAttachmentIncluded: !!notifyNewLotContext?.adminAttachment,
+                adminAttachmentMeta: notifyNewLotContext?.adminAttachment ? describeAttachmentForLog(notifyNewLotContext.adminAttachment) : null,
+                adminMailMeta: adminMailResult
+            };
+
             logDebug('[api] request finished', {
                 action,
                 durationMs: Date.now() - startedAt,
@@ -2644,7 +2696,7 @@ module.exports.handler = async function (event, context) {
             // --- НАЧАЛО: РАССЫЛКА И СКИДКА НА НОВЫЙ ЛОТ ---
             else if (action === 'notifyNewLot') {
                 const sampleName = String(notifyNewLotContext?.sampleName || '').trim();
-                if (!sampleName) throw new Error('Не указано название лота');
+                if (!sampleName) throw new Error('\u041d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u043e \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u043b\u043e\u0442\u0430');
 
                 const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
@@ -2654,20 +2706,7 @@ module.exports.handler = async function (event, context) {
                     '$config': TypedValues.jsonDocument(JSON.stringify({ sampleName, expiresAt }))
                 });
 
-                const usersQuery = `SELECT email, history FROM users;`;
-                const { resultSets } = await session.executeQuery(usersQuery);
-                const targetEmails = [];
-                
-                if (resultSets[0].rows.length > 0) {
-                    resultSets[0].rows.forEach(row => {
-                        const u = rowToObj(resultSets[0].columns, row);
-                        const hist = getRawArray(u.history);
-                        const notifyEntry = hist.find(h => h && h.isSystemMeta && h.systemType === 'NOTIFY_NEW_LOTS');
-                        if (notifyEntry && notifyEntry.enabled && isValidEmailAddress(u.email)) {
-                            targetEmails.push(u.email);
-                        }
-                    });
-                }
+                const targetEmails = await collectNotifyNewLotTargetEmails(session);
 
                 deferredNotifyNewLot = {
                     ...notifyNewLotContext,
@@ -2675,6 +2714,28 @@ module.exports.handler = async function (event, context) {
                     targetEmails
                 };
                 responseData = { success: true };
+            }
+            
+            else if (action === 'notifyNewLotDryRun') {
+                const sampleName = String(notifyNewLotContext?.sampleName || '').trim();
+                if (!sampleName) throw new Error('\u041d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u043e \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u043b\u043e\u0442\u0430');
+
+                const targetEmails = await collectNotifyNewLotTargetEmails(session);
+                const previewEmails = targetEmails.slice(0, 5).map(email => {
+                    const [localPart, domain = ''] = String(email || '').split('@');
+                    const safeLocal = localPart.length <= 2
+                        ? `${localPart.slice(0, 1)}*`
+                        : `${localPart.slice(0, 2)}***`;
+                    return domain ? `${safeLocal}@${domain}` : safeLocal;
+                });
+
+                responseData = {
+                    success: true,
+                    dryRun: true,
+                    sampleName,
+                    targetCount: targetEmails.length,
+                    previewEmails
+                };
             }
             
             else if (action === 'getNewLotDiscount') {
