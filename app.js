@@ -2095,10 +2095,8 @@
                 if (!this.uiBindingsInitialized) {
                     const safeListen = (id, fn) => { const el = document.getElementById(id); if(el) el.addEventListener('click', fn); };
                     safeListen('btn-open-lc', () => this.toggleModal(true, 'dashboard'));
-                    safeListen('btn-open-cart', () => {
-                        this.toggleModal(true, 'cart');
-                        this.verifyActivePromo(); // Проверка при открытии корзины
-                        this.initCDEK();
+                    safeListen('btn-open-cart', async () => {
+                        await this.toggleModal(true, 'cart');
                     });
                     safeListen('btn-open-wholesale', () => {
                         this.toggleModal(true, 'wholesale');
@@ -5992,7 +5990,8 @@
         const LAZY_MODAL_VIEW_TEMPLATES = Object.freeze({
             dashboard: './views/dashboard.html',
             admin: './views/admin.html',
-            wholesale: './views/wholesale.html'
+            wholesale: './views/wholesale.html',
+            cart: './views/cart.html'
         });
 
         UserSystem.lazyModalViewPromises = Object.create(null);
@@ -6003,6 +6002,19 @@
                 if (logoutBtn) logoutBtn.onclick = () => this.logout();
                 MessageSystem.init();
                 if (this.currentUser) this.renderDashboard();
+                return;
+            }
+
+            if (viewName === 'cart') {
+                const checkoutBtn = document.getElementById('btn-checkout');
+                if (checkoutBtn) checkoutBtn.onclick = () => this.placeOrder();
+
+                const applyPromoBtn = document.getElementById('btn-apply-promo');
+                if (applyPromoBtn) applyPromoBtn.onclick = () => this.applyPromo();
+
+                this.renderCart();
+                this.verifyActivePromo();
+                this.initCDEK();
                 return;
             }
 
