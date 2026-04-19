@@ -1364,82 +1364,122 @@ export function installAdminCatalog(context) {
                 }
             },
 
+            buildNewLotNotificationPayload: async function(product, options = {}) {
+                const includeAttachment = options.includeAttachment !== false;
+                const cacheItems = allProductsCache();
+                const fullProduct = Array.isArray(cacheItems)
+                    ? (
+                        cacheItems.find(p => String(p?.id || '') === String(product?.id || '')) ||
+                        cacheItems.find(p => String(p?.sample || '') === String(product?.sample || ''))
+                    )
+                    : null;
+                const bouquetDescription = String(fullProduct?.flavorDesc || product?.flavorDesc || '').trim();
+                const nuanceDescription = String(fullProduct?.flavorNotes || product?.flavorNotes || '').trim();
+                const categoryName = String(fullProduct?.category || product?.category || '').trim();
+
+                const payload = {
+                    productId: product.id,
+                    sampleName: product.sample,
+                    bouquetDescription,
+                    nuanceDescription,
+                    categoryName
+                };
+
+                if (!includeAttachment) return payload;
+
+                const packBlob = await this.renderPackPreviewToBlob(product);
+                const packBase64 = await this.blobToBase64(packBlob);
+                payload.adminAttachment = {
+                    filename: `${product.sample}_locus_coffee.png`,
+                    contentType: 'image/png',
+                    contentBase64: packBase64
+                };
+                return payload;
+            },
+
+            runNewLotNotificationAction: async function(action, product, options = {}) {
+                const token = localStorage.getItem('locus_token');
+                if (!token) throw new Error('\u041d\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u0430 \u0430\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0430\u0442\u043e\u0440\u0430');
+
+                const payload = await this.buildNewLotNotificationPayload(product, options);
+                const response = await fetch(`${LOCUS_API_URL}?action=${action}`, {
+                    method: 'POST',
+                    headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, ...payload })
+                });
+                return response.json();
+            },
+
+            handleNewLotNotificationFlow: async function(product) {
+                const lotTitle = String(product?.sample || '').trim() || '\u044d\u0442\u043e\u0433\u043e \u043b\u043e\u0442\u0430';
+                const choice = window.prompt(
+                    `\u041b\u043e\u0442 "${lotTitle}" \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d \u0432 \u043a\u0430\u0442\u0430\u043b\u043e\u0433.\n1 \u2014 \u043e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c \u043f\u043e\u0434\u043f\u0438\u0441\u0447\u0438\u043a\u0430\u043c\n2 \u2014 \u0442\u0435\u0441\u0442\u043e\u0432\u043e\u0435 \u043f\u0438\u0441\u044c\u043c\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u0430\u0434\u043c\u0438\u043d\u0443\n3 \u2014 \u0441\u0443\u0445\u043e\u0439 \u043f\u0440\u043e\u0433\u043e\u043d \u0431\u0435\u0437 \u043e\u0442\u043f\u0440\u0430\u0432\u043a\u0438\n0 \u2014 \u043d\u0438\u0447\u0435\u0433\u043e \u043d\u0435 \u0434\u0435\u043b\u0430\u0442\u044c`,
+                    '2'
+                );
+
+                if (choice === null || choice === '' || choice === '0') return;
+
+                if (choice === '1') {
+                    const data = await this.runNewLotNotificationAction('notifyNewLot', product, { includeAttachment: true });
+                    if (!data.success) throw new Error(data.error || '\u041e\u0448\u0438\u0431\u043a\u0430 \u0440\u0430\u0441\u0441\u044b\u043b\u043a\u0438');
+                    alert(`\u0420\u0430\u0441\u0441\u044b\u043b\u043a\u0430 \u0437\u0430\u043f\u0443\u0449\u0435\u043d\u0430. \u041e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043e \u043f\u0438\u0441\u0435\u043c: ${Number(data.sentCount) || 0}`);
+                    return;
+                }
+
+                if (choice === '2') {
+                    const data = await this.runNewLotNotificationAction('notifyNewLotAdminPreview', product, { includeAttachment: true });
+                    if (!data.success) throw new Error(data.error || '\u041e\u0448\u0438\u0431\u043a\u0430 \u0442\u0435\u0441\u0442\u043e\u0432\u043e\u0433\u043e \u043f\u0438\u0441\u044c\u043c\u0430');
+                    alert('\u0422\u0435\u0441\u0442\u043e\u0432\u043e\u0435 \u043f\u0438\u0441\u044c\u043c\u043e \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043e \u043d\u0430 info@locus.coffee.');
+                    return;
+                }
+
+                if (choice === '3') {
+                    const data = await this.runNewLotNotificationAction('notifyNewLotDryRun', product, { includeAttachment: false });
+                    if (!data.success) throw new Error(data.error || '\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0443\u0445\u043e\u0433\u043e \u043f\u0440\u043e\u0433\u043e\u043d\u0430');
+                    const preview = Array.isArray(data.previewEmails) && data.previewEmails.length
+                        ? `\n\u041f\u0440\u0438\u043c\u0435\u0440\u044b \u0430\u0434\u0440\u0435\u0441\u043e\u0432: ${data.previewEmails.join(', ')}`
+                        : '';
+                    alert(`\u0421\u0443\u0445\u043e\u0439 \u043f\u0440\u043e\u0433\u043e\u043d: \u043f\u043e\u0434\u0445\u043e\u0434\u044f\u0449\u0438\u0445 \u043f\u043e\u0434\u043f\u0438\u0441\u0447\u0438\u043a\u043e\u0432 ${Number(data.targetCount) || 0}.${preview}`);
+                    return;
+                }
+
+                alert('\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u043e\u0442\u043c\u0435\u043d\u0435\u043d\u043e.');
+            },
+
             updateCatalogRow: async function(id, checkboxEl) {
                 const statusEl = document.getElementById(`cat-status-${id}`);
                 const isChecked = checkboxEl.checked;
                 checkboxEl.disabled = true;
-                statusEl.textContent = "Сохранение..."; statusEl.className = "save-status saving";
+                statusEl.textContent = "\u0421\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u0438\u0435..."; statusEl.className = "save-status saving";
                 try {
                     const response = await fetch(YANDEX_FUNCTION_URL + "?type=catalog_update", {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ id: id, inCatalog: isChecked ? "1" : "" })
                     });
                     const result = await response.json();
-                    if (!result.success) throw new Error("Ошибка сервера");
+                    if (!result.success) throw new Error("\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430");
 
                     checkboxEl.disabled = false;
-                    statusEl.textContent = "Сохранено ✓"; statusEl.className = "save-status success";
+                    statusEl.textContent = "\u0421\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u043e \u2713"; statusEl.className = "save-status success";
                     setTimeout(() => { statusEl.style.opacity = '0'; setTimeout(() => { statusEl.textContent = ""; statusEl.style.opacity = ''; }, 300); }, 2000);
 
                     const pIndex = this.ALL_PRODUCTS.findIndex(p => p.id === id);
                     if (pIndex !== -1) {
                         this.ALL_PRODUCTS[pIndex].inCatalog = isChecked ? "1" : "";
-                        
                         if (isChecked) {
-                            if (confirm(`Отправить подписчикам уведомление о новом лоте "${this.ALL_PRODUCTS[pIndex].sample}" со скидкой 10% на 24 часа?`)) {
-                                const token = localStorage.getItem('locus_token');
-                                const product = this.ALL_PRODUCTS[pIndex];
-                                const fullProduct = (typeof allProductsCache() !== 'undefined' && Array.isArray(allProductsCache()))
-                                    ? (allProductsCache().find(p => String(p?.id || '') === String(product.id || '')) || allProductsCache().find(p => String(p?.sample || '') === String(product.sample || '')))
-                                    : null;
-                                const bouquetDescription = String(fullProduct?.flavorDesc || product?.flavorDesc || '').trim();
-                                const nuanceDescription = String(fullProduct?.flavorNotes || product?.flavorNotes || '').trim();
-                                const categoryName = String(fullProduct?.category || product?.category || '').trim();
-                                this.renderPackPreviewToBlob(product)
-                                .then(packBlob => {
-                                    console.log('notifyNewLot pack blob', {
-                                        sampleName: product.sample,
-                                        size: Number(packBlob?.size) || 0,
-                                        type: String(packBlob?.type || '')
-                                    });
-                                    return this.blobToBase64(packBlob);
-                                })
-                                .then(packBase64 => {
-                                    console.log('notifyNewLot attachment payload', {
-                                        sampleName: product.sample,
-                                        base64Length: String(packBase64 || '').length
-                                    });
-                                    return fetch(LOCUS_API_URL + '?action=notifyNewLot', {
-                                    method: 'POST',
-                                    headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        action: 'notifyNewLot',
-                                        productId: product.id,
-                                        sampleName: product.sample,
-                                        bouquetDescription,
-                                        nuanceDescription,
-                                        categoryName,
-                                        adminAttachment: {
-                                            filename: `${product.sample}_locus_coffee.png`,
-                                            contentType: 'image/png',
-                                            contentBase64: packBase64
-                                        }
-                                    })
-                                });
-                                }).then(res => res.json()).then(data => {
-                                    console.log('notifyNewLot response', data);
-                                    if (data.success) alert(`Рассылка запущена! Отправлено писем: ${data.sentCount}`);
-                                    else alert('Ошибка рассылки: ' + data.error);
-                                }).catch(e => alert('Ошибка при вызове рассылки: ' + e.message));
+                            try {
+                                await this.handleNewLotNotificationFlow(this.ALL_PRODUCTS[pIndex]);
+                            } catch (notifyError) {
+                                alert(notifyError?.message || 'Ошибка сценария уведомления о новом лоте.');
                             }
                         }
                     }
 
                     this.renderCatalog();
-                    if (window.fetchExternalData) window.fetchExternalData(); // Обновляем витрину
+                    if (window.fetchExternalData) window.fetchExternalData();
                 } catch (error) {
                     checkboxEl.disabled = false; checkboxEl.checked = !isChecked;
-                    statusEl.textContent = "Ошибка!"; statusEl.className = "save-status error";
+                    statusEl.textContent = "\u041e\u0448\u0438\u0431\u043a\u0430!"; statusEl.className = "save-status error";
                     setTimeout(() => { statusEl.style.opacity = '0'; }, 3000);
                 }
             },
