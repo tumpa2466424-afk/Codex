@@ -1982,6 +1982,18 @@
         window.FortuneSystem = FortuneSystem;
 
         // --- USER SYSTEM ---
+        function createDeferredSelfMethod(methodName) {
+            const deferredMethod = async function(...args) {
+                await UserSystem.ensureAdminModule();
+                const resolvedMethod = this[methodName];
+                if (resolvedMethod === deferredMethod) {
+                    throw new Error(`Админ-модуль не инициализировал метод ${methodName}.`);
+                }
+                return resolvedMethod.apply(this, args);
+            };
+            return deferredMethod;
+        }
+
         const UserSystem = {
             currentUser: null, uid: null, localCart: [], activePromo: null,
             cdekPrice: 0, cdekInfo: null, currentPickupCode: null,
@@ -2285,428 +2297,34 @@
 
             STICKER_EXPORT_DPI: 300,
             STICKER_EXPORT_SIZES_MM: {
-            front: { width: 80, height: 80 },
-            back: { width: 60, height: 60 },
-            back80: { width: 80, height: 80 }
-        },
-
-            supportsStickerExport: function(product) {
-                return !!product && !ProductManager.getTypeInfo(product).isSpecial;
+                front: { width: 80, height: 80 },
+                back: { width: 60, height: 60 },
+                back80: { width: 80, height: 80 }
             },
 
-            getCatalogProductById: function(productId) {
-                return (this.ALL_PRODUCTS || []).find(item => String(item.id) === String(productId)) || null;
-            },
-
-            getStickerExportConfig: function(side) {
-                return this.STICKER_EXPORT_SIZES_MM[side] || this.STICKER_EXPORT_SIZES_MM.front;
-            },
-
-            mmToPrintPixels: function(mm, dpi = this.STICKER_EXPORT_DPI) {
-                return Math.round((Number(mm) || 0) * dpi / 25.4);
-            },
-
-            sanitizeStickerFileName: function(value) {
-                const normalized = String(value || 'sticker')
-                    .replace(/[\\/:*?"<>|]+/g, '_')
-                    .replace(/\s+/g, ' ')
-                    .trim()
-                    .replace(/\s/g, '_');
-                return normalized.slice(0, 80) || 'sticker';
-            },
-
-            createStickerExportContainer: function(product) {
-                const host = document.createElement('div');
-                host.className = 'sticker-export-host';
-                host.style.cssText = 'position:fixed; left:-10000px; top:0; pointer-events:none; background:#fff; padding:0; margin:0; z-index:-1;';
-                host.innerHTML = `<div>${this.getViewHtml(product)}</div>`;
-                document.body.appendChild(host);
-                return host;
-            },
-
-            createPackPreviewExportContainer: function(product) {
-                const host = document.createElement('div');
-                host.className = 'sticker-export-host';
-                // Полностью имитируем DOM-окружение магазина, чтобы CSS для 3D-трансформаций и шрифтов сработали идеально
-                host.style.cssText = 'position:fixed; left:-10000px; top:0; pointer-events:none; background:transparent; padding:0; margin:0; z-index:-1; width:420px;';
-                host.innerHTML = `
-                    <div id="coffee-shop-wheel" class="cs-widget-container" style="min-height:0; display:block; background:transparent;">
-                        <div class="info-area" style="padding:20px; height:auto; background:transparent;">
-                            <div id="product-info" class="info-card active" style="transform:none; display:block;">
-                                <div id="p-simple-desc" class="simple-desc">
-                                    ${this.getPackPreviewHtml(product)}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(host);
-                return host;
-            },
-
-            waitForStickerRenderReady: async function() {
-                if (document.fonts?.ready) {
-                    try {
-                        await document.fonts.ready;
-                    } catch (e) {}
-                }
-                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-            },
-
-            waitForRenderImagesReady: async function(rootEl) {
-                if (!rootEl) return;
-                const images = [];
-                if (rootEl.tagName === 'IMG') images.push(rootEl);
-                if (typeof rootEl.querySelectorAll === 'function') {
-                    rootEl.querySelectorAll('img').forEach(img => images.push(img));
-                }
-                const uniqueImages = Array.from(new Set(images));
-                if (!uniqueImages.length) return;
-
-                await Promise.all(uniqueImages.map(img => new Promise(resolve => {
-                    let settled = false;
-                    const done = () => {
-                        if (settled) return;
-                        settled = true;
-                        img.removeEventListener('load', done);
-                        img.removeEventListener('error', done);
-                        resolve();
-                    };
-
-                    if (img.complete && img.naturalWidth > 0) {
-                        if (typeof img.decode === 'function') {
-                            img.decode().catch(() => {}).finally(done);
-                        } else {
-                            done();
-                        }
-                        return;
-                    }
-
-                    img.addEventListener('load', done, { once: true });
-                    img.addEventListener('error', done, { once: true });
-                    setTimeout(done, 10000);
-                })));
-            },
-
-            extractPrimaryFontFamily: function(fontFamily) {
-                const raw = String(fontFamily || '').trim();
-                if (!raw) return '';
-                const firstPart = raw.split(',')[0]?.trim() || '';
-                return firstPart.replace(/^['"]+|['"]+$/g, '').trim();
-            },
-
-            ensureStickerExportFontReady: async function(stickerEl) {
-                const computedFontFamily = window.getComputedStyle(stickerEl).fontFamily || '';
-                const primaryFont = this.extractPrimaryFontFamily(computedFontFamily);
-                if (document.fonts && typeof document.fonts.load === 'function' && primaryFont) {
-                    try {
-                        await Promise.all([
-                            document.fonts.load(`400 20px "${primaryFont}"`),
-                            document.fonts.load(`500 20px "${primaryFont}"`),
-                            document.fonts.load(`600 20px "${primaryFont}"`),
-                            document.fonts.load(`700 20px "${primaryFont}"`)
-                        ]);
-                    } catch (e) {}
-                }
-                return computedFontFamily;
-            },
-
-            lockStickerFontForRender: function(stickerEl, fontFamily) {
-                const computedFontFamily = String(fontFamily || window.getComputedStyle(stickerEl).fontFamily || '').trim();
-                if (!computedFontFamily) return () => {};
-
-                const nodes = [stickerEl, ...stickerEl.querySelectorAll('*')];
-                const previousState = nodes.map(node => ({
-                    node,
-                    fontFamily: node.style.getPropertyValue('font-family'),
-                    fontFamilyPriority: node.style.getPropertyPriority('font-family'),
-                    fontSynthesis: node.style.getPropertyValue('font-synthesis'),
-                    fontSynthesisPriority: node.style.getPropertyPriority('font-synthesis'),
-                    fontKerning: node.style.getPropertyValue('font-kerning'),
-                    fontKerningPriority: node.style.getPropertyPriority('font-kerning'),
-                    textRendering: node.style.getPropertyValue('text-rendering'),
-                    textRenderingPriority: node.style.getPropertyPriority('text-rendering')
-                }));
-
-                nodes.forEach(node => {
-                    node.style.setProperty('font-family', computedFontFamily, 'important');
-                    node.style.setProperty('font-synthesis', 'none', 'important');
-                    node.style.setProperty('font-kerning', 'normal', 'important');
-                    node.style.setProperty('text-rendering', 'geometricPrecision', 'important');
-                });
-
-                return () => {
-                    previousState.forEach(state => {
-                        if (!state?.node) return;
-                        if (state.fontFamily) state.node.style.setProperty('font-family', state.fontFamily, state.fontFamilyPriority || '');
-                        else state.node.style.removeProperty('font-family');
-
-                        if (state.fontSynthesis) state.node.style.setProperty('font-synthesis', state.fontSynthesis, state.fontSynthesisPriority || '');
-                        else state.node.style.removeProperty('font-synthesis');
-
-                        if (state.fontKerning) state.node.style.setProperty('font-kerning', state.fontKerning, state.fontKerningPriority || '');
-                        else state.node.style.removeProperty('font-kerning');
-
-                        if (state.textRendering) state.node.style.setProperty('text-rendering', state.textRendering, state.textRenderingPriority || '');
-                        else state.node.style.removeProperty('text-rendering');
-                    });
-                };
-            },
-
-            getStickerSideFromElement: function(stickerEl) {
-            if (stickerEl?.classList.contains('is-80')) return 'back80';
-            return stickerEl?.classList.contains('locus-back-sticker-canvas') ? 'back' : 'front';
-        },
-
-            getCrc32Table: function() {
-                if (this._crc32Table) return this._crc32Table;
-                const table = new Uint32Array(256);
-                for (let i = 0; i < 256; i++) {
-                    let c = i;
-                    for (let j = 0; j < 8; j++) {
-                        c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-                    }
-                    table[i] = c >>> 0;
-                }
-                this._crc32Table = table;
-                return table;
-            },
-
-            concatUint8Arrays: function(...arrays) {
-                const totalLength = arrays.reduce((sum, arr) => sum + (arr?.length || 0), 0);
-                const result = new Uint8Array(totalLength);
-                let offset = 0;
-                arrays.forEach(arr => {
-                    if (!arr?.length) return;
-                    result.set(arr, offset);
-                    offset += arr.length;
-                });
-                return result;
-            },
-
-            computeCrc32: function(bytes) {
-                const table = this.getCrc32Table();
-                let crc = 0xFFFFFFFF;
-                for (let i = 0; i < bytes.length; i++) {
-                    crc = table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
-                }
-                return (crc ^ 0xFFFFFFFF) >>> 0;
-            },
-
-            createPngPhysChunk: function(dpi) {
-                const pixelsPerMeter = Math.round(Number(dpi || this.STICKER_EXPORT_DPI) * 39.37007874);
-                const chunkData = new Uint8Array(9);
-                const dataView = new DataView(chunkData.buffer);
-                dataView.setUint32(0, pixelsPerMeter);
-                dataView.setUint32(4, pixelsPerMeter);
-                chunkData[8] = 1;
-
-                const chunkType = new TextEncoder().encode('pHYs');
-                const crcInput = this.concatUint8Arrays(chunkType, chunkData);
-                const crc = this.computeCrc32(crcInput);
-
-                const chunk = new Uint8Array(4 + 4 + chunkData.length + 4);
-                const chunkView = new DataView(chunk.buffer);
-                chunkView.setUint32(0, chunkData.length);
-                chunk.set(chunkType, 4);
-                chunk.set(chunkData, 8);
-                chunkView.setUint32(8 + chunkData.length, crc);
-                return chunk;
-            },
-
-            setPngBlobDpi: async function(blob, dpi = this.STICKER_EXPORT_DPI) {
-                if (!blob) throw new Error('PNG-файл не создан');
-                const bytes = new Uint8Array(await blob.arrayBuffer());
-                if (bytes.length < 8 || bytes[0] !== 137 || bytes[1] !== 80 || bytes[2] !== 78 || bytes[3] !== 71) {
-                    return blob;
-                }
-
-                const dataView = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                const physChunk = this.createPngPhysChunk(dpi);
-                let offset = 8;
-                let insertOffset = 8;
-
-                while (offset + 8 <= bytes.length) {
-                    const chunkLength = dataView.getUint32(offset);
-                    const chunkType = String.fromCharCode(...bytes.slice(offset + 4, offset + 8));
-                    const nextOffset = offset + 12 + chunkLength;
-                    if (chunkType === 'IHDR') insertOffset = nextOffset;
-                    if (chunkType === 'pHYs') {
-                        const updated = this.concatUint8Arrays(bytes.slice(0, offset), physChunk, bytes.slice(nextOffset));
-                        return new Blob([updated], { type: 'image/png' });
-                    }
-                    offset = nextOffset;
-                }
-
-                const updated = this.concatUint8Arrays(bytes.slice(0, insertOffset), physChunk, bytes.slice(insertOffset));
-                return new Blob([updated], { type: 'image/png' });
-            },
-
-            blobToBase64: function(blob) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        const result = String(reader.result || '');
-                        resolve(result.includes(',') ? result.split(',')[1] : result);
-                    };
-                    reader.onerror = () => reject(reader.error || new Error('Не удалось прочитать файл'));
-                    reader.readAsDataURL(blob);
-                });
-            },
-
-            renderStickerElementToBlob: async function(stickerEl, side = this.getStickerSideFromElement(stickerEl)) {
-                if (!stickerEl) throw new Error('Макет наклейки не найден.');
-                await ensureHtml2CanvasLoaded();
-
-                const exportConfig = this.getStickerExportConfig(side);
-                const targetWidthPx = this.mmToPrintPixels(exportConfig.width);
-                const originalBorderColor = stickerEl.style.borderColor;
-                const computedStickerFontFamily = await this.ensureStickerExportFontReady(stickerEl);
-                const unlockStickerFont = this.lockStickerFontForRender(stickerEl, computedStickerFontFamily);
-                stickerEl.style.borderColor = 'transparent';
-
-                try {
-                    await this.waitForStickerRenderReady();
-                    await this.waitForRenderImagesReady(stickerEl);
-                    const rect = stickerEl.getBoundingClientRect();
-                    const scale = rect.width > 0 ? targetWidthPx / rect.width : (this.STICKER_EXPORT_DPI / 96);
-                    const canvas = await html2canvas(stickerEl, {
-                        scale: Math.max(scale, 1),
-                        backgroundColor: '#ffffff',
-                        useCORS: true,
-                        logging: false
-                    });
-
-                    const pngBlob = await new Promise((resolve, reject) => {
-                        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Не удалось создать PNG-файл.')), 'image/png');
-                    });
-                    return await this.setPngBlobDpi(pngBlob, this.STICKER_EXPORT_DPI);
-                } finally {
-                    stickerEl.style.borderColor = originalBorderColor;
-                    unlockStickerFont();
-                }
-            },
-
-            renderPackPreviewToBlob: async function(product) {
-                if (!product) throw new Error('Лот не найден.');
-                await ensureHtml2CanvasLoaded();
-                let host = null;
-                try {
-                    host = this.createPackPreviewExportContainer(product);
-                    const packEl = host.querySelector('.product-pack-preview');
-                    if (!packEl) throw new Error('Не удалось собрать пачку с лицевой наклейкой.');
-                    
-                    // Принудительно фиксируем шрифты перед рендером, как это делается для PDF-стикеров
-                    const computedStickerFontFamily = await this.ensureStickerExportFontReady(packEl);
-                    const unlockStickerFont = this.lockStickerFontForRender(packEl, computedStickerFontFamily);
-
-                    await this.waitForStickerRenderReady();
-                    await this.waitForRenderImagesReady(packEl);
-                    
-                    const rect = packEl.getBoundingClientRect();
-                    const targetWidthPx = Math.max(Math.round((rect.width || 380) * 4), 1400);
-                    const scale = rect.width > 0 ? targetWidthPx / rect.width : 4;
-                    
-                    // Рендерим с прозрачным фоном, чтобы картинка пачки в письме была красивой, без белого квадрата
-                    const canvas = await html2canvas(packEl, { 
-                        scale: Math.max(scale, 1), 
-                        backgroundColor: null, 
-                        useCORS: true, 
-                        logging: false 
-                    });
-                    
-                    unlockStickerFont(); // Снимаем жесткую привязку шрифта
-                    
-                    return await new Promise((resolve, reject) => {
-                        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Не удалось создать PNG-файл пачки.')), 'image/png');
-                    });
-                } finally {
-                    if (host && host.parentNode) host.parentNode.removeChild(host);
-                }
-            },
-
-            downloadStickerElement: async function(stickerEl, sampleName, side) {
-                const resolvedSide = side || this.getStickerSideFromElement(stickerEl);
-                const pngBlob = await this.renderStickerElementToBlob(stickerEl, resolvedSide);
-                const safeName = this.sanitizeStickerFileName(sampleName);
-                const objectUrl = URL.createObjectURL(pngBlob);
-                const link = document.createElement('a');
-                link.download = `Sticker_${safeName}_300dpi.png`;
-                link.href = objectUrl;
-                link.click();
-                setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-            },
-
-            sendStickerPackEmail: async function(productId, event) {
-                const product = this.getCatalogProductById(productId);
-                if (!this.supportsStickerExport(product)) {
-                    alert('Для этого лота наклейки не генерируются.');
-                    return;
-                }
-
-                const button = event?.currentTarget || null;
-                const originalTitle = button?.getAttribute('title') || '';
-                const originalDisabled = !!button?.disabled;
-                if (button) {
-                    button.disabled = true;
-                    button.style.opacity = '0.5';
-                    button.setAttribute('title', 'Идёт подготовка наклеек...');
-                }
-
-                let host = null;
-                try {
-                    const token = localStorage.getItem('locus_token');
-                    if (!token) throw new Error('Нет доступа');
-
-                    host = this.createStickerExportContainer(product);
-                    
-                    const frontStickerEl = host.querySelector('.locus-sticker-canvas');
-                    const backStickerEl = host.querySelector('.locus-back-sticker-canvas:not(.is-80)');
-                    const back80StickerEl = host.querySelector('.locus-back-sticker-canvas.is-80');
-                    
-                    if (!frontStickerEl || !backStickerEl || !back80StickerEl) throw new Error('Не удалось собрать все наклейки для отправки.');
-                    
-                    const [frontBlob, backBlob, back80Blob] = await Promise.all([
-                        this.renderStickerElementToBlob(frontStickerEl, 'front'),
-                        this.renderStickerElementToBlob(backStickerEl, 'back'),
-                        this.renderStickerElementToBlob(back80StickerEl, 'back80')
-                    ]);
-                    
-                    const safeBaseName = this.sanitizeStickerFileName(product.sample || 'lot');
-                    const [frontBase64, backBase64, back80Base64] = await Promise.all([
-                        this.blobToBase64(frontBlob),
-                        this.blobToBase64(backBlob),
-                        this.blobToBase64(back80Blob)
-                    ]);
-
-                    const res = await fetch(LOCUS_API_URL + '?action=sendStickerPackEmail', {
-                        method: 'POST',
-                        headers: { 'X-Auth-Token': token, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'sendStickerPackEmail',
-                            lotTitle: product.sample || 'Лот',
-                            attachments: [
-                                { filename: `${safeBaseName}_FRONT_80x80_300dpi.png`, contentType: 'image/png', contentBase64: frontBase64 },
-                                { filename: `${safeBaseName}_BACK_60x60_300dpi.png`, contentType: 'image/png', contentBase64: backBase64 },
-                                { filename: `${safeBaseName}_BACK_80x80_300dpi.png`, contentType: 'image/png', contentBase64: back80Base64 }
-                            ]
-                        })
-                    });
-                    const data = await res.json();
-                    if (!data.success) throw new Error(data.error || 'Не удалось отправить наклейки на почту.');
-                    alert('Все 3 наклейки отправлены на info@locus.coffee.');
-                } catch (e) {
-                    console.error(e);
-                    alert('Ошибка отправки наклеек: ' + e.message);
-                } finally {
-                    if (host?.parentNode) host.parentNode.removeChild(host);
-                    if (button) {
-                        button.disabled = originalDisabled;
-                        button.style.opacity = '';
-                        button.setAttribute('title', originalTitle);
-                    }
-                }
-            },
+            supportsStickerExport: createDeferredSelfMethod('supportsStickerExport'),
+            getCatalogProductById: createDeferredSelfMethod('getCatalogProductById'),
+            getStickerExportConfig: createDeferredSelfMethod('getStickerExportConfig'),
+            mmToPrintPixels: createDeferredSelfMethod('mmToPrintPixels'),
+            sanitizeStickerFileName: createDeferredSelfMethod('sanitizeStickerFileName'),
+            createStickerExportContainer: createDeferredSelfMethod('createStickerExportContainer'),
+            createPackPreviewExportContainer: createDeferredSelfMethod('createPackPreviewExportContainer'),
+            waitForStickerRenderReady: createDeferredSelfMethod('waitForStickerRenderReady'),
+            waitForRenderImagesReady: createDeferredSelfMethod('waitForRenderImagesReady'),
+            extractPrimaryFontFamily: createDeferredSelfMethod('extractPrimaryFontFamily'),
+            ensureStickerExportFontReady: createDeferredSelfMethod('ensureStickerExportFontReady'),
+            lockStickerFontForRender: createDeferredSelfMethod('lockStickerFontForRender'),
+            getStickerSideFromElement: createDeferredSelfMethod('getStickerSideFromElement'),
+            getCrc32Table: createDeferredSelfMethod('getCrc32Table'),
+            concatUint8Arrays: createDeferredSelfMethod('concatUint8Arrays'),
+            computeCrc32: createDeferredSelfMethod('computeCrc32'),
+            createPngPhysChunk: createDeferredSelfMethod('createPngPhysChunk'),
+            setPngBlobDpi: createDeferredSelfMethod('setPngBlobDpi'),
+            blobToBase64: createDeferredSelfMethod('blobToBase64'),
+            renderStickerElementToBlob: createDeferredSelfMethod('renderStickerElementToBlob'),
+            renderPackPreviewToBlob: createDeferredSelfMethod('renderPackPreviewToBlob'),
+            downloadStickerElement: createDeferredSelfMethod('downloadStickerElement'),
+            sendStickerPackEmail: createDeferredSelfMethod('sendStickerPackEmail'),
 
             getPasswordToggleIcon: function(isVisible) {
                 if (isVisible) {
@@ -6418,9 +6036,10 @@
                     import(resolveSiblingModuleUrl('./admin.js')),
                     import(resolveSiblingModuleUrl('./admin_ops.js')),
                     import(resolveSiblingModuleUrl('./admin_contracts.js')),
-                    import(resolveSiblingModuleUrl('./admin_catalog.js'))
+                    import(resolveSiblingModuleUrl('./admin_catalog.js')),
+                    import(resolveSiblingModuleUrl('./admin_stickers.js'))
                 ])
-                    .then(([adminModule, adminOpsModule, adminContractsModule, adminCatalogModule]) => Promise.all([
+                    .then(([adminModule, adminOpsModule, adminContractsModule, adminCatalogModule, adminStickersModule]) => Promise.all([
                         adminModule.installAdminFeatures({
                             UserSystem,
                             PromotionSystem,
@@ -6447,6 +6066,13 @@
                             getCurrentActiveProduct: () => currentActiveProduct,
                             getAllProductsCache: () => ALL_PRODUCTS_CACHE,
                             getShopData: () => SHOP_DATA
+                        }),
+                        adminStickersModule.installAdminStickers({
+                            UserSystem,
+                            CatalogSystem,
+                            ProductManager,
+                            LOCUS_API_URL,
+                            ensureHtml2CanvasLoaded
                         })
                     ]))
                     .then(() => {
