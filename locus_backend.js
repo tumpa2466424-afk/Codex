@@ -2467,7 +2467,7 @@ module.exports.handler = async function (event, context) {
                         const o = rowToObj(resultSets[0].columns, row);
                         
                         // Фильтруем: берем розничные заказы, которые УЖЕ ОПЛАЧЕНЫ (исключаем pending_payment)
-                        if (o.id && !o.id.startsWith('ws_')) {
+                        if (o.id && !o.id.startsWith('ws_') && o.status !== 'pending_payment') {
                             let customerData = {};
                             let deliveryData = {};
                             try {
