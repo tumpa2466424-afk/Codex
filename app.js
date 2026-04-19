@@ -2101,7 +2101,6 @@
                         this.initCDEK();
                     });
                     safeListen('btn-open-wholesale', () => {
-                        this.renderWholesaleTable();
                         this.toggleModal(true, 'wholesale');
                     });
                     safeListen('btn-unlock-article', () => this.unlockArticle());
@@ -4711,13 +4710,14 @@
                     
                     if(initialView === 'cart') { 
                         this.renderCart(); 
-                        this.switchView('cart'); 
+                        await this.switchView('cart'); 
                     } 
                     else if (initialView === 'admin') { 
                         if (!this.isAdminUser()) return;
                         m.classList.add('admin-wide');
                         m.classList.add('wide');
-                        this.switchView('admin'); 
+                        const opened = await this.switchView('admin');
+                        if (!opened) return;
                         try {
                             await this.ensureAdminModule();
                         } catch (e) {
@@ -4735,23 +4735,25 @@
                     else if(initialView === 'wholesale') { 
                         m.classList.add('wide'); 
                         m.classList.remove('admin-wide');
-                        this.switchView('wholesale'); 
+                        const opened = await this.switchView('wholesale');
+                        if (!opened) return;
                     }
                     else if(initialView === 'forgot-password') {
                         m.classList.remove('wide'); m.classList.remove('admin-wide');
-                        this.switchView('forgot-password');
+                        await this.switchView('forgot-password');
                     }
                     else if(initialView === 'reset-password') {
                         m.classList.remove('wide'); m.classList.remove('admin-wide');
-                        this.switchView('reset-password');
+                        await this.switchView('reset-password');
                     }
                     else if(this.uid) { 
                         m.classList.remove('wide'); m.classList.remove('admin-wide');
-                        this.renderDashboard(); this.switchView('dashboard'); 
+                        this.renderDashboard();
+                        await this.switchView('dashboard'); 
                     } 
                     else { 
                         m.classList.remove('wide'); m.classList.remove('admin-wide');
-                        this.switchView('login'); 
+                        await this.switchView('login'); 
                     }
                 } else { 
                     document.body.style.overflow = '';
@@ -4766,8 +4768,15 @@
             },
             // --- КОНЕЦ: ИСПРАВЛЕННОЕ ОТКРЫТИЕ ОКОН ---
 
-            switchView: function(viewName) {
+            switchView: async function(viewName) {
                 const authViews = ['login', 'register', 'forgot-password', 'reset-password'];
+                try {
+                    await this.ensureModalViewMounted(viewName);
+                } catch (error) {
+                    console.error(error);
+                    alert('Не удалось загрузить раздел: ' + error.message);
+                    return false;
+                }
                 ['view-login', 'view-register', 'view-forgot-password', 'view-reset-password', 'view-dashboard', 'view-cart', 'view-admin', 'view-wholesale'].forEach(id => {
                     const el = document.getElementById(id); if(el) el.classList.remove('show-view');
                 });
@@ -4801,6 +4810,7 @@
                 }
                 const view = document.getElementById(`view-${viewName}`); if(view) view.classList.add('show-view');
                 if (viewName !== 'admin') MessageSystem.stopAdminPolling();
+                return !!view;
             },
             
             toggleSection: function(secName) {
@@ -5979,6 +5989,67 @@
         };
 
         window.UserSystem = UserSystem;
+        const LAZY_MODAL_VIEW_TEMPLATES = Object.freeze({
+            dashboard: './views/dashboard.html',
+            admin: './views/admin.html',
+            wholesale: './views/wholesale.html'
+        });
+
+        UserSystem.lazyModalViewPromises = Object.create(null);
+
+        UserSystem.bindLazyMountedModalView = function(viewName) {
+            if (viewName === 'dashboard') {
+                const logoutBtn = document.getElementById('btn-logout');
+                if (logoutBtn) logoutBtn.onclick = () => this.logout();
+                MessageSystem.init();
+                if (this.currentUser) this.renderDashboard();
+                return;
+            }
+
+            if (viewName === 'wholesale') {
+                this.renderWholesaleTable();
+            }
+        };
+
+        UserSystem.ensureModalViewMounted = async function(viewName) {
+            const templatePath = LAZY_MODAL_VIEW_TEMPLATES[viewName];
+            if (!templatePath) return true;
+
+            const viewId = `view-${viewName}`;
+            const currentView = document.getElementById(viewId);
+            if (!currentView) return true;
+
+            if (!currentView.dataset?.viewTemplate) {
+                this.bindLazyMountedModalView(viewName);
+                return true;
+            }
+
+            if (!this.lazyModalViewPromises[viewName]) {
+                this.lazyModalViewPromises[viewName] = fetch(resolveSiblingModuleUrl(templatePath), {
+                    credentials: 'same-origin'
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Шаблон ${viewName} недоступен (${response.status}).`);
+                        }
+                        return response.text();
+                    })
+                    .then(html => {
+                        const placeholder = document.getElementById(viewId);
+                        if (!placeholder) return true;
+                        placeholder.outerHTML = html.trim();
+                        this.bindLazyMountedModalView(viewName);
+                        return true;
+                    })
+                    .catch(error => {
+                        delete this.lazyModalViewPromises[viewName];
+                        throw error;
+                    });
+            }
+
+            return this.lazyModalViewPromises[viewName];
+        };
+
         Object.assign(CatalogSystem, {
             STICKER_EXPORT_DPI: UserSystem.STICKER_EXPORT_DPI,
             STICKER_EXPORT_SIZES_MM: UserSystem.STICKER_EXPORT_SIZES_MM,
