@@ -1,0 +1,64 @@
+<div id="view-wholesale" class="wholesale-container">
+                <div class="lc-title">Оптовый прайс</div>
+                <div class="scroll-area">
+                    <div class="wholesale-info-block">
+                        <strong>Актуальность:</strong> <span id="ws-date"></span><br>
+                        <strong>Курс USD:</strong> <span id="ws-usd"></span> ₽<br>
+                        <br>
+                        Минимальный заказ: <strong>5 кг</strong>.<br>
+                        Доставляем по Орлу. В регионы отправляем ТК СДЭК.<br>
+                        Варианты оплаты: 100% предоплата (стоимость 1 кг ниже), 50% на 50%, отсрочка 30 дней (стоимость 1 кг выше).
+                        <br><br>
+                        </div>
+                        
+
+                    <div id="wholesale-table-container"></div>
+
+                    <div id="wholesale-order-form" class="wholesale-info-block" style="margin-top: 20px; display: none;">
+                        <div style="display:flex; gap:10px; margin-bottom: 20px; text-align:left;">
+                            <div style="flex:1;">
+                                <label class="lc-label">Почта для связи</label>
+                                <input type="email" id="ws-order-email" class="lc-input" placeholder="example@mail.ru" style="margin-bottom:0;">
+                            </div>
+                            <div style="flex:1;">
+                                <label class="lc-label">Телефон для связи</label>
+                                <input type="tel" id="ws-order-phone" class="lc-input" placeholder="+7 900 000 00 00" style="margin-bottom:0;">
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 20px; text-align:left;">
+                            <label class="lc-label">Реквизиты для выставления счета (выделите у себя и вставьте в это поле)</label>
+                            <textarea id="ws-order-reqs" class="lc-input" placeholder="ИНН, КПП, Название компании, Юридический адрес..." style="height:60px; resize:vertical; padding-top:10px;"></textarea>
+                        </div>
+                        
+                        <div style="text-align:left; margin-bottom: 20px; border-bottom: 1px solid var(--locus-border); padding-bottom: 10px;">
+                            <div class="collapsible-header" onclick="UserSystem.toggleSection('ws-urgent')" style="padding: 5px 0; border: none; margin: 0;">
+                                <div style="font-size: 13px; font-weight: 600; color: var(--locus-dark);">Срочный зкаказ? Жмите скорее!</div>
+                                <span class="arrow-indicator rotated" id="arrow-ws-urgent">▼</span>
+                            </div>
+                            <div id="cont-ws-urgent" class="collapsible-content hidden" style="padding-top: 15px; padding-bottom: 10px;">
+                                <label style="font-size:14px; display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+                                    <input type="checkbox" id="ws-urgent-order" onchange="UserSystem.updateWholesaleTotal()">
+                                    <span>Срочный заказ (+20% к стоимости)</span>
+                                </label>
+                                <div style="margin-top: 10px; opacity: 0.8; line-height: 1.5; font-size: 10px;">
+                                    Срочный заказ — это приоритетный заказ, который выполняется первым в день заказа, и выполняется даже если он поступил после 18 часов.<br>
+                                    Отправляется заказчику в день заказа и с утра следующего дня, если он поступил после 18 часов.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+                            <div style="margin-bottom:12px; font-size:16px;">
+                                <span style="margin-right:20px;">Общий вес: <span id="ws-total-weight">0</span> кг</span>
+                                <span>Сумма: <span id="ws-total-cost">0</span> ₽</span>
+                            </div>
+                            <div id="ws-warning" style="color:#B66A58; font-size:12px; margin-bottom:12px; display:block;">Оптовый заказ доступен от 5 кг</div>
+            <button id="ws-btn-order" class="lc-btn" disabled onclick="UserSystem.submitWholesaleOrder()" style="background: var(--locus-dark); color: var(--locus-bg); width:100%; max-width:300px; padding:10px 25px;">Оформить оптовый заказ</button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- КОРЗИНА -->
