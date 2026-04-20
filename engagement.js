@@ -456,7 +456,7 @@ export function createPromotionSystem({ getUserSystem, getLocusApiUrl, getAllPro
                 btn.textContent = '\u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u0441\u043a\u0438\u0434\u043a\u0443';
                 close.textContent = '\u041e\u0442\u043a\u0430\u0437\u0430\u0442\u044c\u0441\u044f';
             } else if (promo.type === 'new_lot_info') {
-                btn.textContent = '\u041f\u0435\u0440\u0435\u0439\u0442\u0438';
+                btn.textContent = '\u041f\u043e\u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c';
                 close.textContent = '\u0417\u0430\u043a\u0440\u044b\u0442\u044c';
             } else {
                 btn.textContent = '\u041f\u043e\u043d\u044f\u0442\u043d\u043e';
@@ -499,12 +499,29 @@ export function createPromotionSystem({ getUserSystem, getLocusApiUrl, getAllPro
                     }
                 } else if (this.activeAction.type === 'new_lot_info') {
                     const userSystem = getUserSystem();
-                    if (userSystem && this.activeAction.productId) {
-                        userSystem.openProductById(this.activeAction.productId);
-                        document.getElementById('coffee-shop-wheel')?.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'start'
-                        });
+                    const products = this.getCatalogProducts();
+                    const fallbackProduct = products.find(product =>
+                        String(product?.id || '').trim() === String(this.activeAction.productId || '').trim() ||
+                        this.normalizeLotLookupValue(product?.sample || product?.sample_no) === this.normalizeLotLookupValue(this.activeAction.sampleName)
+                    );
+                    const targetProductId = String(this.activeAction.productId || fallbackProduct?.id || '').trim();
+
+                    if (userSystem && targetProductId) {
+                        const modal = document.getElementById('lc-modal');
+                        const finalizeOpen = () => {
+                            userSystem.openProductById(targetProductId);
+                            document.getElementById('coffee-shop-wheel')?.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'start'
+                            });
+                        };
+
+                        if (modal?.classList.contains('active')) {
+                            userSystem.toggleModal(false);
+                            setTimeout(finalizeOpen, 80);
+                        } else {
+                            finalizeOpen();
+                        }
                     }
                 }
             }
