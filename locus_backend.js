@@ -533,6 +533,7 @@ async function buildNotifyNewLotContext(rawToken, body, options = {}) {
     }
 
     return {
+        productId,
         sampleName,
         bouquetDescription,
         nuanceDescription,
@@ -2696,6 +2697,7 @@ module.exports.handler = async function (event, context) {
             // --- НАЧАЛО: РАССЫЛКА И СКИДКА НА НОВЫЙ ЛОТ ---
             else if (action === 'notifyNewLot') {
                 const sampleName = String(notifyNewLotContext?.sampleName || '').trim();
+                const productId = String(notifyNewLotContext?.productId || '').trim();
                 if (!sampleName) throw new Error('\u041d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u043e \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u043b\u043e\u0442\u0430');
 
                 const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -2703,7 +2705,7 @@ module.exports.handler = async function (event, context) {
                 const saveQuery = `DECLARE $id AS Utf8; DECLARE $config AS JsonDocument; UPSERT INTO settings (id, config) VALUES ($id, $config);`;
                 await session.executeQuery(saveQuery, {
                     '$id': TypedValues.utf8('new_lot_discount'),
-                    '$config': TypedValues.jsonDocument(JSON.stringify({ sampleName, expiresAt }))
+                    '$config': TypedValues.jsonDocument(JSON.stringify({ sampleName, productId, expiresAt }))
                 });
 
                 const targetEmails = await collectNotifyNewLotTargetEmails(session);
