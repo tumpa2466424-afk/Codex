@@ -1192,6 +1192,17 @@
             margin-bottom: 15px; color: var(--locus-dark);
         }
         .promo-popup-text { font-size: 14px; line-height: 1.5; color: #444; margin-bottom: 25px; white-space: pre-wrap; }
+        .promo-popup-media { display: none; margin: 0 auto 18px; justify-content: center; }
+        .promo-popup-media.has-media { display: flex; }
+        .promo-popup-media .product-pack-preview {
+            width: 50mm;
+            max-width: min(100%, 190px);
+            margin: 0 auto;
+        }
+        .promo-popup-media .product-pack-figure {
+            width: 100%;
+            margin: 0 auto;
+        }
         .promo-popup-btn {
             background: var(--locus-dark); color: #fff; border: none; padding: 12px 20px;
             font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700;
