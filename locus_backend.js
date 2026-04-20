@@ -215,7 +215,7 @@ async function sendAdminNewLotEmail({ sampleName, bouquetDescription, nuanceDesc
                     <p style="margin: 0 0 10px 0;"><b>В букете:</b><br>${safeBouquetDescription}</p>
                     <p style="margin: 0 0 10px 0;"><b>Нюансы:</b><br>${safeNuanceDescription}</p>
                     <p style="margin: 0 0 14px 0;"><b>${safeSampleName}</b> отлично подойдет для приготовления в <b>${safeCategoryName}</b>.</p>
-                    <p style="margin: 0;">Регистрируйтесь в ЛК на нашем сайте locus.coffee, получайте уведомления о новых лотах и приятные скидки, чтобы попробовать их одними из первых.<br><br>Хорошего вам дня и вкусного кофе!</p>
+                    <p style="margin: 0;">Регистрируйтесь в ЛК на нашем сайте <a href="${PUBLIC_WEB_URL}" style="color: #693a05; font-weight: 600; text-decoration: underline;">locus.coffee</a>, получайте уведомления о новых лотах и приятные скидки, чтобы попробовать их одними из первых.<br><br>Хорошего вам дня и вкусного кофе!</p>
                 </div>
             </div>`,
         attachments
@@ -252,7 +252,7 @@ async function sendRegistrationWelcomeEmail(email) {
                 </div>
                 <div style="padding: 20px; background: #F4F1EA;">
                     <h3 style="margin-top: 0;">Здравствуйте!</h3>
-                    <p>Спасибо за регистрацию в пространстве <b>locus.coffee</b>.</p>
+                    <p>Спасибо за регистрацию в пространстве <a href="${PUBLIC_WEB_URL}" style="color: #693a05; font-weight: 700; text-decoration: underline;">locus.coffee</a>.</p>
                     <div style="background: #fff; padding: 15px; border-radius: 6px; margin: 20px 0;">
                         <p style="margin: 0 0 10px 0;"><b>Логин:</b> ${email}</p>
                         <p style="margin: 0;">Пароль вы задали при регистрации. Если браузер предложил сохранить его, восстановить доступ можно через менеджер паролей или по ссылке «Забыли пароль?» на сайте.</p>
@@ -1158,7 +1158,7 @@ async function finalizeRetailPayment(session, invId) {
             });
 
             let deliveryText = 'Уточняется';
-            if (delData.type === 'PICKUP') deliveryText = `Самовывоз (ТЦ Атолл, код: <b>${delData.code || ''}</b>)`;
+            if (delData.type === 'PICKUP') deliveryText = `Самовывоз (ТЦ Атолл<b>${delData.code || ''}</b>)`;
             else if (delData.city) deliveryText = `${delData.type === 'PVZ' ? 'СДЭК ПВЗ' : 'Курьер/Адрес'}: ${delData.city}${delData.address ? ', ' + delData.address : ''}`;
             else if (delData.type === 'DIGITAL') deliveryText = 'Цифровой доступ к статье';
             const baseSubtotal = Number(pricingBreakdown.subtotal) || parsedItems.reduce((sum, item) => {
@@ -1185,11 +1185,11 @@ async function finalizeRetailPayment(session, invId) {
             }
             const finalTotal = Number(pricingBreakdown.finalTotal) || Number(ord.total) || 0;
             const pricingRows = [
-                `<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;"><span>Цена товаров без скидок</span><b>${baseSubtotal} ₽</b></div>`
+                `<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;"><span>Цена товаров без скидок </span><b>${baseSubtotal} ₽</b></div>`
             ];
-            if (loyaltyDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#187a30;"><span>Скидка лояльности${loyaltyPercent > 0 ? ` (${loyaltyPercent}%)` : ''}</span><b>- ${loyaltyDiscountVal} ₽</b></div>`);
-            if (welcomeDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#187a30;"><span>Приветственная скидка${welcomeBonusPercent > 0 ? ` (${welcomeBonusPercent}%)` : ''}</span><b>- ${welcomeDiscountVal} ₽</b></div>`);
-            if (fortuneDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#B8860B;"><span>Скидка удачи${fortuneDiscountPercent > 0 ? ` (${fortuneDiscountPercent}%)` : ''}</span><b>- ${fortuneDiscountVal} ₽</b></div>`);
+            if (loyaltyDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#187a30;"><span>Скидка лояльности ${loyaltyPercent > 0 ? ` (${loyaltyPercent}%)` : ''}</span><b>- ${loyaltyDiscountVal} ₽</b></div>`);
+            if (welcomeDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#187a30;"><span>Приветственная скидка ${welcomeBonusPercent > 0 ? ` (${welcomeBonusPercent}%)` : ''}</span><b>- ${welcomeDiscountVal} ₽</b></div>`);
+            if (fortuneDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#B8860B;"><span>Скидка удачи ${fortuneDiscountPercent > 0 ? ` (${fortuneDiscountPercent}%)` : ''}</span><b>- ${fortuneDiscountVal} ₽</b></div>`);
             if (promoDiscountVal > 0) {
                 const promoLabel = promoCode
                     ? `Промокод ${promoCode}${promoType === 'percent' && promoValue > 0 ? ` (${promoValue}%)` : promoType === 'fixed' && promoValue > 0 ? ` (${promoValue} ₽)` : ''}`
@@ -1197,9 +1197,9 @@ async function finalizeRetailPayment(session, invId) {
                 pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#187a30;"><span>${promoLabel}</span><b>- ${promoDiscountVal} ₽</b></div>`);
             }
             if (newLotDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#187a30;"><span>Скидка на новинку</span><b>- ${newLotDiscountVal} ₽</b></div>`);
-            if (totalDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;"><span>Общая сумма скидок</span><b>- ${totalDiscountVal} ₽</b></div>`);
-            pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;"><span>Доставка</span><b>${deliveryCost} ₽</b></div>`);
-            pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-top:10px; padding-top:10px; border-top:1px dashed #ccc; font-size:18px;"><span>Итого оплачено</span><b>${finalTotal} ₽</b></div>`);
+            if (totalDiscountVal > 0) pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;"><span>Общая сумма скидок </span><b>- ${totalDiscountVal} ₽</b></div>`);
+            pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;"><span>Доставка</span><b> ${deliveryCost} ₽</b></div>`);
+            pricingRows.push(`<div style="display:flex; justify-content:space-between; gap:12px; margin-top:10px; padding-top:10px; border-top:1px dashed #ccc; font-size:18px;"><span>Итого оплачено</span><b> ${finalTotal} ₽</b></div>`);
             const pricingHtml = `
                 <div style="background: #fff; padding: 15px; border-radius: 6px; margin: 20px 0;">
                     <h4 style="margin-top: 0; color: #8B7E66;">Расшифровка цены:</h4>
@@ -1226,7 +1226,7 @@ async function finalizeRetailPayment(session, invId) {
                         </div>
                         <div style="padding: 20px; background: #F4F1EA;">
                             <h3 style="margin-top: 0;">Здравствуйте, ${customerData.name || 'дорогой клиент'}!</h3>
-                            <p>Ваш заказ <b>№${orderId}</b> от ${datePart} ${timePart} успешно оплачен и передан на сборку.</p>
+                            <p>Ваш заказ <b>№${orderId}</b> от ${datePart} ${timePart} успешно оплачен и передан на выполнение.</p>
                             <div style="background: #fff; padding: 15px; border-radius: 6px; margin: 20px 0;">
                                 <h4 style="margin-top: 0; color: #8B7E66;">Состав заказа:</h4>
                                 <ul style="padding-left: 20px; margin: 0;">${itemsHtmlList}</ul>
