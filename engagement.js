@@ -263,10 +263,65 @@ export function createMessageSystem({ getUserSystem, getLocusApiUrl }) {
     };
 }
 
-export function createPromotionSystem({ getUserSystem, getLocusApiUrl }) {
+export function createPromotionSystem({ getUserSystem, getLocusApiUrl, getAllProductsCache, getCatalogSystem }) {
     return {
         activeAction: null,
         queue: [],
+
+        normalizeLotLookupValue: function(value) {
+            return String(value || '').trim().toLowerCase();
+        },
+
+        getCatalogProducts: function() {
+            const products = typeof getAllProductsCache === 'function' ? getAllProductsCache() : [];
+            return Array.isArray(products) ? products : [];
+        },
+
+        getCatalogSystemInstance: function() {
+            return typeof getCatalogSystem === 'function' ? getCatalogSystem() : null;
+        },
+
+        findNewLotProduct: function(discount) {
+            const products = this.getCatalogProducts();
+            const normalizedProductId = String(discount?.productId || '').trim();
+            const normalizedSampleName = this.normalizeLotLookupValue(discount?.sampleName);
+
+            return products.find(product => {
+                const productId = String(product?.id || '').trim();
+                const sampleName = this.normalizeLotLookupValue(product?.sample || product?.sample_no);
+                return (normalizedProductId && productId === normalizedProductId) ||
+                    (normalizedSampleName && sampleName === normalizedSampleName);
+            }) || null;
+        },
+
+        buildNewLotPopupAction: function(discount) {
+            if (!discount || !discount.expiresAt) return null;
+
+            const expiresAtMs = Date.parse(discount.expiresAt || '');
+            if (!expiresAtMs || expiresAtMs <= Date.now()) return null;
+
+            const product = this.findNewLotProduct(discount);
+            if (!product) return null;
+
+            const catalogSystem = this.getCatalogSystemInstance();
+            const sampleName = String(product.sample || discount.sampleName || product.sample_no || '').trim();
+            const productId = String(product.id || discount.productId || '').trim();
+            const actionId = 'new_lot_' + (productId || sampleName) + '_' + String(discount.expiresAt || '');
+            const createdAt = new Date(expiresAtMs - (24 * 60 * 60 * 1000)).toISOString();
+
+            return {
+                id: actionId,
+                type: 'new_lot_info',
+                title: '\u041d\u043e\u0432\u044b\u0439 \u0441\u043e\u0440\u0442 ' + sampleName + ' \u0432 \u043a\u0430\u0442\u0430\u043b\u043e\u0433\u0435!',
+                msg: '',
+                limit: 1,
+                createdAt,
+                dateEnd: discount.expiresAt,
+                productId,
+                sampleName,
+                mediaHtml: catalogSystem?.getPackPreviewHtml?.(product) || ''
+            };
+        },
 
         init: function() {
             const typeSel = document.getElementById('action-type');
@@ -309,31 +364,45 @@ export function createPromotionSystem({ getUserSystem, getLocusApiUrl }) {
 
         checkAndShow: async function() {
             try {
-                const res = await fetch(getLocusApiUrl() + '?action=getActiveActions');
-                const data = await res.json();
-                if (!data.success || data.actions.length === 0) return;
+                const [actionsRes, discountRes] = await Promise.all([
+                    fetch(getLocusApiUrl() + '?action=getActiveActions'),
+                    fetch(getLocusApiUrl() + '?action=getNewLotDiscount')
+                ]);
+                const [actionsData, discountData] = await Promise.all([
+                    actionsRes.json(),
+                    discountRes.json()
+                ]);
+
+                const actions = actionsData.success && Array.isArray(actionsData.actions)
+                    ? [...actionsData.actions]
+                    : [];
+                const newLotAction = discountData.success
+                    ? this.buildNewLotPopupAction(discountData.discount)
+                    : null;
+                if (newLotAction) actions.push(newLotAction);
+                if (actions.length === 0) return;
 
                 this.queue = [];
                 const now = new Date();
                 const userKeyPart = readJwtUserId(getToken());
 
-                data.actions.forEach(promo => {
+                actions.forEach(promo => {
                     if (promo.dateEnd) {
                         const end = new Date(promo.dateEnd);
                         if (now > end) return;
                     }
 
-                    const seenKey = `locus_promo_seen_${promo.id}_${userKeyPart}`;
-                    const acceptedKey = `locus_promo_accepted_${promo.id}_${userKeyPart}`;
+                    const seenKey = 'locus_promo_seen_' + promo.id + '_' + userKeyPart;
+                    const acceptedKey = 'locus_promo_accepted_' + promo.id + '_' + userKeyPart;
 
                     if (localStorage.getItem(acceptedKey) === 'true') return;
                     const seenCount = parseInt(localStorage.getItem(seenKey), 10) || 0;
-                    if (seenCount < promo.limit) {
+                    if (seenCount < (Number(promo.limit) || 1)) {
                         this.queue.push(promo);
                     }
                 });
 
-                this.queue.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                this.queue.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
                 this.showNext();
             } catch (error) {
                 console.error(error);
@@ -348,27 +417,36 @@ export function createPromotionSystem({ getUserSystem, getLocusApiUrl }) {
             this.showPopup(nextPromo);
 
             const userKeyPart = readJwtUserId(getToken());
-            const seenKey = `locus_promo_seen_${nextPromo.id}_${userKeyPart}`;
+            const seenKey = 'locus_promo_seen_' + nextPromo.id + '_' + userKeyPart;
             const seenCount = parseInt(localStorage.getItem(seenKey), 10) || 0;
             localStorage.setItem(seenKey, seenCount + 1);
         },
 
         showPopup: function(promo) {
             const overlay = document.getElementById('promo-popup');
+            const media = document.getElementById('promo-popup-media');
             const title = document.getElementById('promo-popup-title');
             const msg = document.getElementById('promo-popup-msg');
             const btn = document.getElementById('btn-promo-action');
             const close = document.getElementById('btn-promo-close');
 
-            title.textContent = promo.title;
-            msg.textContent = promo.msg;
+            title.textContent = promo.title || '';
+            if (media) {
+                media.innerHTML = promo.mediaHtml || '';
+                media.classList.toggle('has-media', !!promo.mediaHtml);
+            }
+            msg.textContent = promo.msg || '';
+            msg.style.display = promo.msg ? '' : 'none';
 
             if (promo.type === 'discount') {
-                btn.textContent = 'Получить скидку';
-                close.textContent = 'Отказаться';
+                btn.textContent = '\u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u0441\u043a\u0438\u0434\u043a\u0443';
+                close.textContent = '\u041e\u0442\u043a\u0430\u0437\u0430\u0442\u044c\u0441\u044f';
+            } else if (promo.type === 'new_lot_info') {
+                btn.textContent = '\u041f\u0435\u0440\u0435\u0439\u0442\u0438';
+                close.textContent = '\u0417\u0430\u043a\u0440\u044b\u0442\u044c';
             } else {
-                btn.textContent = 'Понятно';
-                close.textContent = 'Закрыть';
+                btn.textContent = '\u041f\u043e\u043d\u044f\u0442\u043d\u043e';
+                close.textContent = '\u0417\u0430\u043a\u0440\u044b\u0442\u044c';
             }
 
             overlay.classList.add('active');
@@ -376,12 +454,19 @@ export function createPromotionSystem({ getUserSystem, getLocusApiUrl }) {
 
         handleUserAction: function(isPrimary) {
             const overlay = document.getElementById('promo-popup');
+            const media = document.getElementById('promo-popup-media');
+            const msg = document.getElementById('promo-popup-msg');
             overlay.classList.remove('active');
+            if (media) {
+                media.classList.remove('has-media');
+                media.innerHTML = '';
+            }
+            if (msg) msg.style.display = '';
 
             const userKeyPart = readJwtUserId(getToken());
 
             if (isPrimary && this.activeAction) {
-                localStorage.setItem(`locus_promo_accepted_${this.activeAction.id}_${userKeyPart}`, 'true');
+                localStorage.setItem('locus_promo_accepted_' + this.activeAction.id + '_' + userKeyPart, 'true');
 
                 if (this.activeAction.type === 'discount') {
                     const code = this.activeAction.promoCode;
@@ -394,9 +479,18 @@ export function createPromotionSystem({ getUserSystem, getLocusApiUrl }) {
                             userSystem.toggleModal(true, 'cart');
                             userSystem.applyPromo();
                         } else if (userSystem) {
-                            alert(`Код ${code} скопирован! Авторизуйтесь, чтобы применить его.`);
+                            alert('\u041a\u043e\u0434 ' + code + ' \u0441\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u043d! \u0410\u0432\u0442\u043e\u0440\u0438\u0437\u0443\u0439\u0442\u0435\u0441\u044c, \u0447\u0442\u043e\u0431\u044b \u043f\u0440\u0438\u043c\u0435\u043d\u0438\u0442\u044c \u0435\u0433\u043e.');
                             userSystem.toggleModal(true, 'login');
                         }
+                    }
+                } else if (this.activeAction.type === 'new_lot_info') {
+                    const userSystem = getUserSystem();
+                    if (userSystem && this.activeAction.productId) {
+                        userSystem.openProductById(this.activeAction.productId);
+                        document.getElementById('coffee-shop-wheel')?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
                     }
                 }
             }
