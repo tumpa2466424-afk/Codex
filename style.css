@@ -550,11 +550,8 @@
         .icon-admin-letter {
             display: block;
         }
-        .icon-admin-letter text {
+        .icon-admin-letter path {
             fill: var(--locus-dark);
-            font-size: 20px;
-            font-weight: 600;
-            font-family: Arial, sans-serif;
         }
         .cart-badge {
     position: absolute; 
