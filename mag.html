@@ -194,6 +194,78 @@
             const baseUrl = new URL(window.LOCUS_ASSET_BASE_URL || './', window.location.href);
             const buildAssetUrl = (fileName) => new URL(`${fileName}?v=${version}`, baseUrl).href;
             const styleHref = buildAssetUrl('style.css');
+            const bootStyleId = 'locus-inline-boot-style';
+            const bootStylesText = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+#coffee-shop-wheel.locus-shell-loading {
+    position: relative;
+    min-height: 100svh;
+    overflow: hidden;
+    background: radial-gradient(circle at top, #f8f2e8 0%, #f2ebdd 52%, #ece1cf 100%);
+}
+
+#coffee-shop-wheel.locus-shell-loading > :not(script):not(.locus-boot-splash) {
+    visibility: hidden;
+}
+
+#coffee-shop-wheel .locus-boot-splash {
+    display: none;
+}
+
+#coffee-shop-wheel.locus-shell-loading .locus-boot-splash {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    box-sizing: border-box;
+    text-align: center;
+    visibility: visible;
+    z-index: 30;
+}
+
+#coffee-shop-wheel .locus-boot-brand {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: clamp(34px, 7vw, 54px);
+    line-height: 0.95;
+    font-weight: 700;
+    color: #693a05;
+    letter-spacing: 0.03em;
+}
+
+#coffee-shop-wheel .locus-boot-subtitle {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 12px;
+    line-height: 1.6;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #8b6b47;
+}
+
+#coffee-shop-wheel .locus-boot-spinner {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid rgba(105, 58, 5, 0.16);
+    border-top-color: #693a05;
+    animation: locusBootSpin 0.8s linear infinite;
+}
+
+@keyframes locusBootSpin {
+    to { transform: rotate(360deg); }
+}
+            `.trim();
+            let bootStyleEl = document.getElementById(bootStyleId);
+            if (!bootStyleEl) {
+                bootStyleEl = document.createElement('style');
+                bootStyleEl.id = bootStyleId;
+                document.head.appendChild(bootStyleEl);
+            }
+            if (bootStyleEl.textContent !== bootStylesText) bootStyleEl.textContent = bootStylesText;
             ensureSeoMetaDescription();
             const bindStyleReady = (linkEl) => {
                 if (!linkEl || linkEl.dataset.locusReadyBound === '1') return;
@@ -235,71 +307,6 @@
     <!-- CDEK Widget 3.0 -->
     <!-- <script src="https://cdn.jsdelivr.net/npm/@cdek-it/widget@3" type="text/javascript"></script> -->
 
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-        #coffee-shop-wheel.locus-shell-loading {
-            position: relative;
-            min-height: 100svh;
-            overflow: hidden;
-            background: radial-gradient(circle at top, #f8f2e8 0%, #f2ebdd 52%, #ece1cf 100%);
-        }
-
-        #coffee-shop-wheel.locus-shell-loading > :not(script):not(style):not(.locus-boot-splash) {
-            visibility: hidden;
-        }
-
-        #coffee-shop-wheel .locus-boot-splash {
-            display: none;
-        }
-
-        #coffee-shop-wheel.locus-shell-loading .locus-boot-splash {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 14px;
-            padding: 24px;
-            box-sizing: border-box;
-            text-align: center;
-            visibility: visible;
-            z-index: 30;
-        }
-
-        #coffee-shop-wheel .locus-boot-brand {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            font-size: clamp(34px, 7vw, 54px);
-            line-height: 0.95;
-            font-weight: 700;
-            color: #693a05;
-            letter-spacing: 0.03em;
-        }
-
-        #coffee-shop-wheel .locus-boot-subtitle {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            font-size: 12px;
-            line-height: 1.6;
-            letter-spacing: 0.14em;
-            text-transform: uppercase;
-            color: #8b6b47;
-        }
-
-        #coffee-shop-wheel .locus-boot-spinner {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border: 2px solid rgba(105, 58, 5, 0.16);
-            border-top-color: #693a05;
-            animation: locusBootSpin 0.8s linear infinite;
-        }
-
-        @keyframes locusBootSpin {
-            to { transform: rotate(360deg); }
-        }
-    </style>
-
     <div class="locus-boot-splash" aria-hidden="true">
         <div class="locus-boot-brand">LOCUS</div>
         <div class="locus-boot-spinner"></div>
@@ -320,7 +327,7 @@
 
         <button class="icon-btn" id="btn-open-cart">
             <svg class="icon-svg" viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
-            <div class="cart-badge" id="cart-count">0</div>
+            <span class="cart-badge" id="cart-count">0</span>
         </button>
         <button class="icon-btn" id="btn-open-lc">
             <svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
