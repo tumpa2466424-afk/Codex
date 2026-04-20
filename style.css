@@ -1203,6 +1203,9 @@
             width: 100%;
             margin: 0 auto;
         }
+        .promo-popup-media .product-pack-label-overlay {
+            font-size: clamp(4.7px, 1.3vw, 6.7px);
+        }
         .promo-popup-btn {
             background: var(--locus-dark); color: #fff; border: none; padding: 12px 20px;
             font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700;
