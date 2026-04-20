@@ -1,14 +1,38 @@
-<div id="coffee-shop-wheel" class="cs-widget-container">
+<div id="coffee-shop-wheel" class="cs-widget-container locus-shell-loading">
     <script>
         window.LOCUS_ASSET_VERSION = '130';
         window.LOCUS_ASSET_BASE_URL = 'https://tumpa2466424-afk.github.io/Codex/';
         window.LOCUS_ENABLE_LOT_RADAR = false;
 
         (function configureLocusAssets() {
+            const root = document.getElementById('coffee-shop-wheel');
+            const revealShellNow = () => {
+                if (!root) return;
+                root.classList.remove('locus-shell-loading');
+                root.classList.add('locus-shell-ready');
+            };
+            const revealShell = () => requestAnimationFrame(() => requestAnimationFrame(revealShellNow));
+            const revealFallbackTimer = window.setTimeout(revealShell, 2500);
+            window.LOCUS_MARK_SHELL_READY = () => {
+                window.clearTimeout(revealFallbackTimer);
+                revealShell();
+            };
+
             const version = encodeURIComponent(window.LOCUS_ASSET_VERSION || '1');
             const baseUrl = new URL(window.LOCUS_ASSET_BASE_URL || './', window.location.href);
             const buildAssetUrl = (fileName) => new URL(`${fileName}?v=${version}`, baseUrl).href;
             const styleHref = buildAssetUrl('style.css');
+            const bindStyleReady = (linkEl) => {
+                if (!linkEl || linkEl.dataset.locusReadyBound === '1') return;
+                linkEl.dataset.locusReadyBound = '1';
+                linkEl.addEventListener('load', () => {
+                    linkEl.dataset.locusReady = '1';
+                    window.LOCUS_MARK_SHELL_READY?.();
+                }, { once: true });
+                linkEl.addEventListener('error', () => {
+                    window.LOCUS_MARK_SHELL_READY?.();
+                }, { once: true });
+            };
 
             window.LOCUS_APP_MODULE_URL = buildAssetUrl('app.js');
 
@@ -19,9 +43,15 @@
                 const link = document.createElement('link');
                 link.rel = 'stylesheet';
                 link.href = styleHref;
+                bindStyleReady(link);
                 document.head.appendChild(link);
             } else if (!existingStyle.href.includes(`v=${version}`)) {
+                bindStyleReady(existingStyle);
                 existingStyle.href = styleHref;
+            } else if (existingStyle.dataset.locusReady === '1' || existingStyle.sheet) {
+                window.LOCUS_MARK_SHELL_READY?.();
+            } else {
+                bindStyleReady(existingStyle);
             }
         })();
     </script>
@@ -33,8 +63,73 @@
     <!-- <script src="https://cdn.jsdelivr.net/npm/@cdek-it/widget@3" type="text/javascript"></script> -->
 
     <style>
-        
+        #coffee-shop-wheel.locus-shell-loading {
+            position: relative;
+            min-height: 100svh;
+            overflow: hidden;
+            background: radial-gradient(circle at top, #f8f2e8 0%, #f2ebdd 52%, #ece1cf 100%);
+        }
+
+        #coffee-shop-wheel.locus-shell-loading > :not(script):not(style):not(.locus-boot-splash) {
+            visibility: hidden;
+        }
+
+        #coffee-shop-wheel .locus-boot-splash {
+            display: none;
+        }
+
+        #coffee-shop-wheel.locus-shell-loading .locus-boot-splash {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            padding: 24px;
+            box-sizing: border-box;
+            text-align: center;
+            visibility: visible;
+            z-index: 30;
+        }
+
+        #coffee-shop-wheel .locus-boot-brand {
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: clamp(34px, 7vw, 54px);
+            line-height: 0.95;
+            font-weight: 700;
+            color: #693a05;
+            letter-spacing: 0.03em;
+        }
+
+        #coffee-shop-wheel .locus-boot-subtitle {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.6;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: #8b6b47;
+        }
+
+        #coffee-shop-wheel .locus-boot-spinner {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid rgba(105, 58, 5, 0.16);
+            border-top-color: #693a05;
+            animation: locusBootSpin 0.8s linear infinite;
+        }
+
+        @keyframes locusBootSpin {
+            to { transform: rotate(360deg); }
+        }
     </style>
+
+    <div class="locus-boot-splash" aria-hidden="true">
+        <div class="locus-boot-brand">LOCUS</div>
+        <div class="locus-boot-spinner"></div>
+        <div class="locus-boot-subtitle">Подготовка кофейной витрины</div>
+    </div>
 
     <!-- ВЕРХНИЕ КОНТРОЛЫ -->
     <div class="top-controls">
