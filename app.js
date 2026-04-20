@@ -782,6 +782,185 @@
 
         const pInfo = document.getElementById('product-info'), dMsg = document.getElementById('default-msg');
 
+        function stripHtmlForSeo(value) {
+            const temp = document.createElement('div');
+            temp.innerHTML = String(value || '');
+            return String(temp.textContent || temp.innerText || '').replace(/\s+/g, ' ').trim();
+        }
+
+        function trimSeoText(value, maxLength = 160) {
+            const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+            if (!normalized || normalized.length <= maxLength) return normalized;
+            const sliced = normalized.slice(0, Math.max(0, maxLength - 3));
+            const cutAt = sliced.lastIndexOf(' ');
+            return `${(cutAt > 60 ? sliced.slice(0, cutAt) : sliced).trim()}...`;
+        }
+
+        function absolutizeSeoUrl(value) {
+            const normalized = String(value || '').trim();
+            if (!normalized) return '';
+            try {
+                return new URL(normalized, window.location.href).href;
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function getDefaultSeoState() {
+            return window.LOCUS_SEO?.getDefaultSeo?.() || {};
+        }
+
+        function buildStoreCanonicalUrl() {
+            const url = new URL(window.location.href);
+            url.hash = '';
+            url.searchParams.delete('lot');
+            url.searchParams.delete('view');
+            url.searchParams.delete('reset_token');
+            return url.toString();
+        }
+
+        function buildProductCanonicalUrl(product) {
+            const lotKey = String(product?.id || product?.sample || product?.sample_no || '').trim();
+            const url = new URL(buildStoreCanonicalUrl());
+            if (lotKey) url.searchParams.set('lot', lotKey);
+            return url.toString();
+        }
+
+        function getProductSeoImage(product) {
+            const galleryImage = String(product?.imageUrl || '')
+                .split(',')
+                .map(item => item.trim())
+                .find(Boolean);
+            return absolutizeSeoUrl(
+                product?.aiStory?.image ||
+                galleryImage ||
+                window.CatalogSystem?.PACK_PREVIEW_BASE_IMAGE ||
+                getDefaultSeoState().image ||
+                ''
+            );
+        }
+
+        function buildStoreSeoPayload() {
+            const defaults = getDefaultSeoState();
+            const canonicalUrl = buildStoreCanonicalUrl();
+            const image = absolutizeSeoUrl(defaults.image || '');
+            const siteName = String(defaults.siteName || 'Locus Coffee');
+            const description = String(defaults.description || '').trim();
+
+            return {
+                ...defaults,
+                canonicalUrl,
+                image,
+                schema: [
+                    {
+                        '@context': 'https://schema.org',
+                        '@type': 'WebSite',
+                        name: siteName,
+                        url: canonicalUrl,
+                        description,
+                        inLanguage: 'ru-RU'
+                    },
+                    {
+                        '@context': 'https://schema.org',
+                        '@type': 'Store',
+                        name: siteName,
+                        url: canonicalUrl,
+                        description,
+                        image
+                    }
+                ]
+            };
+        }
+
+        function buildProductSeoPayload(product) {
+            if (!product) return buildStoreSeoPayload();
+
+            const typeInfo = ProductManager.getTypeInfo(product);
+            const lotName = String(ProductManager.getLotDisplayName(product) || product.sample || product.sample_no || 'Лот').trim();
+            const country = String(product.country || '').trim();
+            const region = String(product.region || '').trim();
+            const category = String(product.category || '').trim();
+            const process = String(product.processDesc || product.processType || '').trim();
+            const canonicalUrl = buildProductCanonicalUrl(product);
+            const image = getProductSeoImage(product);
+            const baseTitle = [lotName, country, category].filter(Boolean).join(' - ');
+            const title = trimSeoText(`${baseTitle || lotName} | Locus Coffee`, 70);
+            const descriptionSource = [
+                stripHtmlForSeo(product.flavorDesc || product.customDesc || ProductManager.getDisplayDesc(product)),
+                stripHtmlForSeo(product.flavorNotes),
+                country ? `Страна: ${country}` : '',
+                region ? `Регион: ${region}` : '',
+                process ? `Обработка: ${process}` : ''
+            ].filter(Boolean).join('. ');
+            const description = trimSeoText(descriptionSource || `${lotName} в каталоге Locus Coffee.`, 170);
+            const numericPrice = Number(product.price);
+
+            let schema = {
+                '@context': 'https://schema.org',
+                '@type': 'WebPage',
+                name: lotName,
+                url: canonicalUrl,
+                description
+            };
+
+            if (typeInfo.isArticle) {
+                schema = {
+                    '@context': 'https://schema.org',
+                    '@type': 'Article',
+                    headline: lotName,
+                    name: lotName,
+                    description,
+                    image: image ? [image] : undefined,
+                    mainEntityOfPage: canonicalUrl,
+                    inLanguage: 'ru-RU',
+                    publisher: {
+                        '@type': 'Organization',
+                        name: 'Locus Coffee'
+                    }
+                };
+            } else if (Number.isFinite(numericPrice) && numericPrice > 0) {
+                schema = {
+                    '@context': 'https://schema.org',
+                    '@type': 'Product',
+                    name: lotName,
+                    description,
+                    image: image ? [image] : undefined,
+                    category: category || undefined,
+                    brand: {
+                        '@type': 'Brand',
+                        name: 'Locus Coffee'
+                    },
+                    offers: {
+                        '@type': 'Offer',
+                        price: numericPrice.toFixed(2),
+                        priceCurrency: 'RUB',
+                        availability: 'https://schema.org/InStock',
+                        url: canonicalUrl
+                    }
+                };
+            }
+
+            return {
+                title,
+                description,
+                canonicalUrl,
+                image,
+                imageAlt: lotName,
+                type: typeInfo.isArticle ? 'article' : 'website',
+                schema
+            };
+        }
+
+        function applyStoreSeo() {
+            window.LOCUS_SEO?.applyPageSeo?.(buildStoreSeoPayload());
+        }
+
+        function applyProductSeo(product) {
+            window.LOCUS_SEO?.applyPageSeo?.(buildProductSeoPayload(product));
+        }
+
+        applyStoreSeo();
+
         window.resetInfo = function() {
             const svg = document.querySelector('#wheel-spinner svg');
             if (svg) svg.querySelectorAll('path').forEach(p => p.classList.remove('selected'));
@@ -793,6 +972,7 @@
             const url = new URL(window.location);
             url.searchParams.delete('lot');
             window.history.replaceState({}, '', url);
+            applyStoreSeo();
         };
 
         function updatePriceDisplay() {
@@ -880,6 +1060,7 @@
                 if(seg.depth === 1) {
                     const r = seg.raw;
                     currentActiveProduct = r;
+                    applyProductSeo(r);
                     currentWeight = 250; 
                     
                     currentGrind = "Зерно";
