@@ -452,7 +452,11 @@ export function installAdminCatalog(context) {
 
             buildStableLotUrl: function(product) {
                 const lotKey = String(product?.id || product?.sample || product?.sample_no || '').trim();
-                return `https://locus.coffee/mag?lot=${encodeURIComponent(lotKey)}`;
+                const baseUrl = new URL(window.location.href);
+                baseUrl.search = '';
+                baseUrl.hash = '';
+                if (lotKey) baseUrl.searchParams.set('lot', lotKey);
+                return baseUrl.toString();
             },
 
             buildLotQrCodeUrl: function(product) {
@@ -1427,10 +1431,21 @@ export function installAdminCatalog(context) {
                 return response.json();
             },
 
+            previewNewLotPopupLocally: function(product) {
+                const previewPayload = {
+                    productId: String(product?.id || '').trim(),
+                    sampleName: String(product?.sample || product?.sample_no || '').trim(),
+                    createdAt: new Date().toISOString(),
+                    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+                };
+                localStorage.setItem('locus_new_lot_popup_preview', JSON.stringify(previewPayload));
+                window.PromotionSystem?.checkAndShow?.();
+            },
+
             handleNewLotNotificationFlow: async function(product) {
                 const lotTitle = String(product?.sample || '').trim() || '\u044d\u0442\u043e\u0433\u043e \u043b\u043e\u0442\u0430';
                 const choice = window.prompt(
-                    `\u041b\u043e\u0442 "${lotTitle}" \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d \u0432 \u043a\u0430\u0442\u0430\u043b\u043e\u0433.\n1 \u2014 \u043e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c \u043f\u043e\u0434\u043f\u0438\u0441\u0447\u0438\u043a\u0430\u043c\n2 \u2014 \u0442\u0435\u0441\u0442\u043e\u0432\u043e\u0435 \u043f\u0438\u0441\u044c\u043c\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u0430\u0434\u043c\u0438\u043d\u0443\n3 \u2014 \u0441\u0443\u0445\u043e\u0439 \u043f\u0440\u043e\u0433\u043e\u043d \u0431\u0435\u0437 \u043e\u0442\u043f\u0440\u0430\u0432\u043a\u0438\n0 \u2014 \u043d\u0438\u0447\u0435\u0433\u043e \u043d\u0435 \u0434\u0435\u043b\u0430\u0442\u044c`,
+                    `\u041b\u043e\u0442 "${lotTitle}" \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d \u0432 \u043a\u0430\u0442\u0430\u043b\u043e\u0433.\n1 \u2014 \u043e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c \u043f\u043e\u0434\u043f\u0438\u0441\u0447\u0438\u043a\u0430\u043c\n2 \u2014 \u0442\u0435\u0441\u0442\u043e\u0432\u043e\u0435 \u043f\u0438\u0441\u044c\u043c\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u0430\u0434\u043c\u0438\u043d\u0443\n3 \u2014 \u0441\u0443\u0445\u043e\u0439 \u043f\u0440\u043e\u0433\u043e\u043d \u0431\u0435\u0437 \u043e\u0442\u043f\u0440\u0430\u0432\u043a\u0438\n4 \u2014 \u0442\u0435\u0441\u0442 popup \u0442\u043e\u043b\u044c\u043a\u043e \u0443 \u043c\u0435\u043d\u044f\n0 \u2014 \u043d\u0438\u0447\u0435\u0433\u043e \u043d\u0435 \u0434\u0435\u043b\u0430\u0442\u044c`,
                     '2'
                 );
 
@@ -1457,6 +1472,12 @@ export function installAdminCatalog(context) {
                         ? `\n\u041f\u0440\u0438\u043c\u0435\u0440\u044b \u0430\u0434\u0440\u0435\u0441\u043e\u0432: ${data.previewEmails.join(', ')}`
                         : '';
                     alert(`\u0421\u0443\u0445\u043e\u0439 \u043f\u0440\u043e\u0433\u043e\u043d: \u043f\u043e\u0434\u0445\u043e\u0434\u044f\u0449\u0438\u0445 \u043f\u043e\u0434\u043f\u0438\u0441\u0447\u0438\u043a\u043e\u0432 ${Number(data.targetCount) || 0}.${preview}`);
+                    return;
+                }
+
+                if (choice === '4') {
+                    this.previewNewLotPopupLocally(product);
+                    alert('\u041b\u043e\u043a\u0430\u043b\u044c\u043d\u044b\u0439 \u0442\u0435\u0441\u0442 popup \u0437\u0430\u043f\u0443\u0449\u0435\u043d \u0442\u043e\u043b\u044c\u043a\u043e \u0432 \u0432\u0430\u0448\u0435\u043c \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435.');
                     return;
                 }
 
