@@ -2068,6 +2068,13 @@
                             await this.fetchUserData();
                             this.startPendingOrderWatcher();
                         })();
+                        if(payload.email === 'info@locus.coffee') {
+                            const btnAdmin = document.getElementById('btn-open-admin');
+                            if(btnAdmin) { 
+                                btnAdmin.style.display = 'flex';
+                                btnAdmin.onclick = () => this.toggleModal(true, 'admin');
+                            }
+                        }
                     } catch(e) {
                         console.error('Ошибка чтения токена', e);
                         localStorage.removeItem('locus_token');
@@ -2077,6 +2084,8 @@
                     this.userDataLoaded = false;
                     this.currentUser = null; 
                     this.updateUIState();
+                    const btnAdmin = document.getElementById('btn-open-admin');
+                    if(btnAdmin) btnAdmin.style.display = 'none';
                 }
                 if (!this.promoSessionChecked) {
                     PromotionSystem.checkAndShow();
@@ -2470,39 +2479,6 @@
 
             isAdminUser: function() {
                 return !!(this.currentUser && this.currentUser.email === 'info@locus.coffee');
-            },
-
-            ensureAdminButton: function() {
-                let btnAdmin = document.getElementById('btn-open-admin');
-                if (btnAdmin) return btnAdmin;
-
-                const wholesaleButton = document.getElementById('btn-open-wholesale');
-                if (!wholesaleButton) return null;
-
-                btnAdmin = document.createElement('button');
-                btnAdmin.className = 'icon-btn';
-                btnAdmin.id = 'btn-open-admin';
-                btnAdmin.type = 'button';
-                btnAdmin.setAttribute('aria-label', 'Администратор');
-                btnAdmin.style.width = '24px';
-                btnAdmin.style.height = '24px';
-                btnAdmin.style.padding = '0';
-                btnAdmin.style.display = 'flex';
-
-                const adminLabel = document.createElement('span');
-                adminLabel.className = 'icon-admin-letter';
-                adminLabel.setAttribute('aria-hidden', 'true');
-                adminLabel.textContent = 'A';
-                btnAdmin.appendChild(adminLabel);
-
-                btnAdmin.onclick = () => this.toggleModal(true, 'admin');
-                wholesaleButton.insertAdjacentElement('afterend', btnAdmin);
-                return btnAdmin;
-            },
-
-            removeAdminButton: function() {
-                const btnAdmin = document.getElementById('btn-open-admin');
-                if (btnAdmin) btnAdmin.remove();
             },
 
             dismissWelcomePopup: async function() {
@@ -5455,6 +5431,13 @@
                         this.renderDashboard(); // ПРИНУДИТЕЛЬНАЯ ОТРИСОВКА ЛК
                         
                         // Мгновенное появление кнопки админки без перезагрузки
+                        if(email === 'info@locus.coffee') {
+                            const btnAdmin = document.getElementById('btn-open-admin');
+                            if(btnAdmin) { 
+                                btnAdmin.style.display = 'flex';
+                                btnAdmin.onclick = () => this.toggleModal(true, 'admin');
+                            }
+                        }
                     } catch (e) { alert('Ошибка: ' + e.message); }
                 },
 
@@ -5527,8 +5510,6 @@
 
             updateUIState: function() {
                 const txt = document.getElementById('auth-status-text'); if(txt) txt.textContent = this.uid ? 'Кабинет' : 'Войти';
-                if (this.isAdminUser()) this.ensureAdminButton();
-                else this.removeAdminButton();
                 if(this.localCart.length > 0) this.updateCartTotals();
             },
             
