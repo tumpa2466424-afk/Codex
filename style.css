@@ -549,11 +549,12 @@
         .icon-svg { width: 24px; height: 24px; fill: var(--locus-dark); }
         .icon-admin-letter {
             display: block;
-            font-size: 16px;
-            font-weight: 700;
-            line-height: 1;
-            color: var(--locus-dark);
-            text-transform: uppercase;
+        }
+        .icon-admin-letter text {
+            fill: var(--locus-dark);
+            font-size: 20px;
+            font-weight: 600;
+            font-family: Arial, sans-serif;
         }
         .cart-badge {
     position: absolute; 
