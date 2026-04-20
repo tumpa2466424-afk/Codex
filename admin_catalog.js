@@ -450,6 +450,17 @@ export function installAdminCatalog(context) {
                 `;
             },
 
+            buildStableLotUrl: function(product) {
+                const lotKey = String(product?.id || product?.sample || product?.sample_no || '').trim();
+                return `https://locus.coffee/mag?lot=${encodeURIComponent(lotKey)}`;
+            },
+
+            buildLotQrCodeUrl: function(product) {
+                const lotUrl = this.buildStableLotUrl(product);
+                const cacheBust = `${String(product?.id || product?.sample || 'lot')}-${Date.now()}`;
+                return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(lotUrl)}&cb=${encodeURIComponent(cacheBust)}`;
+            },
+
             getViewHtml: function(r) {
                 const typeInfo = ProductManager.getTypeInfo(r);
                 const isSpecial = typeInfo.isSpecial;
@@ -533,9 +544,8 @@ export function installAdminCatalog(context) {
                 const backStickerId = `back-${safeSampleId}`;
                 const back80StickerId = `back80-${safeSampleId}`;
                 
-                // Генерируем ссылку и QR код на лету
-                const lotUrl = `https://locus.coffee/mag?lot=${encodeURIComponent(r.sample)}`;
-                const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(lotUrl)}`;
+                // Генерируем ссылку и QR-код заново при каждом открытии лота
+                const qrCodeUrl = this.buildLotQrCodeUrl(r);
                 const normalizedVariety = String(variety || '').trim();
                 const firstVarietyToken = normalizedVariety && normalizedVariety !== '-'
                     ? normalizedVariety.split(/\s+/).filter(Boolean)[0]
@@ -1229,8 +1239,15 @@ export function installAdminCatalog(context) {
             toggleDetails: function(id) {
                 const item = document.getElementById(`cat-item-row-${id}`);
                 if(item) {
+                    const willOpen = !item.classList.contains('open');
                     item.classList.toggle('open');
-                    if(!item.classList.contains('open')) this.cancelEdit(id);
+                    if (willOpen) {
+                        const contentDiv = document.getElementById(`cat-content-${id}`);
+                        const product = this.ALL_PRODUCTS.find(p => p.id === id);
+                        if (contentDiv && product) contentDiv.innerHTML = this.getViewHtml(product);
+                    } else {
+                        this.cancelEdit(id);
+                    }
                 }
             },
 
