@@ -281,6 +281,18 @@ export function createPromotionSystem({ getUserSystem, getLocusApiUrl, getAllPro
             return typeof getCatalogSystem === 'function' ? getCatalogSystem() : null;
         },
 
+        consumeLocalNewLotPreview: function() {
+            try {
+                const raw = localStorage.getItem('locus_new_lot_popup_preview');
+                if (!raw) return null;
+                localStorage.removeItem('locus_new_lot_popup_preview');
+                return JSON.parse(raw);
+            } catch (error) {
+                localStorage.removeItem('locus_new_lot_popup_preview');
+                return null;
+            }
+        },
+
         findNewLotProduct: function(discount) {
             const products = this.getCatalogProducts();
             const normalizedProductId = String(discount?.productId || '').trim();
@@ -364,6 +376,7 @@ export function createPromotionSystem({ getUserSystem, getLocusApiUrl, getAllPro
 
         checkAndShow: async function() {
             try {
+                const localPreviewAction = this.buildNewLotPopupAction(this.consumeLocalNewLotPreview());
                 const [actionsRes, discountRes] = await Promise.all([
                     fetch(getLocusApiUrl() + '?action=getActiveActions'),
                     fetch(getLocusApiUrl() + '?action=getNewLotDiscount')
@@ -379,6 +392,7 @@ export function createPromotionSystem({ getUserSystem, getLocusApiUrl, getAllPro
                 const newLotAction = discountData.success
                     ? this.buildNewLotPopupAction(discountData.discount)
                     : null;
+                if (localPreviewAction) actions.unshift(localPreviewAction);
                 if (newLotAction) actions.push(newLotAction);
                 if (actions.length === 0) return;
 
