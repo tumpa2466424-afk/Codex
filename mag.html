@@ -6,6 +6,178 @@
 
         (function configureLocusAssets() {
             const root = document.getElementById('coffee-shop-wheel');
+            const ensureManagedMeta = (selector, applyAttributes) => {
+                let meta = document.head.querySelector(selector);
+                if (!meta) {
+                    meta = document.createElement('meta');
+                    meta.setAttribute('data-locus-managed', '1');
+                    document.head.appendChild(meta);
+                } else if (meta.getAttribute('data-locus-managed') !== '1' && String(meta.content || '').trim()) {
+                    return;
+                } else {
+                    meta.setAttribute('data-locus-managed', '1');
+                }
+                applyAttributes(meta);
+            };
+            const ensureManagedLink = (selector, applyAttributes) => {
+                let link = document.head.querySelector(selector);
+                if (!link) {
+                    link = document.createElement('link');
+                    link.setAttribute('data-locus-managed', '1');
+                    document.head.appendChild(link);
+                } else if (link.getAttribute('data-locus-managed') !== '1' && String(link.href || '').trim()) {
+                    return;
+                } else {
+                    link.setAttribute('data-locus-managed', '1');
+                }
+                applyAttributes(link);
+            };
+            const ensureManagedTitle = (value) => {
+                let titleEl = document.head.querySelector('title');
+                if (!titleEl) {
+                    titleEl = document.createElement('title');
+                    titleEl.setAttribute('data-locus-managed', '1');
+                    document.head.appendChild(titleEl);
+                } else if (titleEl.getAttribute('data-locus-managed') !== '1' && String(titleEl.textContent || '').trim()) {
+                    return;
+                } else {
+                    titleEl.setAttribute('data-locus-managed', '1');
+                }
+                titleEl.textContent = String(value || '').trim();
+            };
+            const ensureManagedJsonLd = (key, payload) => {
+                const selector = `script[type="application/ld+json"][data-locus-schema="${key}"]`;
+                let script = document.head.querySelector(selector);
+                if (!payload) {
+                    script?.remove();
+                    return;
+                }
+                if (!script) {
+                    script = document.createElement('script');
+                    script.type = 'application/ld+json';
+                    script.setAttribute('data-locus-managed', '1');
+                    script.setAttribute('data-locus-schema', key);
+                    document.head.appendChild(script);
+                } else {
+                    script.setAttribute('data-locus-managed', '1');
+                }
+                script.textContent = JSON.stringify(payload);
+            };
+            const buildDefaultSeoSchema = (seo) => ([
+                {
+                    '@context': 'https://schema.org',
+                    '@type': 'WebSite',
+                    name: seo.siteName,
+                    url: seo.canonicalUrl,
+                    description: seo.description,
+                    inLanguage: 'ru-RU'
+                },
+                {
+                    '@context': 'https://schema.org',
+                    '@type': 'Store',
+                    name: seo.siteName,
+                    url: seo.canonicalUrl,
+                    description: seo.description,
+                    image: seo.image
+                }
+            ]);
+            const applyLocusSeo = (payload = {}) => {
+                const defaults = window.LOCUS_SEO_DEFAULTS || {};
+                const seo = {
+                    siteName: 'Locus Coffee',
+                    locale: 'ru_RU',
+                    type: 'website',
+                    robots: 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1',
+                    ...defaults,
+                    ...payload
+                };
+                const schemaPayload = payload.schema === undefined
+                    ? (defaults.schema || buildDefaultSeoSchema(seo))
+                    : payload.schema;
+
+                ensureManagedTitle(seo.title || seo.siteName);
+                ensureManagedMeta('meta[name="description"]', (meta) => {
+                    meta.name = 'description';
+                    meta.content = seo.description || '';
+                });
+                ensureManagedMeta('meta[name="robots"]', (meta) => {
+                    meta.name = 'robots';
+                    meta.content = seo.robots;
+                });
+                ensureManagedLink('link[rel="canonical"]', (link) => {
+                    link.rel = 'canonical';
+                    link.href = seo.canonicalUrl || window.location.href;
+                });
+                ensureManagedMeta('meta[property="og:title"]', (meta) => {
+                    meta.setAttribute('property', 'og:title');
+                    meta.content = seo.title || seo.siteName;
+                });
+                ensureManagedMeta('meta[property="og:description"]', (meta) => {
+                    meta.setAttribute('property', 'og:description');
+                    meta.content = seo.description || '';
+                });
+                ensureManagedMeta('meta[property="og:type"]', (meta) => {
+                    meta.setAttribute('property', 'og:type');
+                    meta.content = seo.type || 'website';
+                });
+                ensureManagedMeta('meta[property="og:url"]', (meta) => {
+                    meta.setAttribute('property', 'og:url');
+                    meta.content = seo.canonicalUrl || window.location.href;
+                });
+                ensureManagedMeta('meta[property="og:site_name"]', (meta) => {
+                    meta.setAttribute('property', 'og:site_name');
+                    meta.content = seo.siteName;
+                });
+                ensureManagedMeta('meta[property="og:locale"]', (meta) => {
+                    meta.setAttribute('property', 'og:locale');
+                    meta.content = seo.locale;
+                });
+                ensureManagedMeta('meta[property="og:image"]', (meta) => {
+                    meta.setAttribute('property', 'og:image');
+                    meta.content = seo.image || '';
+                });
+                ensureManagedMeta('meta[property="og:image:alt"]', (meta) => {
+                    meta.setAttribute('property', 'og:image:alt');
+                    meta.content = seo.imageAlt || '';
+                });
+                ensureManagedJsonLd('primary', schemaPayload);
+            };
+            window.LOCUS_SEO = {
+                applyPageSeo: applyLocusSeo,
+                resetPageSeo: () => applyLocusSeo(window.LOCUS_SEO_DEFAULTS || {}),
+                getDefaultSeo: () => ({ ...(window.LOCUS_SEO_DEFAULTS || {}) })
+            };
+            const ensureSeoMetaDescription = () => {
+                const title = 'Locus Coffee — каталог свежеобжаренного кофе';
+                const description = 'Locus Coffee — каталог свежеобжаренного кофе, редких лотов и аксессуаров. Изучайте дескрипторы, выбирайте подходящий способ приготовления и оформляйте заказ онлайн.';
+
+                const shareUrl = new URL(window.location.href);
+                shareUrl.hash = '';
+                shareUrl.searchParams.delete('view');
+                shareUrl.searchParams.delete('reset_token');
+                const previewImage = new URL(`assets/pack-base-3q.png?v=${encodeURIComponent(window.LOCUS_ASSET_VERSION || '1')}`, new URL(window.LOCUS_ASSET_BASE_URL || './', window.location.href)).href;
+                const previewImageAlt = 'Locus Coffee — каталог свежеобжаренного кофе';
+
+                window.LOCUS_SEO_DEFAULTS = {
+                    title,
+                    description,
+                    canonicalUrl: shareUrl.toString(),
+                    image: previewImage,
+                    imageAlt: previewImageAlt,
+                    type: 'website',
+                    siteName: 'Locus Coffee',
+                    locale: 'ru_RU',
+                    robots: 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1',
+                    schema: buildDefaultSeoSchema({
+                        title,
+                        description,
+                        canonicalUrl: shareUrl.toString(),
+                        image: previewImage,
+                        siteName: 'Locus Coffee'
+                    })
+                };
+                window.LOCUS_SEO.applyPageSeo(window.LOCUS_SEO_DEFAULTS);
+            };
             const revealShellNow = () => {
                 if (!root) return;
                 root.classList.remove('locus-shell-loading');
@@ -22,6 +194,7 @@
             const baseUrl = new URL(window.LOCUS_ASSET_BASE_URL || './', window.location.href);
             const buildAssetUrl = (fileName) => new URL(`${fileName}?v=${version}`, baseUrl).href;
             const styleHref = buildAssetUrl('style.css');
+            ensureSeoMetaDescription();
             const bindStyleReady = (linkEl) => {
                 if (!linkEl || linkEl.dataset.locusReadyBound === '1') return;
                 linkEl.dataset.locusReadyBound = '1';
