@@ -1407,8 +1407,8 @@
                     // ОБНОВЛЯЕМ АДРЕСНУЮ СТРОКУ ДЛЯ ПРЯМОЙ ССЫЛКИ
                     // ОБНОВЛЯЕМ АДРЕСНУЮ СТРОКУ ДЛЯ ПРЯМОЙ ССЫЛКИ
                     const url = new URL(window.location);
-                    if (seg.raw && seg.raw.sample) {
-                        url.searchParams.set('lot', seg.raw.sample);
+                    if (seg.raw && (seg.raw.id || seg.raw.sample)) {
+                        url.searchParams.set('lot', seg.raw.id || seg.raw.sample);
                     } else {
                         url.searchParams.delete('lot'); // Если кликнули на категорию, очищаем ссылку
                     }
@@ -1543,7 +1543,9 @@
 
         const PromotionSystem = createPromotionSystem({
             getUserSystem: () => UserSystem,
-            getLocusApiUrl: () => LOCUS_API_URL
+            getLocusApiUrl: () => LOCUS_API_URL,
+            getAllProductsCache: () => ALL_PRODUCTS_CACHE,
+            getCatalogSystem: () => CatalogSystem
         });
 
         window.PromotionSystem = PromotionSystem;
@@ -2599,7 +2601,7 @@
                 updateInfo({ depth: 1, raw: product });
                 if (options.syncUrl !== false) {
                     const url = new URL(window.location);
-                    url.searchParams.set('lot', product.sample || '');
+                    url.searchParams.set('lot', product.id || product.sample || '');
                     window.history.replaceState({}, '', url);
                 }
 
@@ -6645,7 +6647,10 @@
                                 // Имитируем клик
                                 targetGroup.dispatchEvent(new Event('click')); 
                             } else {
-                                const hiddenProduct = ALL_PRODUCTS_CACHE.find(p => String(p.sample || p.sample_no || '') === String(lotFromUrl));
+                                const hiddenProduct = ALL_PRODUCTS_CACHE.find(p =>
+                                    String(p.id || '') === String(lotFromUrl) ||
+                                    String(p.sample || p.sample_no || '') === String(lotFromUrl)
+                                );
                                 if (hiddenProduct) {
                                     window.UserSystem?.openProductById(hiddenProduct.id, { syncUrl: false });
                                 }
