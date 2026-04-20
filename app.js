@@ -6204,11 +6204,27 @@
                 }
             ],
             currentStep: 0,
+            activeHighlight: null,
+            startTimer: null,
+            idleCallbackId: null,
 
             init: function() {
                 if (localStorage.getItem('locus_tour_done')) return;
-                this.createElements();
-                setTimeout(() => this.start(), 2000);
+                if (this.startTimer || this.idleCallbackId) return;
+
+                this.startTimer = window.setTimeout(() => {
+                    this.startTimer = null;
+                    const run = () => {
+                        this.idleCallbackId = null;
+                        this.start();
+                    };
+
+                    if ('requestIdleCallback' in window) {
+                        this.idleCallbackId = window.requestIdleCallback(run, { timeout: 1200 });
+                    } else {
+                        window.requestAnimationFrame(run);
+                    }
+                }, 2000);
             },
 
             createElements: function() {
@@ -6237,7 +6253,17 @@
                 btn.addEventListener('click', () => this.next());
             },
 
+            clearHighlight: function() {
+                if (this.activeHighlight) {
+                    this.activeHighlight.classList.remove('tour-highlight');
+                    this.activeHighlight = null;
+                    return;
+                }
+                document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+            },
+
             start: function() {
+                this.createElements();
                 const overlay = document.getElementById('tour-overlay');
                 const tooltip = document.getElementById('tour-tooltip');
                 if (!overlay || !tooltip) return;
@@ -6249,8 +6275,8 @@
             },
 
             showStep: function() {
-                // Убираем подсветку с предыдущего
-                document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+                // ?????????????? ?????????????????? ?? ??????????????????????
+                this.clearHighlight();
 
                 const step = this.steps[this.currentStep];
                 const textEl = document.getElementById('tour-text');
@@ -6306,6 +6332,7 @@
 
                 if (target) {
                     target.classList.add('tour-highlight');
+                    this.activeHighlight = target;
 
                     // Скролл
                     if (step.target === '.top-controls') {
@@ -6384,9 +6411,17 @@
             },
 
             end: function() {
+                if (this.startTimer) {
+                    clearTimeout(this.startTimer);
+                    this.startTimer = null;
+                }
+                if (this.idleCallbackId && 'cancelIdleCallback' in window) {
+                    window.cancelIdleCallback(this.idleCallbackId);
+                    this.idleCallbackId = null;
+                }
                 document.getElementById('tour-overlay').classList.remove('active');
                 document.getElementById('tour-tooltip').classList.remove('active');
-                document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+                this.clearHighlight();
                 localStorage.setItem('locus_tour_done', 'true');
             }
         };
