@@ -549,9 +549,11 @@
         .icon-svg { width: 24px; height: 24px; fill: var(--locus-dark); }
         .icon-admin-letter {
             display: block;
-        }
-        .icon-admin-letter path {
-            fill: var(--locus-dark);
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--locus-dark);
+            text-transform: uppercase;
         }
         .cart-badge {
     position: absolute; 
