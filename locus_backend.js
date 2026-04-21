@@ -1253,6 +1253,23 @@ function buildCorsHeaders() {
     };
 }
 
+function parsePositiveInt(value, fallback) {
+    const parsed = parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getAdminListPagingParams(event, body, defaults = {}) {
+    const sourceBody = body && typeof body === 'object' ? body : {};
+    const query = event?.queryStringParameters || {};
+    const defaultPage = parsePositiveInt(defaults.page, 1);
+    const defaultLimit = parsePositiveInt(defaults.limit, 25);
+    const maxLimit = Math.max(1, parsePositiveInt(defaults.maxLimit, 100));
+    const page = Math.max(1, parsePositiveInt(query.page ?? sourceBody.page, defaultPage));
+    const limit = Math.min(maxLimit, Math.max(1, parsePositiveInt(query.limit ?? sourceBody.limit, defaultLimit)));
+    const offset = Math.max(0, (page - 1) * limit);
+    return { page, limit, offset };
+}
+
 function parseEventBody(event) {
     let bodyString = event.body;
     if (bodyString && event.isBase64Encoded) bodyString = Buffer.from(bodyString, 'base64').toString('utf8');
@@ -1937,9 +1954,28 @@ module.exports.handler = async function (event, context) {
             else if (action === 'getAdminUsers') {
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
+                const { page, limit, offset } = getAdminListPagingParams(event, body, { page: 1, limit: 25, maxLimit: 100 });
 
-                const query = `SELECT * FROM users;`;
-                const { resultSets } = await session.executeQuery(query);
+                const countQuery = `SELECT COUNT(*) AS total FROM users;`;
+                const { resultSets: usersCountSets } = await session.executeQuery(countQuery);
+                const usersCountRow = usersCountSets[0] && usersCountSets[0].rows.length > 0
+                    ? rowToObj(usersCountSets[0].columns, usersCountSets[0].rows[0])
+                    : {};
+                const total = Number(usersCountRow.total) || 0;
+
+                const query = `
+                    DECLARE $limit AS Int32;
+                    DECLARE $offset AS Int32;
+
+                    SELECT id, email, totalSpent, history
+                    FROM users
+                    ORDER BY totalSpent DESC, email ASC
+                    LIMIT $limit OFFSET $offset;
+                `;
+                const { resultSets } = await session.executeQuery(query, {
+                    '$limit': TypedValues.int32(limit),
+                    '$offset': TypedValues.int32(offset)
+                });
                 
                 let usersList = [];
                 if (resultSets[0].rows.length > 0) {
@@ -1953,7 +1989,14 @@ module.exports.handler = async function (event, context) {
                         });
                     });
                 }
-                responseData = { success: true, users: usersList };
+                responseData = {
+                    success: true,
+                    users: usersList,
+                    page,
+                    limit,
+                    total,
+                    hasNext: offset + usersList.length < total
+                };
             }
 
             else if (action === 'deleteUser') {
@@ -2025,9 +2068,28 @@ module.exports.handler = async function (event, context) {
             else if (action === 'getPromos') {
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
+                const { page, limit, offset } = getAdminListPagingParams(event, body, { page: 1, limit: 25, maxLimit: 100 });
 
-                const query = `SELECT * FROM promocodes;`;
-                const { resultSets } = await session.executeQuery(query);
+                const countQuery = `SELECT COUNT(*) AS total FROM promocodes;`;
+                const { resultSets: promosCountSets } = await session.executeQuery(countQuery);
+                const promosCountRow = promosCountSets[0] && promosCountSets[0].rows.length > 0
+                    ? rowToObj(promosCountSets[0].columns, promosCountSets[0].rows[0])
+                    : {};
+                const total = Number(promosCountRow.total) || 0;
+
+                const query = `
+                    DECLARE $limit AS Int32;
+                    DECLARE $offset AS Int32;
+
+                    SELECT id, val, type, active
+                    FROM promocodes
+                    ORDER BY id ASC
+                    LIMIT $limit OFFSET $offset;
+                `;
+                const { resultSets } = await session.executeQuery(query, {
+                    '$limit': TypedValues.int32(limit),
+                    '$offset': TypedValues.int32(offset)
+                });
                 
                 let promosList = [];
                 if (resultSets[0].rows.length > 0) {
@@ -2041,7 +2103,14 @@ module.exports.handler = async function (event, context) {
                         });
                     });
                 }
-                responseData = { success: true, promos: promosList };
+                responseData = {
+                    success: true,
+                    promos: promosList,
+                    page,
+                    limit,
+                    total,
+                    hasNext: offset + promosList.length < total
+                };
             }
             
             else if (action === 'addPromo') {
@@ -2100,9 +2169,28 @@ module.exports.handler = async function (event, context) {
             else if (action === 'getActions') {
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
+                const { page, limit, offset } = getAdminListPagingParams(event, body, { page: 1, limit: 25, maxLimit: 100 });
+
+                const countQuery = `SELECT COUNT(*) AS total FROM actions;`;
+                const { resultSets: actionsCountSets } = await session.executeQuery(countQuery);
+                const actionsCountRow = actionsCountSets[0] && actionsCountSets[0].rows.length > 0
+                    ? rowToObj(actionsCountSets[0].columns, actionsCountSets[0].rows[0])
+                    : {};
+                const total = Number(actionsCountRow.total) || 0;
                 
-                const query = `SELECT * FROM actions;`;
-                const { resultSets } = await session.executeQuery(query);
+                const query = `
+                    DECLARE $limit AS Int32;
+                    DECLARE $offset AS Int32;
+
+                    SELECT id, title, msg, type, promoCode, discountVal, discountType, viewLimit, dateEnd, active, createdAt
+                    FROM actions
+                    ORDER BY createdAt DESC
+                    LIMIT $limit OFFSET $offset;
+                `;
+                const { resultSets } = await session.executeQuery(query, {
+                    '$limit': TypedValues.int32(limit),
+                    '$offset': TypedValues.int32(offset)
+                });
                 let actionsList = [];
                 
                 if (resultSets[0].rows.length > 0) {
@@ -2117,7 +2205,14 @@ module.exports.handler = async function (event, context) {
                         });
                     });
                 }
-                responseData = { success: true, actions: actionsList };
+                responseData = {
+                    success: true,
+                    actions: actionsList,
+                    page,
+                    limit,
+                    total,
+                    hasNext: offset + actionsList.length < total
+                };
             }
             
             else if (action === 'getActiveActions') {
@@ -2212,40 +2307,90 @@ module.exports.handler = async function (event, context) {
             else if (action === 'getAdminMessages') {
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
+                const { page, limit, offset } = getAdminListPagingParams(event, body, { page: 1, limit: 25, maxLimit: 100 });
+
+                const countQuery = `
+                    SELECT COUNT(*) AS total
+                    FROM messages
+                    WHERE deletedByAdmin != true;
+                `;
+                const unreadCountQuery = `
+                    DECLARE $direction AS Utf8;
+
+                    SELECT COUNT(*) AS total
+                    FROM messages
+                    WHERE direction = $direction AND deletedByAdmin != true AND isRead != true;
+                `;
+                const { resultSets: messagesCountSets } = await session.executeQuery(countQuery);
+                const messagesCountRow = messagesCountSets[0] && messagesCountSets[0].rows.length > 0
+                    ? rowToObj(messagesCountSets[0].columns, messagesCountSets[0].rows[0])
+                    : {};
+                const { resultSets: unreadCountSets } = await session.executeQuery(unreadCountQuery, {
+                    '$direction': TypedValues.utf8('to_admin')
+                });
+                const unreadCountRow = unreadCountSets[0] && unreadCountSets[0].rows.length > 0
+                    ? rowToObj(unreadCountSets[0].columns, unreadCountSets[0].rows[0])
+                    : {};
+                const total = Number(messagesCountRow.total) || 0;
+                const unreadIncomingCount = Number(unreadCountRow.total) || 0;
                 
-                const query = `SELECT * FROM messages;`;
-                const { resultSets } = await session.executeQuery(query);
+                const query = `
+                    DECLARE $limit AS Int32;
+                    DECLARE $offset AS Int32;
+
+                    SELECT id, userId, userEmail, direction, subject, text, timestamp, isRead, deletedByAdmin, deletedByUser
+                    FROM messages
+                    WHERE deletedByAdmin != true
+                    ORDER BY timestamp DESC
+                    LIMIT $limit OFFSET $offset;
+                `;
+                const { resultSets } = await session.executeQuery(query, {
+                    '$limit': TypedValues.int32(limit),
+                    '$offset': TypedValues.int32(offset)
+                });
                 let msgs = [];
                 if (resultSets[0].rows.length > 0) {
                     resultSets[0].rows.forEach(row => {
                         const m = rowToObj(resultSets[0].columns, row);
-                        if (m.deletedbyadmin !== true) {
-                            msgs.push({
-                                id: m.id, userId: m.userid, userEmail: m.useremail,
-                                direction: m.direction, subject: m.subject, text: m.text,
-                                timestamp: m.timestamp, isRead: m.isread,
-                                deletedByAdmin: m.deletedbyadmin, deletedByUser: m.deletedbyuser
-                            });
-                        }
+                        msgs.push({
+                            id: m.id, userId: m.userid, userEmail: m.useremail,
+                            direction: m.direction, subject: m.subject, text: m.text,
+                            timestamp: m.timestamp, isRead: m.isread,
+                            deletedByAdmin: m.deletedbyadmin, deletedByUser: m.deletedbyuser
+                        });
                     });
                 }
-                responseData = { success: true, messages: msgs };
+                responseData = {
+                    success: true,
+                    messages: msgs,
+                    unreadIncomingCount,
+                    page,
+                    limit,
+                    total,
+                    hasNext: offset + msgs.length < total
+                };
             }
             
             else if (action === 'markAdminMessagesRead') {
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Р”РѕСЃС‚СѓРї Р·Р°РїСЂРµС‰РµРЅ');
 
-                const qFindUnread = `SELECT id, direction, isRead, deletedByAdmin FROM messages;`;
-                const { resultSets } = await session.executeQuery(qFindUnread);
+                const qFindUnread = `
+                    DECLARE $direction AS Utf8;
+
+                    SELECT id
+                    FROM messages
+                    WHERE direction = $direction AND deletedByAdmin != true AND isRead != true;
+                `;
+                const { resultSets } = await session.executeQuery(qFindUnread, {
+                    '$direction': TypedValues.utf8('to_admin')
+                });
                 const unreadIds = [];
 
                 if (resultSets[0] && resultSets[0].rows.length > 0) {
                     resultSets[0].rows.forEach(row => {
                         const message = rowToObj(resultSets[0].columns, row);
-                        if (message.direction === 'to_admin' && message.deletedbyadmin !== true && message.isread !== true) {
-                            unreadIds.push(String(message.id));
-                        }
+                        if (message.id) unreadIds.push(String(message.id));
                     });
                 }
 
@@ -2453,20 +2598,45 @@ module.exports.handler = async function (event, context) {
 
             // --- НАЧАЛО: ЗАГРУЗКА ВСЕХ ЗАКАЗОВ (АДМИНКА) ---
             else if (action === 'getAdminOrders') {
+                const { page, limit, offset } = getAdminListPagingParams(event, body, { page: 1, limit: 25, maxLimit: 100 });
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
                 
+                const countQuery = `
+                    DECLARE $wholesalePrefix AS Utf8;
+                    DECLARE $pendingStatus AS Utf8;
+
+                    SELECT COUNT(*) AS total
+                    FROM orders
+                    WHERE NOT StartsWith(id, $wholesalePrefix) AND status != $pendingStatus
+                `;
+                const countParams = {
+                    '$wholesalePrefix': TypedValues.utf8('ws_'),
+                    '$pendingStatus': TypedValues.utf8('pending_payment')
+                };
+                const { resultSets: retailCountSets } = await session.executeQuery(countQuery, countParams);
+                const retailCountRow = retailCountSets[0] && retailCountSets[0].rows.length > 0
+                    ? rowToObj(retailCountSets[0].columns, retailCountSets[0].rows[0])
+                    : {};
+                const retailTotal = Number(retailCountRow.total) || 0;
+
                 const query = `
                     DECLARE $wholesalePrefix AS Utf8;
                     DECLARE $pendingStatus AS Utf8;
+                    DECLARE $limit AS Int32;
+                    DECLARE $offset AS Int32;
 
                     SELECT id, userId, invId, total, status, customer, delivery, items, createdAt
                     FROM orders
                     WHERE NOT StartsWith(id, $wholesalePrefix) AND status != $pendingStatus
+                    ORDER BY invId DESC
+                    LIMIT $limit OFFSET $offset
                 `;
                 const { resultSets } = await session.executeQuery(query, {
                     '$wholesalePrefix': TypedValues.utf8('ws_'),
-                    '$pendingStatus': TypedValues.utf8('pending_payment')
+                    '$pendingStatus': TypedValues.utf8('pending_payment'),
+                    '$limit': TypedValues.int32(limit),
+                    '$offset': TypedValues.int32(offset)
                 });
                 
                 let retailOrders = [];
@@ -2504,22 +2674,52 @@ module.exports.handler = async function (event, context) {
                         }
                     });
                 }
-                responseData = { success: true, orders: retailOrders };
+                responseData = {
+                    success: true,
+                    orders: retailOrders,
+                    page,
+                    limit,
+                    total: retailTotal,
+                    hasNext: offset + retailOrders.length < retailTotal
+                };
             }
 
             else if (action === 'getAdminWholesaleOrders') {
+                const { page, limit, offset } = getAdminListPagingParams(event, body, { page: 1, limit: 25, maxLimit: 100 });
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
                 
+                const countQuery = `
+                    DECLARE $wholesalePrefix AS Utf8;
+
+                    SELECT COUNT(*) AS total
+                    FROM orders
+                    WHERE StartsWith(id, $wholesalePrefix)
+                `;
+                const countParams = {
+                    '$wholesalePrefix': TypedValues.utf8('ws_')
+                };
+                const { resultSets: wholesaleCountSets } = await session.executeQuery(countQuery, countParams);
+                const wholesaleCountRow = wholesaleCountSets[0] && wholesaleCountSets[0].rows.length > 0
+                    ? rowToObj(wholesaleCountSets[0].columns, wholesaleCountSets[0].rows[0])
+                    : {};
+                const wholesaleTotal = Number(wholesaleCountRow.total) || 0;
+
                 const query = `
                     DECLARE $wholesalePrefix AS Utf8;
+                    DECLARE $limit AS Int32;
+                    DECLARE $offset AS Int32;
 
                     SELECT id, userId, total, status, customer, items, createdAt
                     FROM orders
                     WHERE StartsWith(id, $wholesalePrefix)
+                    ORDER BY createdAt DESC
+                    LIMIT $limit OFFSET $offset
                 `;
                 const { resultSets } = await session.executeQuery(query, {
-                    '$wholesalePrefix': TypedValues.utf8('ws_')
+                    '$wholesalePrefix': TypedValues.utf8('ws_'),
+                    '$limit': TypedValues.int32(limit),
+                    '$offset': TypedValues.int32(offset)
                 });
                 
                 let wsOrders = [];
@@ -2545,7 +2745,14 @@ module.exports.handler = async function (event, context) {
                         }
                     });
                 }
-                responseData = { success: true, orders: wsOrders };
+                responseData = {
+                    success: true,
+                    orders: wsOrders,
+                    page,
+                    limit,
+                    total: wholesaleTotal,
+                    hasNext: offset + wsOrders.length < wholesaleTotal
+                };
             }
             // --- КОНЕЦ: ЗАГРУЗКА ВСЕХ ЗАКАЗОВ (АДМИНКА) ---
             
