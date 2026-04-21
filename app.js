@@ -4218,16 +4218,7 @@
                 const weightKg = totalWeightGrams / 1000;
                 const weightEl = document.getElementById('ws-total-weight');
                 const costEl = document.getElementById('ws-total-cost');
-                let breakdownEl = document.getElementById('ws-cost-breakdown');
-                if (!breakdownEl) {
-                    const warnAnchor = document.getElementById('ws-warning');
-                    if (warnAnchor?.parentElement) {
-                        breakdownEl = document.createElement('div');
-                        breakdownEl.id = 'ws-cost-breakdown';
-                        breakdownEl.style.cssText = 'font-size:11px; opacity:0.75; margin-bottom:10px; text-align:center;';
-                        warnAnchor.parentElement.insertBefore(breakdownEl, warnAnchor);
-                    }
-                }
+                const breakdownEl = null;
                 
                 // Пробелы теперь стоят прямо в HTML верстке, здесь передаем только чистые цифры
                 if (weightEl) weightEl.textContent = weightKg.toFixed(1);
