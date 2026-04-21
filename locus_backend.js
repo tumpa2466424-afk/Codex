@@ -5,7 +5,20 @@ const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer'); // <-- Добавили nodemailer
 const { createRetailOrderCalendarEvent } = require('./calendar_sync');
-const JWT_SECRET = 'locus-coffee-super-secret-key-2026'; 
+
+function getRequiredEnv(name) {
+    const value = String(process.env[name] || '').trim();
+    if (!value) throw new Error(`Не настроена обязательная переменная окружения: ${name}`);
+    return value;
+}
+
+function ensureRobokassaEnv() {
+    if (!ROBOKASSA_MERCHANT_LOGIN) throw new Error('Не настроена обязательная переменная окружения: ROBOKASSA_MERCHANT_LOGIN');
+    if (!ROBOKASSA_PASSWORD_1) throw new Error('Не настроена обязательная переменная окружения: ROBOKASSA_PASSWORD_1');
+    if (!ROBOKASSA_PASSWORD_2) throw new Error('Не настроена обязательная переменная окружения: ROBOKASSA_PASSWORD_2');
+}
+
+const JWT_SECRET = getRequiredEnv('JWT_SECRET');
 const PASSWORD_RESET_PURPOSE = 'password_reset';
 const PUBLIC_WEB_URL = process.env.PUBLIC_WEB_URL || 'https://locus.coffee/';
 const YANDEX_CATALOG_FUNCTION_URL = process.env.YANDEX_CATALOG_FUNCTION_URL || 'https://functions.yandexcloud.net/d4ekgff0csfc77v2nu5q';
@@ -21,6 +34,9 @@ const USER_NOTIFICATION_PREFERENCES_TABLE = 'user_notification_preferences';
 const USER_INDEX_STATE_SETTING_ID = 'user_index_state_v1';
 const DEBUG_LOGS_ENABLED = /^(1|true|yes|on)$/i.test(String(process.env.DEBUG_LOGS || '').trim());
 const CBR_USD_VALUTE_ID = 'R01235';
+const ROBOKASSA_MERCHANT_LOGIN = String(process.env.ROBOKASSA_MERCHANT_LOGIN || '').trim();
+const ROBOKASSA_PASSWORD_1 = String(process.env.ROBOKASSA_PASSWORD_1 || process.env.ROBOKASSA_PASS1 || '').trim();
+const ROBOKASSA_PASSWORD_2 = String(process.env.ROBOKASSA_PASSWORD_2 || process.env.ROBOKASSA_PASS2 || '').trim();
 
 let driver;
 
@@ -150,6 +166,10 @@ function describeAttachmentForLog(attachment) {
         sizeBytes: buffer ? buffer.length : 0,
         hasPngSignature: hasPngSignature(buffer)
     };
+}
+
+function isSupportedAdminImageContentType(contentType) {
+    return /^image\/(png|jpe?g|webp|gif)$/i.test(String(contentType || '').trim());
 }
 
 function escapeHtml(value) {
@@ -364,6 +384,46 @@ function buildArticlePayload(previewHtml, bodyHtml) {
         encryptedBody: encryptArticleHtml(bodyHtml || ''),
         updatedAt: new Date().toISOString()
     });
+}
+
+function parseAdminImageUploadPayload(fileInput) {
+    if (!fileInput || typeof fileInput !== 'object') throw new Error('Файл для загрузки не передан');
+
+    const filename = String(fileInput.filename || 'locus_image.png').trim() || 'locus_image.png';
+    const contentType = String(fileInput.contentType || '').trim().toLowerCase();
+    const contentBase64 = String(fileInput.contentBase64 || '').trim();
+    if (!isSupportedAdminImageContentType(contentType)) {
+        throw new Error('Поддерживаются только PNG, JPG, WEBP и GIF');
+    }
+    if (!contentBase64) throw new Error('Файл для загрузки пустой');
+
+    return {
+        filename,
+        contentType,
+        buffer: Buffer.from(contentBase64, 'base64')
+    };
+}
+
+async function uploadImageBufferToImgBB({ buffer, filename, contentType }) {
+    const imgbbKey = String(process.env.IMGBB_API_KEY || '').trim();
+    if (!imgbbKey) throw new Error('IMGBB_API_KEY не настроен на сервере');
+    if (!Buffer.isBuffer(buffer) || !buffer.length) throw new Error('Файл изображения пустой');
+
+    const formData = new FormData();
+    formData.append('key', imgbbKey);
+    formData.append('image', new Blob([buffer], { type: contentType || 'application/octet-stream' }), filename || 'locus_image.png');
+
+    const response = await fetchWithTimeout('https://api.imgbb.com/1/upload', {
+        method: 'POST',
+        body: formData
+    }, 30000);
+
+    const data = await response.json();
+    if (!response.ok || !data || data.success === false || !data?.data?.url) {
+        throw new Error(data?.error?.message || data?.error || 'Не удалось загрузить изображение на ImgBB');
+    }
+
+    return data.data.url;
 }
 
 function parseArticlePayload(rawValue) {
@@ -947,26 +1007,27 @@ function createArticleAccessPassword(length = 12) {
     return result;
 }
 
-function createArticleAccessRecord(item) {
+async function createArticleAccessRecord(item) {
     const password = createArticleAccessPassword();
     const now = Date.now();
     return {
         articleId: String(item?.lotId || item?.item || '').trim(),
         title: String(item?.item || '').trim(),
         password,
-        passwordHash: bcrypt.hashSync(password, 10),
+        passwordHash: await bcrypt.hash(password, 10),
         grantedAt: new Date(now).toISOString(),
         expiresAt: new Date(now + (31 * 24 * 60 * 60 * 1000)).toISOString()
     };
 }
 
-function collectArticleAccessRecords(items) {
+async function collectArticleAccessRecords(items) {
     const result = [];
-    (Array.isArray(items) ? items : []).forEach(item => {
-        if (!isArticleOrderItem(item)) return;
+    const list = Array.isArray(items) ? items : [];
+    for (const item of list) {
+        if (!isArticleOrderItem(item)) continue;
         const articleId = String(item.lotId || item.item || '').trim();
-        if (!articleId) return;
-        const access = createArticleAccessRecord(item);
+        if (!articleId) continue;
+        const access = await createArticleAccessRecord(item);
         item.articleAccess = {
             articleId: access.articleId,
             title: access.title,
@@ -975,7 +1036,7 @@ function collectArticleAccessRecords(items) {
             passwordHash: access.passwordHash
         };
         result.push(access);
-    });
+    }
     return result;
 }
 
@@ -1436,7 +1497,7 @@ async function finalizeRetailPayment(session, invId) {
             if (Buffer.isBuffer(rawI)) rawI = rawI.toString('utf8');
             parsedItems = typeof rawI === 'string' ? JSON.parse(rawI) : (rawI || []);
         } catch (e) {}
-        const articleAccessRecords = collectArticleAccessRecords(parsedItems);
+                    const articleAccessRecords = await collectArticleAccessRecords(parsedItems);
 
         let d = new Date(getTimestampMs(ord.createdat));
         if (isNaN(d.getTime())) d = new Date();
@@ -1729,20 +1790,6 @@ async function buildLotStoryAssets(body, qwenKey) {
 5. Текст должен быть связным, познавательным, максимум 20 предложений, на русском языке, без форматирования markdown.
 6. Внимательно проверь текст на орфографические, синтаксические, грамматические ошибки и правильные падежи применительно к русскому языку.`;
 
-    const textReq = await fetchWithTimeout('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${qwenKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'qwen-plus-2025-07-28', messages: [{ role: 'user', content: textPrompt }] })
-    }, 30000);
-    const textData = await textReq.json();
-
-    let generatedText = '';
-    if (textData.choices && textData.choices[0]) {
-        generatedText = textData.choices[0].message.content;
-    } else {
-        throw new Error(textData.error?.message || 'Ошибка API Qwen');
-    }
-
     const dynamicImgPrompt = buildCountrySpecificImagePrompt(country, region);
     const negativeImgPrompt = [
         'animals', 'animal', 'birds', 'bird', 'wildlife', 'mammals', 'insects', 'people', 'person', 'human',
@@ -1753,82 +1800,92 @@ async function buildLotStoryAssets(body, qwenKey) {
         'generic tropical landscape', 'generic coffee plantation', 'stock photo plantation', 'symmetrical plantation rows'
     ].join(', ');
 
-    let imageUrl = '';
-    try {
-        const randomSeed = Math.floor(Math.random() * 2147483647);
-        const finalImgPrompt = `${dynamicImgPrompt} Prioritize a strong sense of place and visually distinctive national landscape cues over generic coffee-farm imagery.`;
-
-        const imgReq = await fetchWithTimeout('https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
+    const textPromise = (async () => {
+        const textReq = await fetchWithTimeout('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${qwenKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: 'qwen-image-max',
-                input: {
-                    messages: [
-                        { role: 'user', content: [{ text: finalImgPrompt }] }
-                    ]
-                },
-                parameters: {
-                    size: '1328*1328',
-                    seed: randomSeed,
-                    prompt_extend: true,
-                    negative_prompt: negativeImgPrompt,
-                    watermark: false
-                }
-            })
-        }, 45000);
-        const imgTask = await imgReq.json();
-
-        let tempAlibabaUrl = imgTask?.output?.choices?.[0]?.message?.content?.find(item => item?.image || item?.url)?.image
-            || imgTask?.output?.choices?.[0]?.message?.content?.find(item => item?.image || item?.url)?.url
-            || '';
-
-        if (!imgReq.ok || imgTask?.code || !tempAlibabaUrl) {
-            logDebug('Qwen-Image-Max response diagnostics:', {
-                httpStatus: imgReq.status,
-                code: imgTask?.code,
-                message: imgTask?.message,
-                hasImageUrl: !!tempAlibabaUrl
-            });
-            generatedText += '\n\n[ДИАГНОСТИКА: Таймаут Алибабы. Картинка не успела сгенерироваться за 60 секунд.]';
+            body: JSON.stringify({ model: 'qwen-plus-2025-07-28', messages: [{ role: 'user', content: textPrompt }] })
+        }, 30000);
+        const textData = await textReq.json();
+        if (textData.choices && textData.choices[0]) {
+            return textData.choices[0].message.content;
         }
+        throw new Error(textData.error?.message || 'Ошибка API Qwen');
+    })();
 
-        if (tempAlibabaUrl) {
-            imageUrl = tempAlibabaUrl;
-            const imgbbKey = process.env.IMGBB_API_KEY;
+    const imagePromise = (async () => {
+        let imageUrl = '';
+        let diagnosticsText = '';
 
-            if (!imgbbKey) {
-                generatedText += '\n\n[ДИАГНОСТИКА: Ключ IMGBB_API_KEY не добавлен!]';
-            } else {
+        try {
+            const randomSeed = Math.floor(Math.random() * 2147483647);
+            const finalImgPrompt = `${dynamicImgPrompt} Prioritize a strong sense of place and visually distinctive national landscape cues over generic coffee-farm imagery.`;
+
+            const imgReq = await fetchWithTimeout('https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${qwenKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'qwen-image-max',
+                    input: {
+                        messages: [
+                            { role: 'user', content: [{ text: finalImgPrompt }] }
+                        ]
+                    },
+                    parameters: {
+                        size: '1328*1328',
+                        seed: randomSeed,
+                        prompt_extend: true,
+                        negative_prompt: negativeImgPrompt,
+                        watermark: false
+                    }
+                })
+            }, 45000);
+            const imgTask = await imgReq.json();
+
+            let tempAlibabaUrl = imgTask?.output?.choices?.[0]?.message?.content?.find(item => item?.image || item?.url)?.image
+                || imgTask?.output?.choices?.[0]?.message?.content?.find(item => item?.image || item?.url)?.url
+                || '';
+
+            if (!imgReq.ok || imgTask?.code || !tempAlibabaUrl) {
+                logDebug('Qwen-Image-Max response diagnostics:', {
+                    httpStatus: imgReq.status,
+                    code: imgTask?.code,
+                    message: imgTask?.message,
+                    hasImageUrl: !!tempAlibabaUrl
+                });
+                diagnosticsText += '\n\n[ДИАГНОСТИКА: Таймаут Алибабы. Картинка не успела сгенерироваться за 60 секунд.]';
+            }
+
+            if (tempAlibabaUrl) {
+                imageUrl = tempAlibabaUrl;
+
                 try {
                     const dlRes = await fetchWithTimeout(tempAlibabaUrl, {}, 30000);
-                    const blob = await dlRes.blob();
-
-                    const formData = new FormData();
-                    formData.append('key', imgbbKey);
-                    formData.append('image', blob, 'locus_coffee.png');
-
-                    const imgbbRes = await fetchWithTimeout('https://api.imgbb.com/1/upload', {
-                        method: 'POST',
-                        body: formData
-                    }, 30000);
-                    const imgbbData = await imgbbRes.json();
-
-                    if (imgbbData && imgbbData.success) {
-                        imageUrl = imgbbData.data.url;
-                    } else {
-                        generatedText += `\n\n[DIAGNOSTICS ImgBB error: ${JSON.stringify(imgbbData)}]`;
-                    }
+                    if (!dlRes.ok) throw new Error(`Не удалось скачать изображение от Qwen (${dlRes.status})`);
+                    const arrayBuffer = await dlRes.arrayBuffer();
+                    imageUrl = await uploadImageBufferToImgBB({
+                        buffer: Buffer.from(arrayBuffer),
+                        filename: 'locus_coffee.png',
+                        contentType: String(dlRes.headers.get('content-type') || 'image/png')
+                    });
                 } catch (imgbbErr) {
-                    generatedText += `\n\n[DIAGNOSTICS ImgBB network: ${imgbbErr.message}]`;
+                    diagnosticsText += `\n\n[DIAGNOSTICS ImgBB network: ${imgbbErr.message}]`;
                 }
             }
+        } catch (e) {
+            diagnosticsText += `\n\n[DIAGNOSTICS image pipeline: ${e.message}]`;
         }
-    } catch (e) {
-        generatedText += `\n\n[DIAGNOSTICS image pipeline: ${e.message}]`;
-    }
 
-    return { sampleName: sample.trim(), text: generatedText, image: imageUrl };
+        return { imageUrl, diagnosticsText };
+    })();
+
+    const [generatedTextBase, imageResult] = await Promise.all([textPromise, imagePromise]);
+
+    return {
+        sampleName: sample.trim(),
+        text: generatedTextBase + imageResult.diagnosticsText,
+        image: imageResult.imageUrl
+    };
 }
 
 async function handleGenerateLotStoryAction(body, rawToken) {
@@ -1893,6 +1950,28 @@ module.exports.handler = async function (event, context) {
             return { statusCode: 200, headers, body: JSON.stringify(responseData) };
         }
 
+        if (action === 'uploadAdminImage') {
+            const decoded = verifyToken(rawToken);
+            if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
+
+            const file = parseAdminImageUploadPayload(body?.file);
+            responseData = {
+                success: true,
+                imageUrl: await uploadImageBufferToImgBB({
+                    buffer: file.buffer,
+                    filename: file.filename,
+                    contentType: file.contentType
+                })
+            };
+
+            logDebug('[api] request finished', {
+                action,
+                durationMs: Date.now() - startedAt,
+                handledOutsideSession: true
+            });
+            return { statusCode: 200, headers, body: JSON.stringify(responseData) };
+        }
+
         if (action === 'notifyNewLotAdminPreview') {
             const adminMailResult = await sendAdminNewLotEmail({
                 sampleName: notifyNewLotContext?.sampleName,
@@ -1948,7 +2027,7 @@ module.exports.handler = async function (event, context) {
                 }
 
                 const userId = uuidv4();
-                const hash = bcrypt.hashSync(password, 10); 
+                const hash = await bcrypt.hash(password, 10);
                 const initialHistory = [
                     createSystemHistoryEntry(WELCOME_POPUP_PENDING_KEY),
                     createSystemHistoryEntry(WELCOME_BONUS_AVAILABLE_KEY)
@@ -1992,7 +2071,7 @@ module.exports.handler = async function (event, context) {
                 const users = resultSets[0].rows.map(row => rowToObj(resultSets[0].columns, row));
                 const user = users.find(item => normalizeEmailAddress(item.email) === normalizedEmail) || users[0];
                 const pwdHash = user.passwordhash || user.password_hash;
-                if (!pwdHash || !bcrypt.compareSync(password, pwdHash)) throw new Error('Неверный email или пароль');
+                if (!pwdHash || !await bcrypt.compare(password, pwdHash)) throw new Error('Неверный email или пароль');
 
                 const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
                 
@@ -2054,7 +2133,7 @@ module.exports.handler = async function (event, context) {
                     throw new Error('Ссылка для восстановления недействительна или уже устарела');
                 }
 
-                const nextHash = bcrypt.hashSync(nextPassword, 10);
+                const nextHash = await bcrypt.hash(nextPassword, 10);
                 const updateQuery = `DECLARE $id AS Utf8; DECLARE $hash AS Utf8; UPDATE users SET password_hash = $hash WHERE id = $id;`;
                 await session.executeQuery(updateQuery, {
                     '$id': TypedValues.utf8(String(user.id)),
@@ -2122,7 +2201,7 @@ module.exports.handler = async function (event, context) {
                     const user = rowToObj(resultSets[0].columns, resultSets[0].rows[0]);
                     access = getActiveArticleAccessFromHistory(user.history, articleId);
                     if (!access) throw new Error('Доступ к статье не найден или уже истек');
-                    if (!bcrypt.compareSync(password, access.passwordHash || '')) throw new Error('Неверный пароль для статьи');
+                    if (!await bcrypt.compare(password, access.passwordHash || '')) throw new Error('Неверный пароль для статьи');
                 }
 
                 const catalog = await fetchCatalogProducts();
@@ -2235,6 +2314,7 @@ module.exports.handler = async function (event, context) {
                 const decoded = verifyToken(rawToken);
                 const { order } = body;
                 if (!order || !order.id) throw new Error('Нет данных заказа');
+                ensureRobokassaEnv();
 
                 // 1. ПРОСТО СОЗДАЕМ ЗАКАЗ СО СТАТУСОМ 'pending_payment'
                 // (Мы больше НЕ трогаем профиль клиента и НЕ очищаем его корзину здесь!)
@@ -2263,9 +2343,9 @@ module.exports.handler = async function (event, context) {
                 // 2. Генерируем ссылку на оплату
                 const outSum = order.total.toString();
                 const invIdStr = order.invId.toString();
-                const sigVal = crypto.createHash('md5').update(`LocusCoffee:${outSum}:${invIdStr}:VB3Js1HjXRqp5ahHe4p7`).digest('hex');
+                const sigVal = crypto.createHash('md5').update(`${ROBOKASSA_MERCHANT_LOGIN}:${outSum}:${invIdStr}:${ROBOKASSA_PASSWORD_1}`).digest('hex');
                 const paymentDescription = encodeURIComponent(`Оплата заказа Locus Coffee №${String(order.id || invIdStr).replace(/^ws_/, '')}`);
-                const paymentUrl = `https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=LocusCoffee&OutSum=${outSum}&InvId=${invIdStr}&Description=${paymentDescription}&SignatureValue=${sigVal}&Email=${order.customer.email}`;
+                const paymentUrl = `https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=${encodeURIComponent(ROBOKASSA_MERCHANT_LOGIN)}&OutSum=${outSum}&InvId=${invIdStr}&Description=${paymentDescription}&SignatureValue=${sigVal}&Email=${order.customer.email}`;
 
                 responseData = { success: true, paymentUrl: paymentUrl };
             }
@@ -2274,6 +2354,7 @@ module.exports.handler = async function (event, context) {
             else if (action === 'robokassaCallback' || action === 'robokassaSuccess') {
                 const isWebhook = action === 'robokassaCallback';
                 let params = { ...(event.queryStringParameters || {}), ...(body || {}) };
+                ensureRobokassaEnv();
 
                 if (!params.OutSum && event.body) {
                     try {
@@ -2292,8 +2373,8 @@ module.exports.handler = async function (event, context) {
                     return;
                 }
 
-                const validWebhookSig = matchesRobokassaSignature(outSum, invId, sig, 'j4zmL54MKN0SZ7tRiufa');
-                const validReturnSig = !isWebhook && matchesRobokassaSignature(outSum, invId, sig, 'VB3Js1HjXRqp5ahHe4p7');
+                const validWebhookSig = matchesRobokassaSignature(outSum, invId, sig, ROBOKASSA_PASSWORD_2);
+                const validReturnSig = !isWebhook && matchesRobokassaSignature(outSum, invId, sig, ROBOKASSA_PASSWORD_1);
 
                 if (!validWebhookSig && !validReturnSig) {
                     responseData = isWebhook ? { _isWebhook: true, text: 'Bad signature' } : { success: false, error: 'Invalid payment signature' };
