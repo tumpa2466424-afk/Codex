@@ -741,19 +741,43 @@ export function installAdminCatalog(context) {
                     : (tone === 'error' ? '#B66A58' : '#8B7E66');
             },
 
-            uploadImageBlobToImgBB: async function(file) {
-                const formData = new FormData();
-                formData.append("image", file);
-                const IMGBB_API_KEY = "a82462eb247f9d0aee41ded68240ed02";
-                const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-                    method: 'POST',
-                    body: formData
+            readFileAsBase64: function(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const result = String(reader.result || '');
+                        const commaIndex = result.indexOf(',');
+                        resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+                    };
+                    reader.onerror = () => reject(new Error('?? ??????? ????????? ????'));
+                    reader.readAsDataURL(file);
                 });
-                const data = await res.json();
-                if (!data.success) {
-                    throw new Error(data.error ? data.error.message : "Неизвестная ошибка");
+            },
+
+            uploadImageBlobToImgBB: async function(file) {
+                const token = localStorage.getItem('locus_token');
+                if (!token) throw new Error('??? ??????? ??????????????');
+
+                const response = await fetch(`${LOCUS_API_URL}?action=uploadAdminImage`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Auth-Token': token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: 'uploadAdminImage',
+                        file: {
+                            filename: String(file?.name || 'locus_image.png'),
+                            contentType: String(file?.type || 'application/octet-stream'),
+                            contentBase64: await this.readFileAsBase64(file)
+                        }
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok || !data?.success || !data?.imageUrl) {
+                    throw new Error(data?.error || '?? ??????? ????????? ???????????');
                 }
-                return data.data.url;
+                return data.imageUrl;
             },
 
             getArticleEditorInput: function(id, part) {
