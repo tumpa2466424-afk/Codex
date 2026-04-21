@@ -4,29 +4,80 @@ export function installAdminFeatures(context) {
     UserSystem.adminModuleInstalled = true;
 
     Object.assign(UserSystem, {
+        getAdminListPagerState: function(kind) {
+            if (!this.adminListPager) {
+                this.adminListPager = {
+                    users: { page: 1, limit: 25 },
+                    promos: { page: 1, limit: 25 },
+                    actions: { page: 1, limit: 25 },
+                    messages: { page: 1, limit: 25 }
+                };
+            }
+            if (!this.adminListPager[kind]) this.adminListPager[kind] = { page: 1, limit: 25 };
+            return this.adminListPager[kind];
+        },
+
+        goToAdminListPage: function(kind, page) {
+            const pager = this.getAdminListPagerState(kind);
+            pager.page = Math.max(1, parseInt(page, 10) || 1);
+            if (kind === 'users') return this.loadUsers();
+            if (kind === 'promos') return this.loadPromos();
+            if (kind === 'actions') return PromotionSystem.loadActionsList();
+            if (kind === 'messages') return MessageSystem.loadMessagesForAdmin();
+        },
+
+        renderAdminListPager: function(kind, data) {
+            const page = Math.max(1, Number(data?.page) || 1);
+            const limit = Math.max(1, Number(data?.limit) || 25);
+            const total = Math.max(0, Number(data?.total) || 0);
+            const totalPages = Math.max(1, Math.ceil(total / limit));
+            if (totalPages <= 1) return '';
+
+            return `
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:14px; padding-top:14px; border-top:1px solid var(--locus-border);">
+                    <div style="font-size:12px; color:var(--locus-dark); opacity:0.75;">
+                        Страница ${page} из ${totalPages} • Всего: ${total}
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <button class="lc-btn lc-btn-secondary" style="padding:8px 12px;" onclick="UserSystem.goToAdminListPage('${kind}', ${page - 1})" ${page <= 1 ? 'disabled' : ''}>Назад</button>
+                        <button class="lc-btn lc-btn-secondary" style="padding:8px 12px;" onclick="UserSystem.goToAdminListPage('${kind}', ${page + 1})" ${page >= totalPages ? 'disabled' : ''}>Вперёд</button>
+                    </div>
+                </div>
+            `;
+        },
+
         loadUsers: async function() {
             const container = document.getElementById('admin-sec-users');
             if (!container) return;
             container.innerHTML = '<div class="loader" style="position:relative; top:0; color:var(--locus-dark);">Загрузка базы YDB...</div>';
 
             const token = localStorage.getItem('locus_token');
+            const pager = this.getAdminListPagerState('users');
             if (!token) {
                 container.innerHTML = 'Нет доступа';
                 return;
             }
 
             try {
-                const res = await fetch(`${LOCUS_API_URL}?action=getAdminUsers`, {
+                const res = await fetch(`${LOCUS_API_URL}?action=getAdminUsers&page=${pager.page}&limit=${pager.limit}`, {
                     headers: { 'X-Auth-Token': token }
                 });
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Ошибка загрузки');
 
+                pager.page = Math.max(1, Number(data.page) || pager.page);
+                pager.limit = Math.max(1, Number(data.limit) || pager.limit);
+
+                if ((!Array.isArray(data.users) || data.users.length === 0) && pager.page > 1) {
+                    pager.page -= 1;
+                    return this.loadUsers();
+                }
+
                 let totalRevenue = 0;
                 let totalOrders = 0;
                 const usersList = [];
 
-                data.users.forEach(user => {
+                (Array.isArray(data.users) ? data.users : []).forEach(user => {
                     const history = this.getVisibleHistoryItems(user.history || []);
                     const spent = Number(user.totalSpent) || 0;
                     totalRevenue += spent;
@@ -78,15 +129,15 @@ export function installAdminFeatures(context) {
                 let html = `
                     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:20px; text-align:center;">
                         <div style="background:#fff; padding:10px; border:1px solid #E5E1D8; border-radius:8px;">
-                            <div style="font-size:10px; color:gray; text-transform:uppercase;">Оборот</div>
+                            <div style="font-size:10px; color:gray; text-transform:uppercase;">Оборот страницы</div>
                             <div style="font-size:16px; font-weight:bold;">${totalRevenue.toLocaleString()} ₽</div>
                         </div>
                         <div style="background:#fff; padding:10px; border:1px solid #E5E1D8; border-radius:8px;">
-                            <div style="font-size:10px; color:gray; text-transform:uppercase;">Товаров куплено</div>
+                            <div style="font-size:10px; color:gray; text-transform:uppercase;">Покупок на странице</div>
                             <div style="font-size:16px; font-weight:bold;">${totalOrders}</div>
                         </div>
                         <div style="background:#fff; padding:10px; border:1px solid #E5E1D8; border-radius:8px;">
-                            <div style="font-size:10px; color:gray; text-transform:uppercase;">Средний чек</div>
+                            <div style="font-size:10px; color:gray; text-transform:uppercase;">Средний чек страницы</div>
                             <div style="font-size:16px; font-weight:bold;">${totalOrders ? Math.round(totalRevenue / totalOrders) : 0} ₽</div>
                         </div>
                     </div>
@@ -125,6 +176,7 @@ export function installAdminFeatures(context) {
                 });
 
                 html += '</tbody></table></div>';
+                html += this.renderAdminListPager('users', data);
                 container.innerHTML = html;
                 this.startRetailCountdownTicker?.();
             } catch (e) {
@@ -139,17 +191,26 @@ export function installAdminFeatures(context) {
             list.innerHTML = 'Загрузка...';
 
             const token = localStorage.getItem('locus_token');
+            const pager = this.getAdminListPagerState('promos');
             if (!token) {
                 list.innerHTML = 'Нет доступа';
                 return;
             }
 
             try {
-                const res = await fetch(`${LOCUS_API_URL}?action=getPromos`, {
+                const res = await fetch(`${LOCUS_API_URL}?action=getPromos&page=${pager.page}&limit=${pager.limit}`, {
                     headers: { 'X-Auth-Token': token }
                 });
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Ошибка загрузки');
+
+                pager.page = Math.max(1, Number(data.page) || pager.page);
+                pager.limit = Math.max(1, Number(data.limit) || pager.limit);
+
+                if ((!Array.isArray(data.promos) || data.promos.length === 0) && pager.page > 1) {
+                    pager.page -= 1;
+                    return this.loadPromos();
+                }
 
                 list.innerHTML = '';
                 if (!Array.isArray(data.promos) || data.promos.length === 0) {
@@ -172,6 +233,7 @@ export function installAdminFeatures(context) {
                     `;
                     list.appendChild(div);
                 });
+                list.insertAdjacentHTML('beforeend', this.renderAdminListPager('promos', data));
             } catch (e) {
                 console.error(e);
                 list.innerHTML = 'Ошибка загрузки';
@@ -235,18 +297,26 @@ export function installAdminFeatures(context) {
             container.innerHTML = 'Загрузка...';
 
             const token = localStorage.getItem('locus_token');
+            const pager = UserSystem.getAdminListPagerState('actions');
             if (!token) {
                 container.innerHTML = 'Нет доступа';
                 return;
             }
 
             try {
-                const res = await fetch(`${LOCUS_API_URL}?action=getActions`, { headers: { 'X-Auth-Token': token } });
+                const res = await fetch(`${LOCUS_API_URL}?action=getActions&page=${pager.page}&limit=${pager.limit}`, { headers: { 'X-Auth-Token': token } });
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Ошибка загрузки');
 
+                pager.page = Math.max(1, Number(data.page) || pager.page);
+                pager.limit = Math.max(1, Number(data.limit) || pager.limit);
+
                 container.innerHTML = '';
                 const actions = Array.isArray(data.actions) ? [...data.actions] : [];
+                if (actions.length === 0 && pager.page > 1) {
+                    pager.page -= 1;
+                    return this.loadActionsList();
+                }
                 if (actions.length === 0) {
                     container.innerHTML = '<div style="opacity:0.5; font-size:12px;">Нет акций</div>';
                     return;
@@ -276,6 +346,7 @@ export function installAdminFeatures(context) {
                     `;
                     container.appendChild(el);
                 });
+                container.insertAdjacentHTML('beforeend', UserSystem.renderAdminListPager('actions', data));
             } catch (e) {
                 console.error(e);
                 container.innerHTML = 'Ошибка загрузки';
@@ -452,15 +523,23 @@ export function installAdminFeatures(context) {
             if (showLoading && container) container.innerHTML = 'Загрузка...';
 
             const token = localStorage.getItem('locus_token');
+            const pager = UserSystem.getAdminListPagerState('messages');
             try {
-                const res = await fetch(`${LOCUS_API_URL}?action=getAdminMessages`, { headers: { 'X-Auth-Token': token } });
+                const res = await fetch(`${LOCUS_API_URL}?action=getAdminMessages&page=${pager.page}&limit=${pager.limit}`, { headers: { 'X-Auth-Token': token } });
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Ошибка загрузки');
 
+                pager.page = Math.max(1, Number(data.page) || pager.page);
+                pager.limit = Math.max(1, Number(data.limit) || pager.limit);
+
                 let messages = Array.isArray(data.messages) ? data.messages : [];
+                if (messages.length === 0 && pager.page > 1 && renderList) {
+                    pager.page -= 1;
+                    return this.loadMessagesForAdmin(options);
+                }
                 messages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-                const unreadIncomingCount = messages.filter(message => message.direction === 'to_admin' && message.isRead !== true).length;
+                const unreadIncomingCount = Math.max(0, Number(data.unreadIncomingCount) || 0);
                 this.updateAdminUnreadBadge(unreadIncomingCount);
 
                 if (markAsRead && unreadIncomingCount > 0) {
@@ -502,6 +581,7 @@ export function installAdminFeatures(context) {
                     `;
                     container.appendChild(el);
                 });
+                container.insertAdjacentHTML('beforeend', UserSystem.renderAdminListPager('messages', data));
             } catch (e) {
                 console.error(e);
                 if (renderList && container) container.innerHTML = 'Ошибка загрузки';
