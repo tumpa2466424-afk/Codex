@@ -15,6 +15,10 @@ const WELCOME_POPUP_PENDING_KEY = 'welcome_popup_pending';
 const WELCOME_POPUP_DISMISSED_KEY = 'welcome_popup_dismissed';
 const WELCOME_BONUS_AVAILABLE_KEY = 'welcome_bonus_available';
 const WELCOME_BONUS_USED_KEY = 'welcome_bonus_used';
+const NOTIFY_NEW_LOTS_KEY = 'NOTIFY_NEW_LOTS';
+const USER_SUBSCRIPTIONS_TABLE = 'user_subscriptions';
+const USER_NOTIFICATION_PREFERENCES_TABLE = 'user_notification_preferences';
+const USER_INDEX_STATE_SETTING_ID = 'user_index_state_v1';
 const DEBUG_LOGS_ENABLED = /^(1|true|yes|on)$/i.test(String(process.env.DEBUG_LOGS || '').trim());
 const CBR_USD_VALUTE_ID = 'R01235';
 
@@ -460,6 +464,373 @@ function resolveNewLotMailPayload(sampleName, catalogProduct, payload = {}) {
     };
 }
 
+function isMissingTableError(error) {
+    const message = String(error?.message || error || '').toLowerCase();
+    return message.includes('path not found') ||
+        message.includes('cannot find table') ||
+        message.includes('unknown table') ||
+        message.includes('does not exist') ||
+        message.includes('scheme error') ||
+        message.includes('cannot resolve path');
+}
+
+function buildSubscriptionRecordId(userId, item) {
+    const normalizedWeight = Number(item?.weight) || 250;
+    const normalizedGrind = String(item?.grind || 'Зерно').trim().toLowerCase();
+    const normalizedItem = String(item?.item || '').trim().toLowerCase();
+    const source = `${String(userId || '').trim()}|${normalizedItem}|${normalizedWeight}|${normalizedGrind}`;
+    return crypto.createHash('sha1').update(source).digest('hex');
+}
+
+function normalizeSubscriptionRow(userId, email, item) {
+    const normalizedItem = String(item?.item || '').trim();
+    if (!normalizedItem) return null;
+
+    return {
+        subscriptionId: buildSubscriptionRecordId(userId, item),
+        userId: String(userId || '').trim(),
+        email: normalizeEmailAddress(email),
+        item: normalizedItem,
+        weight: Number(item?.weight) || 250,
+        grind: String(item?.grind || 'Зерно').trim() || 'Зерно',
+        price: Number(item?.price) || 0,
+        dateAdded: String(item?.dateAdded || '').trim() || 'Неизвестно',
+        active: item?.active !== false,
+        updatedAt: new Date().toISOString()
+    };
+}
+
+function extractNotifyNewLotsPreference(history) {
+    const historyList = getRawArray(history);
+    const notifyEntry = historyList.find(item => item && item.isSystemMeta && item.systemType === NOTIFY_NEW_LOTS_KEY);
+    if (!notifyEntry) return null;
+
+    return {
+        preferenceKey: NOTIFY_NEW_LOTS_KEY,
+        enabled: notifyEntry.enabled === true,
+        updatedAt: String(notifyEntry.updatedAt || notifyEntry.createdAt || new Date().toISOString())
+    };
+}
+
+function normalizeNotificationPreferenceRow(userId, email, history) {
+    const preference = extractNotifyNewLotsPreference(history);
+    if (!preference) return null;
+
+    return {
+        userId: String(userId || '').trim(),
+        email: normalizeEmailAddress(email),
+        preferenceKey: preference.preferenceKey,
+        enabled: preference.enabled,
+        updatedAt: preference.updatedAt
+    };
+}
+
+async function loadUserIndexState(session) {
+    const state = await loadJsonSetting(session, USER_INDEX_STATE_SETTING_ID);
+    return state && typeof state === 'object' ? state : {};
+}
+
+async function saveUserIndexState(session, nextState) {
+    await saveJsonSetting(session, USER_INDEX_STATE_SETTING_ID, {
+        version: 1,
+        ...nextState
+    });
+}
+
+async function syncUserSubscriptionsIndex(session, userId, email, subscription, options = {}) {
+    const normalizedUserId = String(userId || '').trim();
+    if (!normalizedUserId) return { synced: false, reason: 'missing_user_id' };
+
+    const rows = getRawArray(subscription)
+        .map(item => normalizeSubscriptionRow(normalizedUserId, email, item))
+        .filter(Boolean);
+
+    const existingIds = new Set();
+
+    try {
+        const selectQuery = `
+            DECLARE $userId AS Utf8;
+
+            SELECT subscriptionId
+            FROM ${USER_SUBSCRIPTIONS_TABLE}
+            WHERE userId = $userId;
+        `;
+        const { resultSets } = await session.executeQuery(selectQuery, {
+            '$userId': TypedValues.utf8(normalizedUserId)
+        });
+
+        if (resultSets[0] && resultSets[0].rows.length > 0) {
+            resultSets[0].rows.forEach(row => {
+                const record = rowToObj(resultSets[0].columns, row);
+                if (record.subscriptionid) existingIds.add(String(record.subscriptionid));
+            });
+        }
+
+        for (const row of rows) {
+            const upsertQuery = `
+                DECLARE $userId AS Utf8;
+                DECLARE $subscriptionId AS Utf8;
+                DECLARE $email AS Utf8;
+                DECLARE $item AS Utf8;
+                DECLARE $weight AS Int32;
+                DECLARE $grind AS Utf8;
+                DECLARE $price AS Double;
+                DECLARE $dateAdded AS Utf8;
+                DECLARE $active AS Bool;
+                DECLARE $updatedAt AS Utf8;
+
+                UPSERT INTO ${USER_SUBSCRIPTIONS_TABLE}
+                    (userId, subscriptionId, email, item, weight, grind, price, dateAdded, active, updatedAt)
+                VALUES
+                    ($userId, $subscriptionId, $email, $item, $weight, $grind, $price, $dateAdded, $active, $updatedAt);
+            `;
+            await session.executeQuery(upsertQuery, {
+                '$userId': TypedValues.utf8(row.userId),
+                '$subscriptionId': TypedValues.utf8(row.subscriptionId),
+                '$email': TypedValues.utf8(row.email),
+                '$item': TypedValues.utf8(row.item),
+                '$weight': TypedValues.int32(row.weight),
+                '$grind': TypedValues.utf8(row.grind),
+                '$price': TypedValues.double(row.price),
+                '$dateAdded': TypedValues.utf8(row.dateAdded),
+                '$active': TypedValues.bool(row.active),
+                '$updatedAt': TypedValues.utf8(row.updatedAt)
+            });
+            existingIds.delete(row.subscriptionId);
+        }
+
+        for (const staleSubscriptionId of existingIds) {
+            const deactivateQuery = `
+                DECLARE $userId AS Utf8;
+                DECLARE $subscriptionId AS Utf8;
+                DECLARE $active AS Bool;
+                DECLARE $updatedAt AS Utf8;
+
+                UPDATE ${USER_SUBSCRIPTIONS_TABLE}
+                SET active = $active, updatedAt = $updatedAt
+                WHERE userId = $userId AND subscriptionId = $subscriptionId;
+            `;
+            await session.executeQuery(deactivateQuery, {
+                '$userId': TypedValues.utf8(normalizedUserId),
+                '$subscriptionId': TypedValues.utf8(staleSubscriptionId),
+                '$active': TypedValues.bool(false),
+                '$updatedAt': TypedValues.utf8(new Date().toISOString())
+            });
+        }
+
+        return { synced: true, count: rows.length };
+    } catch (error) {
+        if (options.ignoreMissingTable && isMissingTableError(error)) {
+            return { synced: false, reason: 'table_missing' };
+        }
+        throw error;
+    }
+}
+
+async function syncUserNotificationPreferenceIndex(session, userId, email, history, options = {}) {
+    const normalizedUserId = String(userId || '').trim();
+    if (!normalizedUserId) return { synced: false, reason: 'missing_user_id' };
+
+    const row = normalizeNotificationPreferenceRow(normalizedUserId, email, history);
+    if (!row) return { synced: false, reason: 'no_preference' };
+
+    try {
+        const upsertQuery = `
+            DECLARE $userId AS Utf8;
+            DECLARE $preferenceKey AS Utf8;
+            DECLARE $email AS Utf8;
+            DECLARE $enabled AS Bool;
+            DECLARE $updatedAt AS Utf8;
+
+            UPSERT INTO ${USER_NOTIFICATION_PREFERENCES_TABLE}
+                (userId, preferenceKey, email, enabled, updatedAt)
+            VALUES
+                ($userId, $preferenceKey, $email, $enabled, $updatedAt);
+        `;
+        await session.executeQuery(upsertQuery, {
+            '$userId': TypedValues.utf8(row.userId),
+            '$preferenceKey': TypedValues.utf8(row.preferenceKey),
+            '$email': TypedValues.utf8(row.email),
+            '$enabled': TypedValues.bool(row.enabled),
+            '$updatedAt': TypedValues.utf8(row.updatedAt)
+        });
+        return { synced: true, enabled: row.enabled };
+    } catch (error) {
+        if (options.ignoreMissingTable && isMissingTableError(error)) {
+            return { synced: false, reason: 'table_missing' };
+        }
+        throw error;
+    }
+}
+
+async function syncUserDerivedIndexes(session, userId, email, data = {}, options = {}) {
+    const result = {};
+
+    if (data.subscription !== undefined) {
+        result.subscription = await syncUserSubscriptionsIndex(session, userId, email, data.subscription, options);
+    }
+
+    if (data.history !== undefined) {
+        result.notificationPreference = await syncUserNotificationPreferenceIndex(session, userId, email, data.history, options);
+    }
+
+    return result;
+}
+
+async function listNormalizedSubscriptions(session, options = {}) {
+    try {
+        const query = `
+            SELECT email, item, weight, grind, price, dateAdded, active
+            FROM ${USER_SUBSCRIPTIONS_TABLE}
+            WHERE active != false
+            ORDER BY email ASC, updatedAt DESC;
+        `;
+        const { resultSets } = await session.executeQuery(query);
+        const result = [];
+
+        if (resultSets[0] && resultSets[0].rows.length > 0) {
+            resultSets[0].rows.forEach(row => {
+                const item = rowToObj(resultSets[0].columns, row);
+                result.push({
+                    email: item.email,
+                    item: item.item,
+                    weight: Number(item.weight) || 250,
+                    grind: item.grind || 'Зерно',
+                    price: item.price,
+                    dateAdded: item.dateadded || 'Неизвестно'
+                });
+            });
+        }
+
+        return result;
+    } catch (error) {
+        if (options.ignoreMissingTable && isMissingTableError(error)) return null;
+        throw error;
+    }
+}
+
+async function listNormalizedNotifyNewLotEmails(session, options = {}) {
+    try {
+        const query = `
+            DECLARE $preferenceKey AS Utf8;
+
+            SELECT email
+            FROM ${USER_NOTIFICATION_PREFERENCES_TABLE}
+            WHERE preferenceKey = $preferenceKey AND enabled = true
+            ORDER BY updatedAt DESC;
+        `;
+        const { resultSets } = await session.executeQuery(query, {
+            '$preferenceKey': TypedValues.utf8(NOTIFY_NEW_LOTS_KEY)
+        });
+        const emails = [];
+
+        if (resultSets[0] && resultSets[0].rows.length > 0) {
+            resultSets[0].rows.forEach(row => {
+                const item = rowToObj(resultSets[0].columns, row);
+                if (isValidEmailAddress(item.email)) emails.push(normalizeEmailAddress(item.email));
+            });
+        }
+
+        return Array.from(new Set(emails));
+    } catch (error) {
+        if (options.ignoreMissingTable && isMissingTableError(error)) return null;
+        throw error;
+    }
+}
+
+async function collectLegacyNotifyNewLotTargetEmails(session) {
+    const usersQuery = `SELECT email, history FROM users;`;
+    const { resultSets } = await session.executeQuery(usersQuery);
+    const targetEmails = [];
+
+    if (resultSets[0].rows.length > 0) {
+        resultSets[0].rows.forEach(row => {
+            const u = rowToObj(resultSets[0].columns, row);
+            const hist = getRawArray(u.history);
+            const notifyEntry = hist.find(h => h && h.isSystemMeta && h.systemType === NOTIFY_NEW_LOTS_KEY);
+            if (notifyEntry && notifyEntry.enabled && isValidEmailAddress(u.email)) {
+                targetEmails.push(normalizeEmailAddress(u.email));
+            }
+        });
+    }
+
+    return Array.from(new Set(targetEmails));
+}
+
+async function collectLegacyAdminSubscriptions(session) {
+    const query = `SELECT email, subscription FROM users;`;
+    const { resultSets } = await session.executeQuery(query);
+    const allSubs = [];
+
+    if (resultSets[0].rows.length > 0) {
+        resultSets[0].rows.forEach(row => {
+            const u = rowToObj(resultSets[0].columns, row);
+            const subs = getRawArray(u.subscription);
+
+            subs.forEach(s => {
+                if (s.active !== false) {
+                    allSubs.push({
+                        email: u.email,
+                        item: s.item,
+                        weight: s.weight || 250,
+                        grind: s.grind || 'Зерно',
+                        price: s.price,
+                        dateAdded: s.dateAdded || 'Неизвестно'
+                    });
+                }
+            });
+        });
+    }
+
+    return allSubs;
+}
+
+async function backfillUserDerivedIndexes(session, options = {}) {
+    const ignoreMissingTable = options.ignoreMissingTable !== false;
+    const usersQuery = `SELECT id, email, history, subscription FROM users;`;
+    const { resultSets } = await session.executeQuery(usersQuery);
+    let usersProcessed = 0;
+    let subscriptionsSynced = 0;
+    let notificationPreferencesSynced = 0;
+
+    try {
+        if (resultSets[0] && resultSets[0].rows.length > 0) {
+            for (const row of resultSets[0].rows) {
+                const user = rowToObj(resultSets[0].columns, row);
+                const syncResult = await syncUserDerivedIndexes(session, user.id, user.email, {
+                    history: user.history,
+                    subscription: user.subscription
+                }, { ignoreMissingTable: false });
+
+                usersProcessed++;
+                if (syncResult.subscription?.synced) subscriptionsSynced += Number(syncResult.subscription.count) || 0;
+                if (syncResult.notificationPreference?.synced) notificationPreferencesSynced++;
+            }
+        }
+    } catch (error) {
+        if (ignoreMissingTable && isMissingTableError(error)) {
+            return { success: false, reason: 'table_missing' };
+        }
+        throw error;
+    }
+
+    const completedAt = new Date().toISOString();
+    await saveUserIndexState(session, {
+        version: 1,
+        backfilledAt: completedAt,
+        subscriptionsBackfilledAt: completedAt,
+        notificationsBackfilledAt: completedAt
+    });
+
+    return {
+        success: true,
+        usersProcessed,
+        subscriptionsSynced,
+        notificationPreferencesSynced,
+        completedAt
+    };
+}
+
 function parseAdminNewLotAttachment(adminAttachmentInput) {
     if (!adminAttachmentInput || typeof adminAttachmentInput !== 'object') return null;
 
@@ -544,22 +915,13 @@ async function buildNotifyNewLotContext(rawToken, body, options = {}) {
 }
 
 async function collectNotifyNewLotTargetEmails(session) {
-    const usersQuery = `SELECT email, history FROM users;`;
-    const { resultSets } = await session.executeQuery(usersQuery);
-    const targetEmails = [];
-
-    if (resultSets[0].rows.length > 0) {
-        resultSets[0].rows.forEach(row => {
-            const u = rowToObj(resultSets[0].columns, row);
-            const hist = getRawArray(u.history);
-            const notifyEntry = hist.find(h => h && h.isSystemMeta && h.systemType === 'NOTIFY_NEW_LOTS');
-            if (notifyEntry && notifyEntry.enabled && isValidEmailAddress(u.email)) {
-                targetEmails.push(u.email);
-            }
-        });
+    const indexState = await loadUserIndexState(session);
+    if (indexState.notificationsBackfilledAt) {
+        const normalizedEmails = await listNormalizedNotifyNewLotEmails(session, { ignoreMissingTable: true });
+        if (normalizedEmails) return normalizedEmails;
     }
 
-    return targetEmails;
+    return collectLegacyNotifyNewLotTargetEmails(session);
 }
 
 async function proxyCatalogEdit(updatedData) {
@@ -711,7 +1073,8 @@ const RETRYABLE_SESSION_ACTIONS = new Set([
     'robokassaSuccess',
     'notifyNewLot',
     'notifyNewLotDryRun',
-    'getNewLotDiscount'
+    'getNewLotDiscount',
+    'backfillUserDerivedIndexes'
 ]);
 
 function verifyToken(token) {
@@ -1860,6 +2223,11 @@ module.exports.handler = async function (event, context) {
                 await session.executeQuery(updateQuery, {
                     '$id': TypedValues.utf8(decoded.userId), '$data': TypedValues.jsonDocument(JSON.stringify(data))
                 });
+                if (field === 'subscription' || field === 'history') {
+                    await syncUserDerivedIndexes(session, decoded.userId, decoded.email, {
+                        [field]: data
+                    }, { ignoreMissingTable: true });
+                }
                 responseData = { success: true };
             }
 
@@ -2502,31 +2870,21 @@ module.exports.handler = async function (event, context) {
             else if (action === 'getAdminSubs') {
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
-                
-                const query = `SELECT email, subscription FROM users;`;
-                const { resultSets } = await session.executeQuery(query);
-                
-                let allSubs = [];
-                if (resultSets[0].rows.length > 0) {
-                    resultSets[0].rows.forEach(row => {
-                        const u = rowToObj(resultSets[0].columns, row);
-                        const subs = getRawArray(u.subscription);
-                        
-                        subs.forEach(s => {
-                            if (s.active !== false) {
-                                allSubs.push({
-                                    email: u.email,
-                                    item: s.item,
-                                    weight: s.weight || 250,
-                                    grind: s.grind || 'Зерно',
-                                    price: s.price,
-                                    dateAdded: s.dateAdded || 'Неизвестно'
-                                });
-                            }
-                        });
-                    });
+                const indexState = await loadUserIndexState(session);
+                let allSubs = null;
+                if (indexState.subscriptionsBackfilledAt) {
+                    allSubs = await listNormalizedSubscriptions(session, { ignoreMissingTable: true });
                 }
+                if (!allSubs) allSubs = await collectLegacyAdminSubscriptions(session);
                 responseData = { success: true, subs: allSubs };
+            }
+
+            else if (action === 'backfillUserDerivedIndexes') {
+                const decoded = verifyToken(rawToken);
+                if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
+
+                const backfillResult = await backfillUserDerivedIndexes(session, { ignoreMissingTable: false });
+                responseData = { success: true, ...backfillResult };
             }
 
             // --- НАЧАЛО: АДМИНКА - ЦЕНООБРАЗОВАНИЕ (CSV ПАРСЕР) ---
