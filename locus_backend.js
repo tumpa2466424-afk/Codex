@@ -2216,21 +2216,24 @@ module.exports.handler = async function (event, context) {
             }
             
             else if (action === 'getActiveActions') {
-                const query = `SELECT * FROM actions;`;
+                const query = `
+                    SELECT id, title, msg, type, promoCode, discountVal, discountType, viewLimit, dateEnd, createdAt
+                    FROM actions
+                    WHERE active != false
+                    ORDER BY createdAt DESC;
+                `;
                 const { resultSets } = await session.executeQuery(query);
                 let actionsList = [];
                 
                 if (resultSets[0].rows.length > 0) {
                     resultSets[0].rows.forEach(row => {
                         const a = rowToObj(resultSets[0].columns, row);
-                        if (a.active !== false) {
-                            actionsList.push({
-                                id: a.id, title: a.title, msg: a.msg, type: a.type,
-                                promoCode: a.promocode, discountVal: Number(a.discountval) || 0,
-                                discountType: a.discounttype, limit: Number(a.viewlimit) || 1,
-                                dateEnd: a.dateend, createdAt: a.createdat
-                            });
-                        }
+                        actionsList.push({
+                            id: a.id, title: a.title, msg: a.msg, type: a.type,
+                            promoCode: a.promocode, discountVal: Number(a.discountval) || 0,
+                            discountType: a.discounttype, limit: Number(a.viewlimit) || 1,
+                            dateEnd: a.dateend, createdAt: a.createdat
+                        });
                     });
                 }
                 responseData = { success: true, actions: actionsList };
@@ -2404,20 +2407,25 @@ module.exports.handler = async function (event, context) {
             
             else if (action === 'getUserMessages') {
                 const decoded = verifyToken(rawToken);
-                const query = `DECLARE $userId AS Utf8; SELECT * FROM messages WHERE userId = $userId;`;
+                const query = `
+                    DECLARE $userId AS Utf8;
+
+                    SELECT id, userId, userEmail, direction, subject, text, timestamp, isRead, deletedByAdmin, deletedByUser
+                    FROM messages
+                    WHERE userId = $userId AND deletedByUser != true
+                    ORDER BY timestamp DESC;
+                `;
                 const { resultSets } = await session.executeQuery(query, { '$userId': TypedValues.utf8(decoded.userId) });
                 let msgs = [];
                 if (resultSets[0].rows.length > 0) {
                     resultSets[0].rows.forEach(row => {
                         const m = rowToObj(resultSets[0].columns, row);
-                        if (m.deletedbyuser !== true) {
-                            msgs.push({
-                                id: m.id, userId: m.userid, userEmail: m.useremail,
-                                direction: m.direction, subject: m.subject, text: m.text,
-                                timestamp: m.timestamp, isRead: m.isread,
-                                deletedByAdmin: m.deletedbyadmin, deletedByUser: m.deletedbyuser
-                            });
-                        }
+                        msgs.push({
+                            id: m.id, userId: m.userid, userEmail: m.useremail,
+                            direction: m.direction, subject: m.subject, text: m.text,
+                            timestamp: m.timestamp, isRead: m.isread,
+                            deletedByAdmin: m.deletedbyadmin, deletedByUser: m.deletedbyuser
+                        });
                     });
                 }
                 responseData = { success: true, messages: msgs };
