@@ -906,6 +906,94 @@ export function installAdminCatalog(context) {
                 this.renderArticleEditorPreview(id);
             },
 
+            getEditorDraftStorageKey: function(id, scope) {
+                return `locus_admin_draft_${scope}_${id}`;
+            },
+
+            bindEditorDraftAutosave: function(id, scope) {
+                const contentDiv = document.getElementById(`cat-content-${id}`);
+                if (!contentDiv) return;
+
+                const flagName = scope === 'extrinsic' ? 'draftBoundExtrinsic' : 'draftBoundCatalog';
+                if (contentDiv.dataset[flagName] === '1') return;
+
+                const shouldTrack = (target) => {
+                    if (!target || !target.id) return false;
+                    if (scope === 'extrinsic') return target.id.startsWith('cat-ext-');
+                    return target.id.startsWith('cat-edit-');
+                };
+
+                const persist = (event) => {
+                    if (!shouldTrack(event.target)) return;
+                    this.persistEditorDraft(id, scope);
+                };
+
+                contentDiv.addEventListener('input', persist);
+                contentDiv.addEventListener('change', persist);
+                contentDiv.dataset[flagName] = '1';
+            },
+
+            persistEditorDraft: function(id, scope) {
+                if (typeof localStorage === 'undefined') return;
+                const contentDiv = document.getElementById(`cat-content-${id}`);
+                if (!contentDiv) return;
+
+                const selector = scope === 'extrinsic'
+                    ? 'input[id^="cat-ext-"], textarea[id^="cat-ext-"]'
+                    : 'input[id^="cat-edit-"], textarea[id^="cat-edit-"], select[id^="cat-edit-"]';
+                const values = {};
+
+                contentDiv.querySelectorAll(selector).forEach((el) => {
+                    if (!el.id || el.disabled) return;
+                    if (el.type === 'checkbox') values[el.id] = { checked: !!el.checked };
+                    else values[el.id] = { value: String(el.value || '') };
+                });
+
+                localStorage.setItem(this.getEditorDraftStorageKey(id, scope), JSON.stringify({
+                    savedAt: new Date().toISOString(),
+                    values
+                }));
+            },
+
+            restoreEditorDraft: function(id, scope) {
+                if (typeof localStorage === 'undefined') return false;
+                const raw = localStorage.getItem(this.getEditorDraftStorageKey(id, scope));
+                if (!raw) return false;
+
+                let draft = null;
+                try {
+                    draft = JSON.parse(raw);
+                } catch (e) {
+                    localStorage.removeItem(this.getEditorDraftStorageKey(id, scope));
+                    return false;
+                }
+
+                const values = draft && typeof draft === 'object' ? draft.values : null;
+                if (!values || typeof values !== 'object') return false;
+
+                let restored = false;
+                Object.entries(values).forEach(([fieldId, state]) => {
+                    const el = document.getElementById(fieldId);
+                    if (!el) return;
+                    if (Object.prototype.hasOwnProperty.call(state || {}, 'checked')) {
+                        el.checked = !!state.checked;
+                        el.dispatchEvent(new Event('change', { bubbles: true }));
+                    } else if (Object.prototype.hasOwnProperty.call(state || {}, 'value')) {
+                        el.value = String(state.value || '');
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    restored = true;
+                });
+
+                if (restored && scope === 'catalog') this.renderArticleEditorPreview(id);
+                return restored;
+            },
+
+            clearEditorDraft: function(id, scope) {
+                if (typeof localStorage === 'undefined') return;
+                localStorage.removeItem(this.getEditorDraftStorageKey(id, scope));
+            },
+
             loadArticleEditorData: async function(id) {
                 const token = localStorage.getItem('locus_token');
                 if (!token) throw new Error('Нет доступа администратора');
@@ -1166,6 +1254,8 @@ export function installAdminCatalog(context) {
 
                 if (!item.classList.contains('open')) item.classList.add('open');
                 contentDiv.innerHTML = this.getExtrinsicEditHtml(product);
+                this.bindEditorDraftAutosave(id, 'extrinsic');
+                this.restoreEditorDraft(id, 'extrinsic');
             },
 
             saveExtrinsicEdit: async function(id) {
@@ -1232,6 +1322,7 @@ export function installAdminCatalog(context) {
                         Object.assign(activeProduct, localUpdate);
                     }
 
+                    this.clearEditorDraft(id, 'extrinsic');
                     this.cancelEdit(id);
                 } catch (error) {
                     alert('Ошибка сети при сохранении Extrinsic: ' + error.message);
@@ -1269,15 +1360,21 @@ export function installAdminCatalog(context) {
                         const articleEditorData = await this.loadArticleEditorData(id);
                         contentDiv.innerHTML = this.getEditHtml(product, articleEditorData);
                         this.initArticleEditor(id);
+                        this.bindEditorDraftAutosave(id, 'catalog');
+                        this.restoreEditorDraft(id, 'catalog');
                     } catch (error) {
                         contentDiv.innerHTML = this.getEditHtml(product, {});
                         this.initArticleEditor(id);
+                        this.bindEditorDraftAutosave(id, 'catalog');
+                        this.restoreEditorDraft(id, 'catalog');
                         alert('Не удалось загрузить полный текст статьи: ' + error.message);
                     }
                     return;
                 }
 
                 contentDiv.innerHTML = this.getEditHtml(product);
+                this.bindEditorDraftAutosave(id, 'catalog');
+                this.restoreEditorDraft(id, 'catalog');
             },
 
             cancelEdit: function(id) {
@@ -1337,11 +1434,13 @@ export function installAdminCatalog(context) {
                     if (!result.success) throw new Error("Сервер вернул ошибку");
                     
                     if (isArticle) {
+                        this.clearEditorDraft(id, 'catalog');
                         await this.loadData();
                     } else {
                         const pIndex = this.ALL_PRODUCTS.findIndex(p => p.id === id);
                         this.ALL_PRODUCTS[pIndex] = { ...this.ALL_PRODUCTS[pIndex], ...updatedData };
                         document.querySelector(`#cat-item-row-${id} .item-title span`).textContent = updatedData.sample;
+                        this.clearEditorDraft(id, 'catalog');
                         this.cancelEdit(id);
                     }
                     if (window.fetchExternalData) window.fetchExternalData(); // Обновляем витрину
