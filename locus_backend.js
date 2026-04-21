@@ -2457,10 +2457,17 @@ module.exports.handler = async function (event, context) {
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
                 
                 const query = `
+                    DECLARE $wholesalePrefix AS Utf8;
+                    DECLARE $pendingStatus AS Utf8;
+
                     SELECT id, userId, invId, total, status, customer, delivery, items, createdAt
                     FROM orders
+                    WHERE NOT StartsWith(id, $wholesalePrefix) AND status != $pendingStatus
                 `;
-                const { resultSets } = await session.executeQuery(query);
+                const { resultSets } = await session.executeQuery(query, {
+                    '$wholesalePrefix': TypedValues.utf8('ws_'),
+                    '$pendingStatus': TypedValues.utf8('pending_payment')
+                });
                 
                 let retailOrders = [];
                 if (resultSets[0].rows.length > 0) {
@@ -2504,8 +2511,16 @@ module.exports.handler = async function (event, context) {
                 const decoded = verifyToken(rawToken);
                 if (decoded.email !== 'info@locus.coffee') throw new Error('Доступ запрещен');
                 
-                const query = `SELECT * FROM orders;`;
-                const { resultSets } = await session.executeQuery(query);
+                const query = `
+                    DECLARE $wholesalePrefix AS Utf8;
+
+                    SELECT id, userId, total, status, customer, items, createdAt
+                    FROM orders
+                    WHERE StartsWith(id, $wholesalePrefix)
+                `;
+                const { resultSets } = await session.executeQuery(query, {
+                    '$wholesalePrefix': TypedValues.utf8('ws_')
+                });
                 
                 let wsOrders = [];
                 if (resultSets[0].rows.length > 0) {
