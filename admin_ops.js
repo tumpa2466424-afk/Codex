@@ -4,6 +4,43 @@ export function installAdminOps(context) {
     UserSystem.adminOpsInstalled = true;
 
     Object.assign(UserSystem, {
+        getAdminOrdersPagerState: function(kind) {
+            if (!this.adminOrdersPager) {
+                this.adminOrdersPager = {
+                    retail: { page: 1, limit: 25 },
+                    wholesale: { page: 1, limit: 25 }
+                };
+            }
+            if (!this.adminOrdersPager[kind]) this.adminOrdersPager[kind] = { page: 1, limit: 25 };
+            return this.adminOrdersPager[kind];
+        },
+
+        goToAdminOrdersPage: function(kind, page) {
+            const pager = this.getAdminOrdersPagerState(kind);
+            pager.page = Math.max(1, parseInt(page, 10) || 1);
+            return kind === 'wholesale' ? this.loadWholesaleOrders() : this.loadRetailOrders();
+        },
+
+        renderAdminOrdersPager: function(kind, data) {
+            const page = Math.max(1, Number(data?.page) || 1);
+            const limit = Math.max(1, Number(data?.limit) || 25);
+            const total = Math.max(0, Number(data?.total) || 0);
+            const totalPages = Math.max(1, Math.ceil(total / limit));
+            if (totalPages <= 1) return '';
+
+            return `
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:14px; padding-top:14px; border-top:1px solid var(--locus-border);">
+                    <div style="font-size:12px; color:var(--locus-dark); opacity:0.75;">
+                        Страница ${page} из ${totalPages} • Всего заказов: ${total}
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <button class="lc-btn lc-btn-secondary" style="padding:8px 12px;" onclick="UserSystem.goToAdminOrdersPage('${kind}', ${page - 1})" ${page <= 1 ? 'disabled' : ''}>Назад</button>
+                        <button class="lc-btn lc-btn-secondary" style="padding:8px 12px;" onclick="UserSystem.goToAdminOrdersPage('${kind}', ${page + 1})" ${page >= totalPages ? 'disabled' : ''}>Вперёд</button>
+                    </div>
+                </div>
+            `;
+        },
+
         deleteUser: async function(userId) {
             const user = this.adminUsersMap?.[userId];
             const userEmail = user?.email || 'выбранного пользователя';
@@ -147,12 +184,21 @@ export function installAdminOps(context) {
             container.innerHTML = '<div class="loader" style="position:relative; top:0; color:var(--locus-dark);">Загрузка заказов...</div>';
 
             const token = localStorage.getItem('locus_token');
+            const pager = this.getAdminOrdersPagerState('wholesale');
             try {
-                const res = await fetch(`${LOCUS_API_URL}?action=getAdminWholesaleOrders`, {
+                const res = await fetch(`${LOCUS_API_URL}?action=getAdminWholesaleOrders&page=${pager.page}&limit=${pager.limit}`, {
                     headers: { 'X-Auth-Token': token }
                 });
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error);
+
+                pager.page = Math.max(1, Number(data.page) || pager.page);
+                pager.limit = Math.max(1, Number(data.limit) || pager.limit);
+
+                if (data.orders.length === 0 && pager.page > 1) {
+                    pager.page -= 1;
+                    return this.loadWholesaleOrders();
+                }
 
                 if (data.orders.length === 0) {
                     container.innerHTML = '<div style="opacity:0.5; text-align:center; padding:20px;">Новых оптовых заказов пока нет</div>';
@@ -228,6 +274,7 @@ export function installAdminOps(context) {
                 });
 
                 html += '</tbody></table></div>';
+                html += this.renderAdminOrdersPager('wholesale', data);
                 container.innerHTML = html;
                 this.startRetailCountdownTicker();
             } catch (error) {
@@ -242,12 +289,21 @@ export function installAdminOps(context) {
             container.innerHTML = '<div class="loader" style="position:relative; top:0; color:var(--locus-dark);">Загрузка заказов...</div>';
 
             const token = localStorage.getItem('locus_token');
+            const pager = this.getAdminOrdersPagerState('retail');
             try {
-                const res = await fetch(`${LOCUS_API_URL}?action=getAdminOrders`, {
+                const res = await fetch(`${LOCUS_API_URL}?action=getAdminOrders&page=${pager.page}&limit=${pager.limit}`, {
                     headers: { 'X-Auth-Token': token }
                 });
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error);
+
+                pager.page = Math.max(1, Number(data.page) || pager.page);
+                pager.limit = Math.max(1, Number(data.limit) || pager.limit);
+
+                if (data.orders.length === 0 && pager.page > 1) {
+                    pager.page -= 1;
+                    return this.loadRetailOrders();
+                }
 
                 if (data.orders.length === 0) {
                     container.innerHTML = '<div style="opacity:0.5; text-align:center; padding:20px;">Новых розничных заказов пока нет</div>';
@@ -325,6 +381,7 @@ export function installAdminOps(context) {
                 });
 
                 html += '</tbody></table></div>';
+                html += this.renderAdminOrdersPager('retail', data);
                 container.innerHTML = html;
                 this.startRetailCountdownTicker();
             } catch (error) {
