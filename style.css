@@ -352,7 +352,11 @@
 }
 
         .info-card {
-            max-width: 100%; opacity: 0;
+            width: 100%;
+            max-width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+            opacity: 0;
             transform: translateY(15px);
             transition: all 0.5s cubic-bezier(0.2, 0, 0.2, 1);
             display: none;
@@ -362,7 +366,7 @@
         @media (min-width: 768px) {
             .info-card {
                 width: 100%;
-                max-width: 760px;
+                max-width: 640px;
             }
         }
 
@@ -376,6 +380,19 @@
             font-size: clamp(22px, 5vw, 38px); font-weight: 500;
             margin: 5px 0 10px 0; line-height: 1.1;
             text-transform: uppercase; letter-spacing: -0.5px;
+        }
+
+        #product-info .cupping-header {
+            max-width: 640px;
+            margin-left: auto;
+            margin-right: auto;
+            text-align: center;
+        }
+
+        #product-info .product-title,
+        #product-info #p-cat-desc,
+        #product-info .simple-desc {
+            text-align: center;
         }
 
         #default-msg .product-title { margin-top: 45px; }
@@ -445,6 +462,11 @@
 
         /* --- СКРЫТОЕ ОПИСАНИЕ --- */
         .simple-desc { font-size: 14px; line-height: 1.6; margin-bottom: 20px; color: var(--locus-dark); }
+        #product-info .simple-desc {
+            max-width: 640px;
+            margin-left: auto;
+            margin-right: auto;
+        }
         .details-toggle-btn {
             background: transparent; border: none; color: var(--locus-accent);
             font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;
