@@ -359,6 +359,13 @@
         }
         .info-card.active { opacity: 1; transform: translateY(0); display: block; }
 
+        @media (min-width: 768px) {
+            .info-card {
+                width: 100%;
+                max-width: 760px;
+            }
+        }
+
         .cupping-header {
             margin-bottom: 25px; 
             margin-top: 40px; 
