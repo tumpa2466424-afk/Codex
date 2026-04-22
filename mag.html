@@ -96,6 +96,10 @@
                     : payload.schema;
 
                 ensureManagedTitle(seo.title || seo.siteName);
+                ensureManagedMeta('meta[name="viewport"]', (meta) => {
+                    meta.name = 'viewport';
+                    meta.content = 'width=device-width, initial-scale=1, viewport-fit=cover';
+                });
                 ensureManagedMeta('meta[name="description"]', (meta) => {
                     meta.name = 'description';
                     meta.content = seo.description || '';
@@ -197,6 +201,19 @@
             const bootStyleId = 'locus-inline-boot-style';
             const bootStylesText = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+    background: #f4f1ea;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
 
 #coffee-shop-wheel.locus-shell-loading {
     position: relative;
