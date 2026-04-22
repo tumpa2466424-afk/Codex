@@ -366,7 +366,7 @@
         @media (min-width: 768px) {
             .info-card {
                 width: 100%;
-                max-width: 640px;
+                max-width: 430px;
             }
         }
 
@@ -383,7 +383,7 @@
         }
 
         #product-info .cupping-header {
-            max-width: 640px;
+            max-width: 430px;
             margin-left: auto;
             margin-right: auto;
             text-align: center;
@@ -463,7 +463,7 @@
         /* --- СКРЫТОЕ ОПИСАНИЕ --- */
         .simple-desc { font-size: 14px; line-height: 1.6; margin-bottom: 20px; color: var(--locus-dark); }
         #product-info .simple-desc {
-            max-width: 640px;
+            max-width: 430px;
             margin-left: auto;
             margin-right: auto;
         }
