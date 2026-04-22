@@ -370,6 +370,15 @@
             }
         }
 
+        @media (min-width: 768px) {
+            .info-area {
+                flex: 0 0 520px;
+                width: 520px;
+                max-width: 520px;
+                padding: 40px 28px 80px 28px;
+            }
+        }
+
         .cupping-header {
             margin-bottom: 25px; 
             margin-top: 40px; 
