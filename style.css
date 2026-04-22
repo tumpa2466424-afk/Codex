@@ -364,18 +364,24 @@
         .info-card.active { opacity: 1; transform: translateY(0); display: block; }
 
         @media (min-width: 768px) {
+            #coffee-shop-wheel {
+                max-width: 1074px;
+            }
+        }
+
+        @media (min-width: 768px) {
             .info-card {
                 width: 100%;
-                max-width: 430px;
+                max-width: 516px;
             }
         }
 
         @media (min-width: 768px) {
             .info-area {
-                flex: 0 0 520px;
-                width: 520px;
-                max-width: 520px;
-                padding: 40px 28px 80px 28px;
+                flex: 0 0 624px;
+                width: 624px;
+                max-width: 624px;
+                padding: 40px 34px 80px 34px;
             }
         }
 
@@ -392,7 +398,7 @@
         }
 
         #product-info .cupping-header {
-            max-width: 430px;
+            max-width: 516px;
             margin-left: auto;
             margin-right: auto;
             text-align: center;
@@ -472,7 +478,7 @@
         /* --- СКРЫТОЕ ОПИСАНИЕ --- */
         .simple-desc { font-size: 14px; line-height: 1.6; margin-bottom: 20px; color: var(--locus-dark); }
         #product-info .simple-desc {
-            max-width: 430px;
+            max-width: 516px;
             margin-left: auto;
             margin-right: auto;
         }
