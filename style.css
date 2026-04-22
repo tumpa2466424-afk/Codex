@@ -371,14 +371,14 @@
 
         @media (min-width: 768px) {
             .top-controls {
-                right: 34px;
+                right: 8px;
             }
         }
 
         @media (min-width: 768px) {
             .info-card {
                 width: 100%;
-                max-width: 556px;
+                max-width: none;
             }
         }
 
@@ -387,7 +387,7 @@
                 flex: 0 0 624px;
                 width: 624px;
                 max-width: 624px;
-                padding: 40px 34px 80px 34px;
+                padding: 40px 8px 80px 24px;
             }
         }
 
@@ -404,7 +404,7 @@
         }
 
         #product-info .cupping-header {
-            max-width: 556px;
+            max-width: none;
             margin-left: auto;
             margin-right: auto;
             text-align: center;
@@ -484,14 +484,15 @@
         /* --- СКРЫТОЕ ОПИСАНИЕ --- */
         .simple-desc { font-size: 14px; line-height: 1.6; margin-bottom: 20px; color: var(--locus-dark); }
         #product-info .simple-desc {
-            max-width: 556px;
+            max-width: none;
             margin-left: auto;
             margin-right: auto;
         }
 
         @media (min-width: 768px) {
             .locus-footer {
-                max-width: 556px;
+                max-width: none;
+                width: 100%;
                 margin-left: auto;
                 margin-right: auto;
             }
