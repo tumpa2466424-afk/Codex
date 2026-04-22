@@ -371,7 +371,7 @@
 
         @media (min-width: 768px) {
             .top-controls {
-                right: 0;
+                right: 18px;
             }
         }
 
@@ -387,7 +387,7 @@
                 flex: 0 0 624px;
                 width: 624px;
                 max-width: 624px;
-                padding: 40px 0 80px 24px;
+                padding: 40px 18px 24px 24px;
             }
         }
 
